@@ -14,6 +14,11 @@ import com.agentickitchen.shared.db.RecipeHistoryRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
+import com.agentickitchen.shared.ai.AiResult
+import com.agentickitchen.shared.ai.StructuredRecipeParser
+import com.agentickitchen.shared.ai.prompt.PromptFactory
+import com.agentickitchen.shared.scheduler.TargetTimeChoice
+import com.agentickitchen.shared.validator.CookingPlanValidator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -239,43 +244,17 @@ class AppViewModel(
             _planState.value = PlanState.Loading
             try {
                 executeAiWithProvider { provider ->
-                    var prompt = "Şu malzemelerle (${_chips.value.joinToString(", ")}), ve şu ekipmanlarla (${_selectedEquipment.value.joinToString(", ")}) yapılabilecek 3 farklı yemek öner. Öneriler şu formatta olmalı (başka hiçbir metin yazma, sadece bu formatı tekrarla):\n" +
-                            "1|En Kolay|Yemek Adı|Açıklama\n" +
-                            "2|Comfort Food|Yemek Adı|Açıklama\n" +
-                            "3|Sofistike|Yemek Adı|Açıklama"
-                    if (isRefresh && lastOptions.isNotEmpty()) {
-                        val prevNames = lastOptions.joinToString(", ") { it.name }
-                        prompt += "\nÖNEMLİ NOT: Daha önce '$prevNames' seçeneklerini önermiştin. Lütfen bu kez onlardan tamamen FARKLI 3 yeni yemek alternatifi üret."
-                    }
-                    AppLogger.aiRequest("Options", prompt)
-                    val responseText = provider.generateContent(prompt) ?: ""
-                    AppLogger.aiResponse("Options", responseText)
-                    val lines = responseText.split("\n").filter { it.contains("|") }
-                    if (lines.size >= 3) {
-                        val options = lines.take(3).map { line ->
-                            val parts = line.split("|")
-                            RecipeOption(parts[0].trim(), parts[1].trim(), parts[2].trim(), parts.getOrNull(3)?.trim() ?: "")
-                        }
-                        lastOptions = options
-                        _planState.value = PlanState.OptionsReady(options)
-                    } else {
-                        throw Exception("Invalid format — satır sayısı: ${lines.size}")
-                    }
+                    val prompt = PromptFactory.recipeOptionsPrompt(_chips.value, _selectedEquipment.value, dietSettings.value.dietType, dietSettings.value.allergies, language.value)
+                    val parsed = StructuredRecipeParser.recipeOptions(provider.generateContent(prompt).orEmpty())
+                    val response = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
+                    if (response.options.size != 3 || response.options.map { it.id }.toSet().size != 3 || response.options.any { it.id.isBlank() || it.name.isBlank() || it.estimatedMinutes <= 0 }) throw IllegalArgumentException("Invalid recipe options")
+                    lastOptions = response.options.map { RecipeOption(it.id, it.difficulty, it.name, it.summary) }
+                    _planState.value = PlanState.OptionsReady(lastOptions)
                 }
             } catch (e: Exception) {
                 AppLogger.aiError("Options", e)
                 val msg = e.message ?: ""
-                if (msg.contains("API_KEY_MISSING")) {
-                    AppLogger.w("Session", "Gemini model null — fallback (mock) modunda devam")
-                    val main = _chips.value.firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "Malzeme"
-                    val options = listOf(
-                        RecipeOption("opt1", "En Kolay", "Pratik $main Tavası", "Tek tavada halledebileceğin, sıfır mutfak bilgisi gerektiren, risksiz ve hızlı çözüm."),
-                        RecipeOption("opt2", "Comfort Food", "Kremalı $main Tabağı", "Yoğun lezzet, bol kalori. Kendini şımartmak istediğinde seçeceğin garantili lezzet bombası."),
-                        RecipeOption("opt3", "Sofistike", "Karamelize $main", "Isı kontrolünün ve zamanlamanın kritik olduğu, restoran kalitesinde üst düzey bir tabak.")
-                    )
-                    lastOptions = options
-                    _planState.value = PlanState.OptionsReady(options)
-                } else if (msg.contains("quota", ignoreCase = true) || msg.contains("rate", ignoreCase = true) || msg.contains("429")) {
+                if (msg.contains("quota", ignoreCase = true) || msg.contains("rate", ignoreCase = true) || msg.contains("429")) {
                     _aiError.value = "QUOTA_EXCEEDED"
                     val errorMsg = "Ajan hata verdi: API Kotası Doldu (High Demand)"
                     emitUiEvent(errorMsg)
@@ -304,7 +283,34 @@ class AppViewModel(
         startSession(isRefresh = true)
     }
 
-    fun selectRecipeOption(option: RecipeOption, targetTime: String) {
+    fun selectRecipeOption(option: RecipeOption, choice: TargetTimeChoice) {
+        viewModelScope.launch {
+            _planState.value = PlanState.Loading
+            try {
+                executeAiWithProvider { provider ->
+                    val hw = _hw.value
+                    val prompt = PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, hw.servingSize, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value)
+                    val parsed = StructuredRecipeParser.cookingPlan(provider.generateContent(prompt).orEmpty())
+                    val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
+                    val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, hw.servingSize).validate(plan)
+                    if (!validation.valid) throw IllegalArgumentException(validation.errors.joinToString { it.message })
+                    val target = targetTimeResolver.resolve(choice).getOrElse { throw it }
+                    val session = RecipeSession(UUID.randomUUID().toString(), target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
+                    val result = orchestrator.startSession(session)
+                    historyRepo.insertRecipe(session.sessionId, option.name, plan.ingredients.joinToString { "${it.quantity} ${it.unit} ${it.name}" }, ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), "started")
+                    loadHistory()
+                    _planState.value = PlanState.RecipeActive(option, result.events)
+                }
+            } catch (e: Exception) {
+                val message = e.message ?: "Unable to create a valid cooking plan. Please retry."
+                emitUiEvent(message)
+                _planState.value = PlanState.Error(message)
+            }
+        }
+    }
+
+    @Deprecated("Replaced by structured JSON cooking plans")
+    private fun legacySelectRecipeOption(option: RecipeOption, targetTime: String) {
         viewModelScope.launch {
             _planState.value = PlanState.Loading
             try {
@@ -387,7 +393,7 @@ class AppViewModel(
     }
 
     private fun getActiveProvider(): LlmProvider? {
-        return providerFactory.provider(_hw.value)
+        return providerFactory.provider(_hw.value.copy(aiProvider = "GEMINI"))
     }
 
     private suspend fun <T> executeAiWithProvider(action: suspend (LlmProvider) -> T): T {
@@ -607,6 +613,14 @@ class AppViewModel(
 
     private fun loadHardwareSettings(): HardwareSettings {
         return prefs.hardwareSettings()
+    }
+
+    private fun quantityToGrams(quantity: Double, unit: String): Int = when (unit.lowercase()) {
+        "kg" -> (quantity * 1000).toInt()
+        "g" -> quantity.toInt()
+        "ml" -> quantity.toInt()
+        "l" -> (quantity * 1000).toInt()
+        else -> quantity.toInt().coerceAtLeast(1)
     }
 
 

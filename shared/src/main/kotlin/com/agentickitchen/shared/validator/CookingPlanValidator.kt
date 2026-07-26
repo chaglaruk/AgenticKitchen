@@ -79,6 +79,7 @@ class CookingPlanValidator(
     }
 
     private fun validateSteps(plan: CookingPlanResponse, errors: MutableList<ValidationError>, warnings: MutableList<String>) {
+        if (plan.steps.isEmpty()) errors.add(ValidationError(ErrorType.MISSING_INGREDIENT, "steps", "Plan has no steps"))
         val stepIds = mutableSetOf<String>()
         val stepMap = plan.steps.associateBy { it.id }
 
@@ -106,6 +107,7 @@ class CookingPlanValidator(
     }
 
     private fun validateResource(step: CookingStepDto, index: Int, errors: MutableList<ValidationError>) {
+        if (step.instruction.isBlank()) errors.add(ValidationError(ErrorType.MISSING_INGREDIENT, "steps[$index].instruction", "Step instruction is empty"))
         if (step.resource !in knownResources) {
             errors.add(
                 ValidationError(
@@ -135,6 +137,9 @@ class CookingPlanValidator(
                     "Step '${step.id}' requires airfryer but user has no airfryer"
                 )
             )
+        }
+        if (step.resource in setOf("stove", "pan", "pot") && availableEquipment.none { it in setOf("stove", "elec", "gas", "camping", "pan") }) {
+            errors.add(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[$index].resource", "Step '${step.id}' requires stove equipment"))
         }
     }
 
@@ -287,10 +292,10 @@ class CookingPlanValidator(
 
     private fun validateDietAndAllergens(plan: CookingPlanResponse, errors: MutableList<ValidationError>, warnings: MutableList<String>) {
         if (dietType == "vegan" && plan.ingredients.any { it.name.lowercase() in setOf("meat", "chicken", "fish", "egg", "egg", "milk", "cheese", "butter", "cream", "yogurt", "honey") }) {
-            warnings.add("Plan contains animal products but user selected vegan diet")
+            errors.add(ValidationError(ErrorType.DIET_CONFLICT, "ingredients", "Plan conflicts with vegan diet"))
         }
         if (dietType == "vegetarian" && plan.ingredients.any { it.name.lowercase() in setOf("meat", "chicken", "fish", "beef", "pork", "lamb") }) {
-            warnings.add("Plan contains meat but user selected vegetarian diet")
+            errors.add(ValidationError(ErrorType.DIET_CONFLICT, "ingredients", "Plan conflicts with vegetarian diet"))
         }
 
         val recipeIngredientNames = plan.ingredients.map { it.name.lowercase() }.toSet()

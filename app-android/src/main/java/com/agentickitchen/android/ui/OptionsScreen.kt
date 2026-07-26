@@ -41,6 +41,9 @@ import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.shared.models.PantryIntelReport
+import com.agentickitchen.shared.scheduler.TargetTimeChoice
+import java.time.Duration
+import java.time.LocalTime
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -50,7 +53,7 @@ fun OptionsScreen(
     pantryIntel: PantryIntelReport,
     onStart: () -> Unit,
     onRefresh: () -> Unit,
-    onSelectOption: (RecipeOption, String) -> Unit,
+    onSelectOption: (RecipeOption, TargetTimeChoice) -> Unit,
     onBackToOptions: () -> Unit
 ) {
     val colors = LocalAppColors.current
@@ -201,7 +204,7 @@ fun OptionsScreen(
                         }
                         Button(
                             onClick = {
-                                onSelectOption(selectedOptionForTime!!, targetTimeInput)
+                                onSelectOption(selectedOptionForTime!!, targetTimeChoice(targetTimeInput))
                                 selectedOptionForTime = null
                             },
                             colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
@@ -214,6 +217,15 @@ fun OptionsScreen(
             }
         }
     }
+}
+
+internal fun targetTimeChoice(label: String): TargetTimeChoice = when {
+    label.contains("20") -> TargetTimeChoice.After(Duration.ofMinutes(20))
+    label.contains("45") -> TargetTimeChoice.After(Duration.ofMinutes(45))
+    label.contains("1 Saat") || label.contains("1 Hour") -> TargetTimeChoice.After(Duration.ofHours(1))
+    label.contains("Ak") || label.contains("Evening") -> TargetTimeChoice.ThisEvening
+    label.contains("Farketmez") || label.contains("Flexible") -> TargetTimeChoice.Flexible
+    else -> TargetTimeChoice.Exact(LocalTime.parse(label))
 }
 
 @Composable
