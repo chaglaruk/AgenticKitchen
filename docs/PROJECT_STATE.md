@@ -1,48 +1,27 @@
-# Project State — Agentic Kitchen
+# Project State
 
-## Verified Baseline
+Last reconciled against PR #1 branch head `97fdcd2` on 2026-07-26.
 
-| Property | Value |
-|----------|-------|
-| Current main SHA | `db16344` |
-| Current branch | `refactor/agentic-kitchen-production-foundation` |
-| Last validated commands | `./gradlew :shared:test` (49 passed), `./gradlew :app-android:compileDebugKotlin` |
-| Remote | `https://github.com/chaglaruk/AgenticKitchen.git` |
+## Implemented and integrated
 
-## Working Features
+- The Android runtime presents setup, ingredient, options, operations, and settings screens.
+- The current `AppViewModel` loads setup data from `agentic_prefs`, creates a SQLDelight database, and reads/writes recipe history.
+- Existing provider calls, legacy prompt construction, and legacy recipe parsing are still the active AI path.
 
-- Multi-provider AI with typed AiResult contract
-- Structured RecipeOptionsResponse and CookingPlanResponse DTOs
-- Deterministic CookingPlanValidator (19 validation rules, 19 tests)
-- TargetTimeResolver with DST/timezone support
-- DurationFormatter (EN/TR human-readable)
-- SQLDelight recipe history persistence
-- Encrypted credential storage (SecureCredentialStore)
-- Build-type aware logging (file disabled in release)
-- 4-color theme system (Green, Blue, Orange, Dark)
-- Turkish / English string resources
-- Deterministic ingredient substitution (SimpleIngredientAgent)
-- Pantry intel analysis (SimplePantryIntelAgent)
-- Backward scheduling (SimpleTimingAgent)
+## Foundation only
 
-## Experimental Features
+- `AppContainer`, `PreferencesManager`, `DatabaseManager`, and `SecureCredentialStore` are not the dependency path used by `AppViewModel`.
+- `AiResult<T>`, structured DTOs, `PromptFactory`, `CookingPlanValidator`, `TargetTimeChoice`, and `TargetTimeResolver` have no production call path.
+- Android string resources exist, but the runtime still uses the `L` object and hardcoded display text.
 
-- Camera vision ingredient scanning (requires Gemini API key)
-- DuckDuckGo provider (SSE-based, experimental)
-- Pollinations.ai free provider (rate-limited)
+## Experimental
 
-## Blockers
+- Vision and free-provider paths are runtime-reachable but have not met the required privacy, confirmation, or reliability criteria.
 
-- AGP 8.1.4 not tested with compileSdk 36 (warning suppressed in gradle.properties)
-- AppViewModel still contains direct SharedPreferences and SQLDelight driver creation (migration to AppContainer in progress)
-- Some strings still hardcoded in L object within AppViewModel (migration to string resources in progress)
-- No notification system implemented yet
-- No Compose UI tests yet
+## Planned
 
-## Next Actions
+- Keystore-backed credential storage with migration, runtime AI integration and validation, complete localization, cooking sessions, history UI, and notifications.
 
-1. Complete AppViewModel refactor to use AppContainer exclusively
-2. Add notification system with foreground service
-3. Add Compose UI tests
-4. Complete migration from L object to string resources
-5. Add CI badge to README
+## Known compatibility blocker
+
+The branch currently combines API 36 with AGP 8.1.4 and suppresses the unsupported-SDK warning. This is not a release-ready build matrix and is the next build-health task.

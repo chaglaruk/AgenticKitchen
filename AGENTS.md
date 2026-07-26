@@ -1,58 +1,31 @@
-# AGENTS.md — Agentic Kitchen AI Agent Rules
+# AGENTS.md — Agentic Kitchen Rules
 
-## Context
+## Status definitions
 
-Agentic Kitchen is an **Android (Kotlin/Jetpack Compose) smart chef assistant** with:
-- Kotlin shared domain module (JVM, NOT Kotlin Multiplatform)
-- Gradle 8.9, AGP 8.1.4, Kotlin 1.9.21, compileSdk 36
-- Structured AI output (JSON DTOs), not raw pipe-delimited text
-- Deterministic plan validation before UI display
-- Encrypted credential storage (EncryptedSharedPreferences)
-- Build-type aware logging (file/content logging disabled in release)
+- **Implemented and integrated:** used by the actual application runtime.
+- **Foundation only:** class or contract exists but is not wired into the runtime.
+- **Experimental:** runtime integration exists but reliability is not production-grade.
+- **Planned:** not implemented.
 
-## Critical Architecture Rules
+Do not call a foundation-only feature a working feature.
 
-### Domain vs Presentation
-- `shared/` = domain logic ONLY: agents, models, AI contracts, validators, resolvers
-- `app-android/` = Android-specific: UI, DI container, data layer, security
-- ViewModel must NOT create SQLDelight driver, provider instances, or access SharedPreferences directly
-- Domain models must NOT depend on Android SDK
-- UI models (DTOs) are separate from domain models
+## Architecture
 
-### AI Output
-- ALL AI output must use `AiResult<T>` sealed interface (Success/Failure)
-- ALL AI DTOs are defined in `shared/.../ai/dto/` with `@Serializable` schemas
-- No raw `|` pipe-delimited parsing
-- LLM output must pass through `CookingPlanValidator` before use
-- Prompt strings live in `PromptFactory`, not scattered across ViewModel
+- `shared/` contains JVM domain logic only; it must not depend on Android.
+- `app-android/` contains UI, DI, storage, and Android integrations.
+- `AgenticKitchenApp` owns one `AppContainer`; the ViewModel receives dependencies through a factory.
+- The ViewModel must not create drivers, databases, providers, HTTP clients, validators, or direct SharedPreferences access.
+- All runtime LLM output uses `AiResult<T>`, structured DTOs, centralized parsing, and `CookingPlanValidator` before scheduling, persistence, or display.
 
-### Security
-- API keys: use `SecureCredentialStore` (EncryptedSharedPreferences), NEVER plaintext SharedPreferences
-- Never log credential values, key lengths, or user prompts in release builds
-- Vision images: never persist to disk, never log, destroy after use
-- `android:allowBackup=false` — sensitive data excluded from backup
+## Security
 
-### Testing
-- Validator tests: 15+ cases covering all error types
-- Shared tests run with `./gradlew :shared:test`
-- Android tests with `./gradlew :app-android:testDebugUnitTest`
-- Do NOT mark "done" without running tests first
+- Credentials use Android Keystore authenticated encryption, never plaintext preferences or SQLDelight.
+- Never log credential material or length, prompts, AI responses, ingredients, questions, or image content in release builds.
+- Vision images are never persisted or logged and require disclosure and confirmation.
+- Keep `android:allowBackup=false`; exclude sensitive blobs and metadata from backup/device transfer.
 
-### Git
-- No force push (`--force` or `--force-with-lease`)
-- Current implementation plan authority: `docs/IMPLEMENTATION_PLAN.md`
-- Documentation must reflect actual code state, not aspirations
+## Testing and Git
 
-## Commands
-
-```bash
-# Build + test
-./gradlew :shared:test
-./gradlew :app-android:testDebugUnitTest
-./gradlew :app-android:compileDebugKotlin
-./gradlew :app-android:lintDebug
-./gradlew :app-android:assembleDebug
-./gradlew build
-git diff --check
-git status --short
-```
+- Run the relevant tests before declaring work done; use `./gradlew :shared:test` and `./gradlew :app-android:testDebugUnitTest` at minimum.
+- Use `docs/IMPLEMENTATION_PLAN.md` as the implementation-plan authority and document only verified runtime state.
+- Do not force-push, create a second PR, merge PR #1, or mark it ready until the requested review stage.
