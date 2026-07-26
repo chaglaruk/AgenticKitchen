@@ -7,7 +7,7 @@ Status terms are strict: **Implemented and integrated** means a production entry
 | Area | Status | Evidence / gap |
 |---|---|---|
 | Core Compose screens and legacy flow | Implemented and integrated | `MainActivity` creates `AppViewModel`; it drives the screens. |
-| AppContainer and dependency ownership | Foundation only | `AppViewModel` still creates preferences and SQLDelight directly. |
+| AppContainer and dependency ownership | Implemented and integrated | `AgenticKitchenApp` → `AppContainer` → `AppViewModelFactory` → injected `AppViewModel`; JVM fake-dependency tests cover loading and delegation. |
 | Secure credentials | Foundation only | `SecureCredentialStore` is unused; plaintext credential keys remain in the ViewModel path. |
 | Typed target time | Foundation only | UI passes a `String`; `buildTargetIso` parses it. |
 | Structured AI and validation | Foundation only | legacy providers/parsers remain the runtime path. |
@@ -20,7 +20,7 @@ Status terms are strict: **Implemented and integrated** means a production entry
 - [x] Replace the unsupported API-36 build matrix; remove the SDK-warning suppression and document the verified matrix.
 - [x] Modernize CI with PR-range whitespace checking, supported Gradle setup, mandatory build stages, reports, and no broad lint baseline.
 - [ ] Triage each visible lint warning: fix it or add a narrow, documented justification.
-- [ ] Make `AppContainer` the single owner of preferences, database, providers, validators, and closeable resources; inject `AppViewModel` through a factory.
+- [x] Make `AppContainer` the single owner of runtime preferences, database, repositories, agents, legacy providers, and closeable resources; inject `AppViewModel` through a factory. Validator runtime integration remains separate.
 - [ ] Replace plaintext credential use with Android-Keystore AEAD storage and one-time migration.
 - [ ] Define an explicit logging policy; make release logs metadata-only and non-sensitive.
 - [ ] Wire typed target-time choices from UI through `TargetTimeResolver`; remove string parsing.

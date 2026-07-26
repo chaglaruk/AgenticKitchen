@@ -15,7 +15,8 @@ Android smart-chef assistant built with Kotlin and Jetpack Compose.
 
 - Ingredient entry, pantry analysis, setup/preferences, themes, and local Compose navigation.
 - Legacy AI-provider calls and legacy recipe-option/cooking-plan flow.
-- SQLDelight recipe-history reads and writes from the current ViewModel.
+- App-owned dependency injection: `AgenticKitchenApp` → `AppContainer` → `AppViewModelFactory` → `AppViewModel`.
+- Typed settings and SQLDelight recipe-history access through injected abstractions.
 
 ### Experimental
 
@@ -24,7 +25,6 @@ Android smart-chef assistant built with Kotlin and Jetpack Compose.
 
 ### Foundation only
 
-- `AppContainer`, `PreferencesManager`, and `DatabaseManager`: the ViewModel still creates its own preferences and database.
 - `SecureCredentialStore`: credentials are still loaded from ordinary preferences; the current implementation also relies on deprecated AndroidX crypto APIs.
 - `AiResult<T>`, provider architecture, structured DTOs, `PromptFactory`, and `CookingPlanValidator`: classes exist, but the runtime still uses legacy provider and parsing paths.
 - `TargetTimeChoice` and `TargetTimeResolver`: classes and unit tests exist, but option selection still passes a string and the ViewModel parses it.

@@ -1,16 +1,17 @@
 # Project State
 
-Last reconciled against PR #1 branch head `97fdcd2` on 2026-07-26.
+Last reconciled against PR #1 after the dependency-ownership slice on 2026-07-26.
 
 ## Implemented and integrated
 
 - The Android runtime presents setup, ingredient, options, operations, and settings screens.
-- The current `AppViewModel` loads setup data from `agentic_prefs`, creates a SQLDelight database, and reads/writes recipe history.
+- `AgenticKitchenApp` owns one `AppContainer`; `MainActivity` uses its `AppViewModelFactory` to inject the ViewModel.
+- Typed `AppPreferences`, the single SQLDelight driver/database, `RecipeHistoryRepository`, deterministic agents, and legacy provider factory are the runtime dependency path.
 - Existing provider calls, legacy prompt construction, and legacy recipe parsing are still the active AI path.
 
 ## Foundation only
 
-- `AppContainer`, `PreferencesManager`, `DatabaseManager`, and `SecureCredentialStore` are not the dependency path used by `AppViewModel`.
+- `SecureCredentialStore` is not the credential runtime path. Plaintext credential compatibility remains a later security migration.
 - `AiResult<T>`, structured DTOs, `PromptFactory`, `CookingPlanValidator`, `TargetTimeChoice`, and `TargetTimeResolver` have no production call path.
 - Android string resources exist, but the runtime still uses the `L` object and hardcoded display text.
 

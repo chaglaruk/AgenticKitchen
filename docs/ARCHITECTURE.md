@@ -2,13 +2,15 @@
 
 ## Current runtime
 
-`MainActivity` obtains `AppViewModel` through the default Android factory. The ViewModel currently owns ordinary preferences, a SQLDelight driver/database, legacy providers, prompt construction, legacy parsing, and target-time string parsing. This violates the intended ownership boundary and is being removed.
+`AgenticKitchenApp` creates one `AppContainer`. `MainActivity` creates `AppViewModel` through `AppViewModelFactory.from(container)`. The ViewModel receives typed preferences, history repository, orchestration, pantry intelligence, provider factory, and resolver dependencies; it does not create Android storage, SQLDelight, agents, or providers.
 
 The shared module is a Kotlin/JVM domain module, not Kotlin Multiplatform.
 
-## Foundation classes not yet integrated
+## Implemented runtime ownership
 
-`AgenticKitchenApp` creates `AppContainer`; however, `MainActivity` does not use that container to construct the ViewModel. `PreferencesManager`, `DatabaseManager`, `SecureCredentialStore`, `TargetTimeResolver`, `AiResult`, structured DTOs, `PromptFactory`, and `CookingPlanValidator` therefore have no current production call path.
+`AppContainer` owns the Android preference implementation, one SQLDelight driver/database, the history repository, deterministic agents/orchestrator, `TargetTimeResolver`, legacy provider factory, and credential-store foundation. Provider and vision clients are cached by configuration and closed through the container's testable `close()` method; production keeps the container for application lifetime. `DatabaseManager` was removed as a duplicate owner.
+
+`SecureCredentialStore`, `AiResult`, structured DTOs, `PromptFactory`, and `CookingPlanValidator` remain foundation-only because the legacy runtime does not invoke them. `TargetTimeResolver` is container-provided but the typed target-time UI is still foundation-only.
 
 ## Required target ownership
 
