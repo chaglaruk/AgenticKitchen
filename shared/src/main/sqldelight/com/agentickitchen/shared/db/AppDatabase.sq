@@ -1,0 +1,20 @@
+CREATE TABLE RecipeHistory (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    ingredients TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    status TEXT NOT NULL
+);
+
+selectAll:
+SELECT * FROM RecipeHistory ORDER BY timestamp DESC;
+
+insertRecipe:
+INSERT OR REPLACE INTO RecipeHistory(id, name, ingredients, timestamp, status)
+VALUES (?, ?, ?, ?, ?);
+
+deleteRecipe:
+DELETE FROM RecipeHistory WHERE id = ?;
+
+clearHistory:
+DELETE FROM RecipeHistory;

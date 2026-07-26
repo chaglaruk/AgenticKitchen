@@ -1,0 +1,125 @@
+[
+  {
+    "id": "mantar",
+    "name": "Mantar",
+    "category": "vegetable",
+    "raw_density_g_per_ml": 0.9,
+    "cooked_mass_loss_pct": 90,
+    "water_content_pct": 92,
+    "default_methods": {
+      "saute": { "time_per_100g_at_heat_level": 90, "optimal_heat_level": 8 },
+      "roast": { "time_per_100g_at_temp": 30, "optimal_temp_c": 200 }
+    },
+    "flavor_vector": { "umami":0.8, "salt":0.05, "sweet":0.02, "bitter":0.01 },
+    "substitutions": [],
+    "allergen": false
+  },
+  {
+    "id": "tavuk_gogus",
+    "name": "Tavuk Göğsü",
+    "category": "protein",
+    "raw_density_g_per_ml": 1.03,
+    "cooked_mass_loss_pct": 20,
+    "water_content_pct": 70,
+    "default_methods": { "roast": { "time_per_100g_at_temp": 25, "optimal_temp_c": 190 } },
+    "flavor_vector": { "umami":0.6, "salt":0.03, "sweet":0.01, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": false
+  },
+  {
+    "id": "patates",
+    "name": "Patates",
+    "category": "starch",
+    "raw_density_g_per_ml": 0.8,
+    "cooked_mass_loss_pct": 15,
+    "water_content_pct": 78,
+    "default_methods": { "boil": { "time_per_100g_at_temp": 12 } },
+    "flavor_vector": { "umami":0.2, "salt":0.01, "sweet":0.04, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": false
+  },
+  {
+    "id": "sogan",
+    "name": "Soğan",
+    "category": "vegetable",
+    "raw_density_g_per_ml": 0.95,
+    "cooked_mass_loss_pct": 10,
+    "water_content_pct": 89,
+    "default_methods": { "saute": { "time_per_100g_at_heat_level": 60, "optimal_heat_level": 6 } },
+    "flavor_vector": { "umami":0.2, "salt":0.01, "sweet":0.06, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": false
+  },
+  {
+    "id": "sarimsak",
+    "name": "Sarımsak",
+    "category": "aroma",
+    "raw_density_g_per_ml": 1.1,
+    "cooked_mass_loss_pct": 5,
+    "water_content_pct": 58,
+    "default_methods": { "saute": { "time_per_100g_at_heat_level": 30, "optimal_heat_level": 5 } },
+    "flavor_vector": { "umami":0.3, "salt":0.01, "sweet":0.01, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": false
+  },
+  {
+    "id": "domates",
+    "name": "Domates",
+    "category": "vegetable",
+    "raw_density_g_per_ml": 0.95,
+    "cooked_mass_loss_pct": 25,
+    "water_content_pct": 94,
+    "default_methods": { "sauce": { "time_per_100g_at_temp": 40 } },
+    "flavor_vector": { "umami":0.4, "salt":0.02, "sweet":0.03, "bitter":0.01 },
+    "substitutions": [],
+    "allergen": false
+  },
+  {
+    "id": "biber",
+    "name": "Biber",
+    "category": "vegetable",
+    "raw_density_g_per_ml": 0.95,
+    "cooked_mass_loss_pct": 12,
+    "water_content_pct": 92,
+    "default_methods": { "saute": { "time_per_100g_at_heat_level": 70, "optimal_heat_level": 7 } },
+    "flavor_vector": { "umami":0.2, "salt":0.01, "sweet":0.02, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": false
+  },
+  {
+    "id": "un",
+    "name": "Un",
+    "category": "baking",
+    "raw_density_g_per_ml": 0.59,
+    "cooked_mass_loss_pct": 0,
+    "water_content_pct": 12,
+    "default_methods": {},
+    "flavor_vector": { "umami":0.0, "salt":0.0, "sweet":0.0, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": true
+  },
+  {
+    "id": "yumurta",
+    "name": "Yumurta",
+    "category": "protein",
+    "raw_density_g_per_ml": 1.03,
+    "cooked_mass_loss_pct": 10,
+    "water_content_pct": 74,
+    "default_methods": { "boil": { "time_per_100g_at_temp": 8 } },
+    "flavor_vector": { "umami":0.3, "salt":0.01, "sweet":0.0, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": true
+  },
+  {
+    "id": "tereyagi",
+    "name": "Tereyağı",
+    "category": "fat",
+    "raw_density_g_per_ml": 0.9,
+    "cooked_mass_loss_pct": 0,
+    "water_content_pct": 15,
+    "default_methods": { "saute": { "time_per_100g_at_heat_level": 30, "optimal_heat_level": 4 } },
+    "flavor_vector": { "umami":0.1, "salt":0.0, "sweet":0.0, "bitter":0.0 },
+    "substitutions": [],
+    "allergen": false
+  }
+]

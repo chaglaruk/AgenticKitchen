@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Curated Manuscripts - The Kitchen Codex</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&amp;family=Work+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#3e465e",
+                        "on-primary-fixed": "#131b30",
+                        "outline": "#76777e",
+                        "on-tertiary-fixed": "#1b1c1a",
+                        "on-surface": "#1b1c1c",
+                        "on-error": "#ffffff",
+                        "tertiary": "#0c0d0b",
+                        "on-primary-container": "#8189a4",
+                        "primary-fixed-dim": "#bec6e3",
+                        "tertiary-fixed": "#e4e2de",
+                        "tertiary-container": "#222321",
+                        "surface-tint": "#565e77",
+                        "surface-container": "#f0eded",
+                        "on-surface-variant": "#45464d",
+                        "on-secondary-fixed-variant": "#82252a",
+                        "outline-variant": "#c6c6cd",
+                        "secondary-fixed-dim": "#ffb3b1",
+                        "secondary-container": "#ff8484",
+                        "surface-variant": "#e4e2e1",
+                        "on-tertiary-container": "#8a8a87",
+                        "on-tertiary-fixed-variant": "#474744",
+                        "secondary": "#a13c3f",
+                        "on-secondary": "#ffffff",
+                        "primary": "#040c21",
+                        "inverse-on-surface": "#f3f0f0",
+                        "surface-container-highest": "#e4e2e1",
+                        "on-background": "#1b1c1c",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "primary-fixed": "#dae2ff",
+                        "on-secondary-fixed": "#410007",
+                        "inverse-primary": "#bec6e3",
+                        "primary-container": "#1a2238",
+                        "inverse-surface": "#303030",
+                        "secondary-fixed": "#ffdad8",
+                        "surface-container-high": "#eae7e7",
+                        "surface": "#fcf9f8",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#c8c6c3",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "background": "#fcf9f8",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-dim": "#dcd9d9",
+                        "surface-bright": "#fcf9f8",
+                        "on-secondary-container": "#751c22",
+                        "surface-container-low": "#f6f3f2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "unit": "8px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "container-max": "1200px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Newsreader"],
+                        "title-sm": ["Newsreader"],
+                        "display-lg": ["Newsreader"],
+                        "body-md": ["Work Sans"],
+                        "label-caps": ["Work Sans"],
+                        "data-mono": ["Work Sans"],
+                        "body-lg": ["Work Sans"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "title-sm": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600" }],
+                        "data-mono": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .paper-texture {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+        }
+        .inset-line {
+            box-shadow: inset 0 0 0 1px rgba(27, 28, 28, 0.1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background paper-texture min-h-screen flex flex-col relative pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full px-6 py-4 bg-[#F5F2EA] dark:bg-stone-950 text-[#1A2238] dark:text-stone-100 font-serif Newsreader italic leading-relaxed text-2xl font-bold tracking-tighter uppercase docked full-width top-0 border-b border-[#1A2238]/10 double-rule-bottom border-b-[0.5pt] border-[#1A2238]/20 flat no shadows tonal-layering">
+<button class="flex items-center justify-center p-2 hover:bg-[#1A2238]/5 transition-colors rounded-none scale-95 duration-150">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<span class="font-headline-md text-headline-md">THE KITCHEN CODEX</span>
+<div class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant hover:bg-[#1A2238]/5 transition-colors scale-95 duration-150 flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="person">person</span>
+</div>
+</header>
+<main class="flex-grow container mx-auto px-margin-mobile md:px-margin-desktop py-12 max-w-container-max">
+<div class="text-center mb-16">
+<h1 class="font-display-lg text-display-lg text-primary mb-4">Curated Manuscripts</h1>
+<div class="w-24 border-t-2 border-primary mx-auto mb-6 opacity-80"></div>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto italic font-serif">Select your approach for this evening's service. Each path offers a distinct culinary journey, tailored to your available time and desired complexity.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Option 1: The Quick Study -->
+<article class="bg-surface relative inset-line p-8 flex flex-col items-center text-center transition-transform hover:-translate-y-1 duration-300">
+<div class="absolute top-4 left-4 right-4 bottom-4 border border-outline-variant opacity-30 pointer-events-none"></div>
+<div class="absolute top-2 left-2 right-2 bottom-2 border border-outline-variant opacity-10 pointer-events-none"></div>
+<span class="material-symbols-outlined text-4xl text-primary mb-6" data-icon="timer">timer</span>
+<h2 class="font-headline-md text-headline-md text-primary mb-2">The Quick Study</h2>
+<div class="flex items-center gap-2 mb-6">
+<span class="font-data-mono text-data-mono text-on-surface-variant bg-surface-container px-2 py-1">15 min</span>
+<span class="text-outline-variant">•</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase">Beginner</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8 flex-grow">Efficient, high-impact techniques. Minimal active cooking time focusing on ingredient quality over complex preparation. Ideal for deliberate weekday dining.</p>
+<div class="w-full border-t border-outline-variant opacity-30 mb-6"></div>
+<button class="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase tracking-widest py-4 px-6 hover:bg-tertiary transition-colors">
+                    Adopt Plan
+                </button>
+</article>
+<!-- Option 2: Traditional Comfort -->
+<article class="bg-surface-container-low relative inset-line p-8 flex flex-col items-center text-center transition-transform hover:-translate-y-1 duration-300 shadow-sm">
+<div class="absolute top-4 left-4 right-4 bottom-4 border border-primary opacity-20 pointer-events-none"></div>
+<div class="absolute top-2 left-2 right-2 bottom-2 border border-primary opacity-10 pointer-events-none"></div>
+<span class="material-symbols-outlined text-4xl text-primary mb-6" data-icon="restaurant">restaurant</span>
+<h2 class="font-headline-md text-headline-md text-primary mb-2">Traditional Comfort</h2>
+<div class="flex items-center gap-2 mb-6">
+<span class="font-data-mono text-data-mono text-on-surface-variant bg-surface-container px-2 py-1">45 min</span>
+<span class="text-outline-variant">•</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase">Intermediate</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8 flex-grow">The foundational canon of home cooking. Requires focused attention and standard heritage techniques. Yields familiar, robust flavor profiles.</p>
+<div class="w-full border-t border-primary opacity-30 mb-6"></div>
+<button class="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase tracking-widest py-4 px-6 hover:bg-tertiary transition-colors border border-primary">
+                    Adopt Plan
+                </button>
+</article>
+<!-- Option 3: The Masterpiece -->
+<article class="bg-surface relative inset-line p-8 flex flex-col items-center text-center transition-transform hover:-translate-y-1 duration-300">
+<div class="absolute top-4 left-4 right-4 bottom-4 border border-outline-variant opacity-30 pointer-events-none"></div>
+<div class="absolute top-2 left-2 right-2 bottom-2 border border-outline-variant opacity-10 pointer-events-none"></div>
+<span class="material-symbols-outlined text-4xl text-primary mb-6" data-icon="local_fire_department">local_fire_department</span>
+<h2 class="font-headline-md text-headline-md text-primary mb-2">The Masterpiece</h2>
+<div class="flex items-center gap-2 mb-6">
+<span class="font-data-mono text-data-mono text-on-surface-variant bg-surface-container px-2 py-1">1.5 hrs</span>
+<span class="text-outline-variant">•</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase">Advanced</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8 flex-grow">An exploration of complex culinary architecture. Multi-stage preparations demanding precision and patience. Reserved for significant occasions.</p>
+<div class="w-full border-t border-outline-variant opacity-30 mb-6"></div>
+<button class="w-full border border-primary text-primary font-label-caps text-label-caps uppercase tracking-widest py-4 px-6 hover:bg-primary hover:text-on-primary transition-colors">
+                    Adopt Plan
+                </button>
+</article>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center bg-[#F5F2EA] dark:bg-stone-950 h-20 px-4 border-t border-[#1A2238]/30 border-t-[1pt] border-[#1A2238]/20 flat no shadows font-serif Newsreader text-[11px] uppercase tracking-widest">
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="psychology">psychology</span>
+<span>Intelligence</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#1A2238] dark:text-white border-t-2 border-[#1A2238] pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="tune" style="font-variation-settings: 'FILL' 1;">tune</span>
+<span class="font-bold">Options</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="restaurant_menu">restaurant_menu</span>
+<span>Operations</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="settings">settings</span>
+<span>Configuration</span>
+</a>
+</nav>
+</body></html>

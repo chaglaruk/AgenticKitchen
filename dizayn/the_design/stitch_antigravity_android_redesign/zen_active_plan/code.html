@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Zen Precision Active Cooking Screen</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Noto+Serif:wght@500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#c5c5c5",
+                        "inverse-surface": "#303030",
+                        "primary-fixed": "#acf4a4",
+                        "tertiary-fixed-dim": "#c6c6c6",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#e2e2e2",
+                        "secondary-fixed": "#e3e3de",
+                        "on-primary": "#ffffff",
+                        "surface": "#fbf9f8",
+                        "surface-container-low": "#f5f3f3",
+                        "primary": "#00450d",
+                        "on-tertiary-fixed-variant": "#454747",
+                        "surface-container-highest": "#e4e2e1",
+                        "inverse-on-surface": "#f2f0f0",
+                        "surface-dim": "#dcd9d9",
+                        "surface-bright": "#fbf9f8",
+                        "tertiary": "#393b3b",
+                        "on-secondary-container": "#62635f",
+                        "primary-fixed-dim": "#91d78a",
+                        "on-primary-container": "#90d689",
+                        "inverse-primary": "#91d78a",
+                        "background": "#fbf9f8",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#1b5e20",
+                        "on-surface-variant": "#41493e",
+                        "on-surface": "#1b1c1c",
+                        "on-primary-fixed": "#002203",
+                        "tertiary-container": "#505252",
+                        "secondary-fixed-dim": "#c6c7c2",
+                        "outline": "#717a6d",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#454744",
+                        "on-secondary": "#ffffff",
+                        "secondary": "#5d5f5b",
+                        "on-background": "#1b1c1c",
+                        "surface-tint": "#2a6b2c",
+                        "surface-container-high": "#eae8e7",
+                        "surface-container": "#f0eded",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#0c5216",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed": "#1a1c19",
+                        "secondary-container": "#e0e0db",
+                        "surface-variant": "#e4e2e1",
+                        "on-tertiary-fixed": "#1a1c1c",
+                        "outline-variant": "#c0c9bb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-mobile": "20px",
+                        "container-max": "1200px",
+                        "unit": "8px",
+                        "margin-desktop": "64px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Noto Serif"],
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "display-lg": ["Noto Serif"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Noto Serif"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-sm": ["24px", { "lineHeight": "1.3", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col font-body-md text-body-md">
+<!-- TopAppBar Mobile (Responsive Pivot) -->
+<header class="flex md:hidden bg-white dark:bg-zinc-950 flex justify-between items-center w-full px-8 h-16 shadow-[0_4px_20px_0_rgba(0,0,0,0.04)] fixed top-0 z-50">
+<button class="text-green-900 dark:text-green-500 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors duration-200 active:scale-95 transition-transform flex items-center justify-center p-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<div class="font-serif text-2xl font-semibold text-green-900 dark:text-green-500 tracking-tighter">ChefGPT</div>
+<button class="text-green-900 dark:text-green-500 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors duration-200 active:scale-95 transition-transform flex items-center justify-center p-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</header>
+<!-- TopAppBar Web (Responsive Pivot) -->
+<header class="hidden md:flex bg-white dark:bg-zinc-950 flex justify-between items-center w-full px-8 h-16 shadow-[0_4px_20px_0_rgba(0,0,0,0.04)] sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="font-serif text-2xl font-semibold text-green-900 dark:text-green-500 tracking-tighter">ChefGPT</div>
+<nav class="flex items-center gap-6">
+<a class="text-gray-400 dark:text-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors duration-200 active:scale-95 transition-transform px-3 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="psychology">psychology</span>
+                    Intelligence
+                </a>
+<a class="text-gray-400 dark:text-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors duration-200 active:scale-95 transition-transform px-3 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="restaurant_menu">restaurant_menu</span>
+                    Options
+                </a>
+<a class="text-green-900 dark:text-green-500 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors duration-200 active:scale-95 transition-transform px-3 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2 bg-surface-container-low" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="skillet" data-weight="fill" style="font-variation-settings: 'FILL' 1;">skillet</span>
+                    Operations
+                </a>
+<a class="text-gray-400 dark:text-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors duration-200 active:scale-95 transition-transform px-3 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="settings">settings</span>
+                    Configuration
+                </a>
+</nav>
+</div>
+<button class="text-green-900 dark:text-green-500 hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors duration-200 active:scale-95 transition-transform flex items-center justify-center p-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</header>
+<!-- Main Canvas -->
+<main class="flex-grow pt-margin-mobile md:pt-margin-desktop pb-32 md:pb-margin-desktop px-margin-mobile md:px-gutter max-w-container-max mx-auto w-full flex flex-col items-center justify-center text-center">
+<!-- Timer Section -->
+<div class="w-full max-w-md mx-auto mb-16 flex flex-col items-center gap-6">
+<div class="font-display-lg text-display-lg text-primary tabular-nums tracking-tight">00:14:59</div>
+<div class="w-full h-[1px] bg-secondary-fixed-dim relative rounded-full overflow-hidden">
+<div class="absolute top-0 left-0 h-full w-2/3 bg-primary rounded-full"></div>
+</div>
+</div>
+<!-- Current Step Container -->
+<div class="w-full max-w-2xl bg-surface border border-outline-variant rounded-xl p-10 md:p-16 mb-12 shadow-[0_4px_40px_0_rgba(0,0,0,0.02)] flex flex-col items-center">
+<h1 class="font-headline-md text-headline-md text-on-surface mb-6">Set heat to Level 7</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-lg">
+                Ensure the pan is completely dry before adjusting the temperature. Allow 45 seconds for the thermal mass to equalize.
+            </p>
+</div>
+<!-- Vision Assist Action -->
+<button class="mb-16 flex items-center gap-3 px-6 py-3 border border-outline-variant rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined" data-icon="biotech">biotech</span>
+<span class="font-label-md text-label-md uppercase tracking-widest">Vision Assist</span>
+</button>
+<!-- System Status List -->
+<div class="w-full max-w-sm flex flex-col border-t border-outline-variant mb-16">
+<div class="flex justify-between items-center py-4 border-b border-outline-variant">
+<span class="font-body-md text-body-md text-on-surface-variant">Core Temp</span>
+<span class="font-label-md text-label-md text-on-surface">320°F</span>
+</div>
+<div class="flex justify-between items-center py-4 border-b border-outline-variant">
+<span class="font-body-md text-body-md text-on-surface-variant">Ventilation</span>
+<span class="font-label-md text-label-md text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="mode_fan">mode_fan</span>
+                    Active
+                </span>
+</div>
+</div>
+<!-- Primary Action -->
+<button class="border border-primary text-primary px-10 py-4 rounded-full font-label-md text-label-md uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-colors">
+            Pause Operation
+        </button>
+</main>
+<!-- BottomNavBar Mobile (Responsive Pivot) -->
+<nav class="flex md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-20 bg-white/90 backdrop-blur-md px-6 shadow-[0_-4px_20px_0_rgba(0,0,0,0.04)]">
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-zinc-600 hover:text-green-800 dark:hover:text-green-400 transition-all active:opacity-70 gap-1 w-16" href="#">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+<span class="font-sans text-[10px] uppercase tracking-widest font-medium">Intelligence</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-zinc-600 hover:text-green-800 dark:hover:text-green-400 transition-all active:opacity-70 gap-1 w-16" href="#">
+<span class="material-symbols-outlined" data-icon="restaurant_menu">restaurant_menu</span>
+<span class="font-sans text-[10px] uppercase tracking-widest font-medium">Options</span>
+</a>
+<a class="flex flex-col items-center justify-center text-green-900 dark:text-green-500 font-bold hover:text-green-800 dark:hover:text-green-400 transition-all active:opacity-70 gap-1 w-16" href="#">
+<span class="material-symbols-outlined" data-icon="skillet" data-weight="fill" style="font-variation-settings: 'FILL' 1;">skillet</span>
+<span class="font-sans text-[10px] uppercase tracking-widest font-medium">Operations</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-zinc-600 hover:text-green-800 dark:hover:text-green-400 transition-all active:opacity-70 gap-1 w-16" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-sans text-[10px] uppercase tracking-widest font-medium">Config</span>
+</a>
+</nav>
+</body></html>

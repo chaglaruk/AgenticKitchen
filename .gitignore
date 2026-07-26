@@ -1,0 +1,72 @@
+# Gradle
+.gradle/
+build/
+shared/build/
+app-android/build/
+shared/bin/
+
+# IntelliJ / IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# Android
+**/local.properties
+**/captures/
+*.apk
+*.aab
+*.dex
+*.ap_
+*.aab_
+*.ktz
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+*.txt
+!data/*.json
+!docs/**/*.md
+!CONTINUE.md
+!AGENTS.md
+!README.md
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Temporary files
+*~
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# Test reports
+**/test-results/
+**/reports/
+**/test-output/
+
+# Clinerules
+.clinerules/
+
+# Local backup
+local-backup/
+
+# Gradle distribution
+.gradle-dist/

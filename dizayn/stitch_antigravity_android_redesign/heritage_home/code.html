@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Culinary Archives</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Work+Sans:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#3e465e",
+                    "on-primary-fixed": "#131b30",
+                    "outline": "#76777e",
+                    "on-tertiary-fixed": "#1b1c1a",
+                    "on-surface": "#1b1c1c",
+                    "on-error": "#ffffff",
+                    "tertiary": "#0c0d0b",
+                    "on-primary-container": "#8189a4",
+                    "primary-fixed-dim": "#bec6e3",
+                    "tertiary-fixed": "#e4e2de",
+                    "tertiary-container": "#222321",
+                    "surface-tint": "#565e77",
+                    "surface-container": "#f0eded",
+                    "on-surface-variant": "#45464d",
+                    "on-secondary-fixed-variant": "#82252a",
+                    "outline-variant": "#c6c6cd",
+                    "secondary-fixed-dim": "#ffb3b1",
+                    "secondary-container": "#ff8484",
+                    "surface-variant": "#e4e2e1",
+                    "on-tertiary-container": "#8a8a87",
+                    "on-tertiary-fixed-variant": "#474744",
+                    "secondary": "#a13c3f",
+                    "on-secondary": "#ffffff",
+                    "primary": "#040c21",
+                    "inverse-on-surface": "#f3f0f0",
+                    "surface-container-highest": "#e4e2e1",
+                    "on-background": "#1b1c1c",
+                    "error": "#ba1a1a",
+                    "error-container": "#ffdad6",
+                    "primary-fixed": "#dae2ff",
+                    "on-secondary-fixed": "#410007",
+                    "inverse-primary": "#bec6e3",
+                    "primary-container": "#1a2238",
+                    "inverse-surface": "#303030",
+                    "secondary-fixed": "#ffdad8",
+                    "surface-container-high": "#eae7e7",
+                    "surface": "#fcf9f8",
+                    "on-error-container": "#93000a",
+                    "tertiary-fixed-dim": "#c8c6c3",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "background": "#fcf9f8",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-dim": "#dcd9d9",
+                    "surface-bright": "#fcf9f8",
+                    "on-secondary-container": "#751c22",
+                    "surface-container-low": "#f6f3f2"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "unit": "8px",
+                    "margin-desktop": "40px",
+                    "gutter": "24px",
+                    "container-max": "1200px"
+            },
+            "fontFamily": {
+                    "headline-md": [
+                            "Newsreader"
+                    ],
+                    "title-sm": [
+                            "Newsreader"
+                    ],
+                    "display-lg": [
+                            "Newsreader"
+                    ],
+                    "body-md": [
+                            "Work Sans"
+                    ],
+                    "label-caps": [
+                            "Work Sans"
+                    ],
+                    "data-mono": [
+                            "Work Sans"
+                    ],
+                    "body-lg": [
+                            "Work Sans"
+                    ]
+            },
+            "fontSize": {
+                    "headline-md": [
+                            "32px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "title-sm": [
+                            "20px",
+                            {
+                                    "lineHeight": "1.4",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "1.1",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "1.5",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "1",
+                                    "letterSpacing": "0.1em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "data-mono": [
+                            "14px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        /* Subtle paper texture overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at center, rgba(0,0,0,0.01) 0%, rgba(0,0,0,0.04) 100%);
+            pointer-events: none;
+            z-index: 9999;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen relative pb-24 md:pb-0 font-body-md antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="bg-[#F5F2EA] dark:bg-stone-950 docked full-width top-0 border-b border-[#1A2238]/10 double-rule-bottom border-b-[0.5pt] border-[#1A2238]/20 flex justify-between items-center w-full px-6 py-4 sticky z-40 transition-transform scale-95 duration-150 transform-none hover:bg-[#1A2238]/5 transition-colors">
+<button aria-label="Menu" class="p-2 text-[#1A2238] dark:text-stone-100">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="text-2xl font-bold tracking-tighter text-[#1A2238] dark:text-stone-50 uppercase font-serif Newsreader italic leading-relaxed text-center flex-1">THE KITCHEN CODEX</h1>
+<!-- Web Navigation Nav Cluster (Hidden on Mobile) -->
+<nav class="hidden md:flex items-center space-x-8 pr-4">
+<a class="text-[#1A2238] dark:text-stone-50 font-bold font-label-caps text-label-caps uppercase tracking-widest border-b-[1.5px] border-[#1A2238]" href="#">Intelligence</a>
+<a class="text-[#1A2238]/60 dark:text-stone-400 font-label-caps text-label-caps uppercase tracking-widest hover:text-[#1A2238] transition-colors" href="#">Options</a>
+<a class="text-[#1A2238]/60 dark:text-stone-400 font-label-caps text-label-caps uppercase tracking-widest hover:text-[#1A2238] transition-colors" href="#">Operations</a>
+<a class="text-[#1A2238]/60 dark:text-stone-400 font-label-caps text-label-caps uppercase tracking-widest hover:text-[#1A2238] transition-colors" href="#">Configuration</a>
+</nav>
+<div class="w-10 h-10 rounded-full bg-surface-variant border border-outline/30 overflow-hidden shrink-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-outline">person</span>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-20 space-y-24">
+<!-- Hero & Input Section -->
+<section class="max-w-3xl mx-auto space-y-12 text-center">
+<div class="space-y-4">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.2em] block">Volume I</span>
+<h2 class="font-display-lg text-display-lg text-primary">The Culinary Archives</h2>
+<div class="w-16 h-[1px] bg-primary/30 mx-auto mt-6"></div>
+</div>
+<div class="bg-surface-container-low p-8 md:p-12 border border-outline/10 shadow-sm relative">
+<!-- Physical corner markers -->
+<div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-primary/40"></div>
+<div class="absolute top-0 right-0 w-3 h-3 border-t border-r border-primary/40"></div>
+<div class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-primary/40"></div>
+<div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-primary/40"></div>
+<div class="space-y-8 relative z-10">
+<label class="font-label-caps text-label-caps text-primary uppercase tracking-widest block text-left" for="ingredient-input">Manual Input</label>
+<textarea class="w-full bg-transparent border-0 border-b-[1px] border-outline/40 focus:ring-0 focus:border-primary text-primary font-title-sm text-title-sm resize-none p-0 pb-2 placeholder:text-outline/50 placeholder:font-headline-md placeholder:italic transition-colors" id="ingredient-input" placeholder="Inscribe available provisions..." rows="3"></textarea>
+<div class="flex justify-end pt-4">
+<button class="bg-primary text-on-primary font-label-caps text-label-caps uppercase tracking-widest px-8 py-4 hover:bg-primary-container transition-colors shadow-sm flex items-center gap-2 group">
+<span>Query the Archive</span>
+<span class="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Category Grid (Taxonomy) -->
+<section class="space-y-10 relative">
+<!-- Decorative Section Divider -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 -mt-12 w-px h-16 bg-gradient-to-b from-transparent to-primary/20"></div>
+<div class="text-center space-y-2">
+<h3 class="font-headline-md text-headline-md text-primary italic">Taxonomy</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Browse by physical classification</p>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-unit md:gap-gutter">
+<!-- Card 1 -->
+<a class="group block relative aspect-[3/4] bg-surface-container overflow-hidden border border-outline/10 hover:border-primary/30 transition-colors" href="#">
+<img alt="Vegetation" class="absolute inset-0 w-full h-full object-cover mix-blend-multiply opacity-50 group-hover:opacity-70 group-hover:scale-105 transition-all duration-500 sepia-[.3] contrast-125" data-alt="vintage botanical illustration of leafy green vegetables and herbs on textured cream paper, etching style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXFNwvdNKISHLlfla88dr5btNnqGSZsNrS3QGxhe0pNscUUlZECcBjknhys3cOFKNgG_q8jXwv_QCXHFnf1lyT0yin4LX65IhinpnDEbmXmYShuF8Mahl57WRMLKeprrc0r0vbosnz1i-4cdg6KsK_X0M5FMLPh1ouGb5VEaVDQQfJwb5Czh3x09OwAB4buSvt4t0wFBbXbk_Yf5yAUPcWh2LUeLGH_TKj7XeK796E8xa4KqAI5d4zf0c0sZXZclYFxr3aWaDi2Q"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent"></div>
+<div class="absolute bottom-0 w-full p-4 border-t border-outline/10 bg-background/40 backdrop-blur-[2px]">
+<h4 class="font-title-sm text-title-sm text-primary text-center">Vegetation</h4>
+</div>
+</a>
+<!-- Card 2 -->
+<a class="group block relative aspect-[3/4] bg-surface-container overflow-hidden border border-outline/10 hover:border-primary/30 transition-colors" href="#">
+<img alt="Protein" class="absolute inset-0 w-full h-full object-cover mix-blend-multiply opacity-50 group-hover:opacity-70 group-hover:scale-105 transition-all duration-500 sepia-[.3] contrast-125" data-alt="classic anatomical sketch of a butchered cut of meat, vintage line drawing on antique paper background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmMbKpfGcmEk5yWdxWeOfZAId48hHGyx45vKwRhLp0iumT1amDM_3qgvdAm1ySouX3HbWJsxiR69eCEi_qv8-bafFR6iiUsGvR6y8xzTJM1g0p8as4dYB0om5olka37CD_OmAQwosMNlxaxN3qZT3sEIv0TvIMqPSsOylGVZIJT2cTZ14aDEmx1FZv5bOe9r3OXS2y8j1C5BPSpEFhmWHmEgv4mRolh5QwGK2ZMF9QhNQzjjxlYkIg00KYEx4rwx2Fl45lSzVXwA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent"></div>
+<div class="absolute bottom-0 w-full p-4 border-t border-outline/10 bg-background/40 backdrop-blur-[2px]">
+<h4 class="font-title-sm text-title-sm text-primary text-center">Protein</h4>
+</div>
+</a>
+<!-- Card 3 -->
+<a class="group block relative aspect-[3/4] bg-surface-container overflow-hidden border border-outline/10 hover:border-primary/30 transition-colors" href="#">
+<img alt="Carbs" class="absolute inset-0 w-full h-full object-cover mix-blend-multiply opacity-50 group-hover:opacity-70 group-hover:scale-105 transition-all duration-500 sepia-[.3] contrast-125" data-alt="antique etching of wheat stalks and rustic bread loaf on warm off-white background, delicate line art" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHZvXSTpEYtS4INFFz1cOKNO__aZyheXAOhHpKKmMdi6Teyyi7ScL8QDk8mPYCnSI3YA036u5j07u8tm6JvmSJEa_me3clNwhoPHqErPh3tjxJvPaaS_JPkLqjGIQRME7MH3KD_ERwjNNqa5zb4QkNaIOQU6bJMwPZg-rhffw-ZjLQVYhFV_0gAIwW3O4Cs4DqUG5nJx2ivvKLC_EdMTwHbsVn0ybBdV-X0HgyIjxm4aVIpSh74Cso-CXTahlxca473thy_HjfFQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent"></div>
+<div class="absolute bottom-0 w-full p-4 border-t border-outline/10 bg-background/40 backdrop-blur-[2px]">
+<h4 class="font-title-sm text-title-sm text-primary text-center">Carbs</h4>
+</div>
+</a>
+<!-- Card 4 -->
+<a class="group block relative aspect-[3/4] bg-surface-container overflow-hidden border border-outline/10 hover:border-primary/30 transition-colors" href="#">
+<img alt="Spices" class="absolute inset-0 w-full h-full object-cover mix-blend-multiply opacity-50 group-hover:opacity-70 group-hover:scale-105 transition-all duration-500 sepia-[.3] contrast-125" data-alt="close up macro drawing of star anise and cinnamon sticks, scientific illustration style on vintage parchment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFinsooYYuoV7gu2zzD5I_hMge3THeBlXrFikbXAXkyy5DgH4viw-qcFGQwTu0qTWvdKPOgkEdfzxbJEiL8E8LRl_QpesRRZEix8Gshagiy1WNwx2biIyVsCJTlZ2KvbfAOvDmr8P6pFZVWRNtg27WuMPvGgn-BKGSAPQsaVjtcTMpVyzR3xSrX6eoKIiWdQ7yXMc5gryVApCk5WgltJlqwETrVgGIXXkRgeqyOQVtc73ROWCAkeMRdeBhExWnbnptSea4kV6S2A"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent"></div>
+<div class="absolute bottom-0 w-full p-4 border-t border-outline/10 bg-background/40 backdrop-blur-[2px]">
+<h4 class="font-title-sm text-title-sm text-primary text-center">Spices</h4>
+</div>
+</a>
+<!-- Card 5 -->
+<a class="group block relative aspect-[3/4] bg-surface-container overflow-hidden border border-outline/10 hover:border-primary/30 transition-colors" href="#">
+<img alt="Liquids" class="absolute inset-0 w-full h-full object-cover mix-blend-multiply opacity-50 group-hover:opacity-70 group-hover:scale-105 transition-all duration-500 sepia-[.3] contrast-125" data-alt="ink wash drawing of pouring liquid into a glass decanter, muted tones on heavy cotton paper texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDTGVp-SiWplInijz7vyRx7V-MSPBvpDZk6IEzV2qUHfXLQ4-OM6pyXy50-SXhY-4aHFy5p-d0M1xXCjHz5zZ9x8HkvhZnMScxeYFcQL_5UmYkycHHHJanTjkLf7NedPSLyEOWnQuISgfMLKMaQhOrJ2LGb517x5JAtqYpgs0guTSebHLjgNJkrSKJia5rjIbIBR_pIGvztblFasatH6AlJW1a2xbYihub3B3pEMFkaxJflrg9SghxWEihcgSYHZi9nI8TtkhRxA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent"></div>
+<div class="absolute bottom-0 w-full p-4 border-t border-outline/10 bg-background/40 backdrop-blur-[2px]">
+<h4 class="font-title-sm text-title-sm text-primary text-center">Liquids</h4>
+</div>
+</a>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center bg-[#F5F2EA] dark:bg-stone-950 h-20 px-4 border-t border-[#1A2238]/30 border-t-[1pt] border-[#1A2238]/20">
+<!-- Active Tab: Intelligence -->
+<a class="flex flex-col items-center justify-center text-[#1A2238] dark:text-white border-t-2 border-[#1A2238] pt-2 pb-safe opacity-80 transition-opacity w-full" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Intelligence</span>
+</a>
+<!-- Inactive Tabs -->
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white transition-colors w-full" href="#">
+<span class="material-symbols-outlined mb-1">tune</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Options</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white transition-colors w-full" href="#">
+<span class="material-symbols-outlined mb-1">restaurant_menu</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Operations</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white transition-colors w-full" href="#">
+<span class="material-symbols-outlined mb-1">settings</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Configuration</span>
+</a>
+</nav>
+</body></html>

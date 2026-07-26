@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Active Manuscript - The Kitchen Codex</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Work+Sans:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#3e465e",
+                        "on-primary-fixed": "#131b30",
+                        "outline": "#76777e",
+                        "on-tertiary-fixed": "#1b1c1a",
+                        "on-surface": "#1b1c1c",
+                        "on-error": "#ffffff",
+                        "tertiary": "#0c0d0b",
+                        "on-primary-container": "#8189a4",
+                        "primary-fixed-dim": "#bec6e3",
+                        "tertiary-fixed": "#e4e2de",
+                        "tertiary-container": "#222321",
+                        "surface-tint": "#565e77",
+                        "surface-container": "#f0eded",
+                        "on-surface-variant": "#45464d",
+                        "on-secondary-fixed-variant": "#82252a",
+                        "outline-variant": "#c6c6cd",
+                        "secondary-fixed-dim": "#ffb3b1",
+                        "secondary-container": "#ff8484",
+                        "surface-variant": "#e4e2e1",
+                        "on-tertiary-container": "#8a8a87",
+                        "on-tertiary-fixed-variant": "#474744",
+                        "secondary": "#a13c3f",
+                        "on-secondary": "#ffffff",
+                        "primary": "#040c21",
+                        "inverse-on-surface": "#f3f0f0",
+                        "surface-container-highest": "#e4e2e1",
+                        "on-background": "#1b1c1c",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "primary-fixed": "#dae2ff",
+                        "on-secondary-fixed": "#410007",
+                        "inverse-primary": "#bec6e3",
+                        "primary-container": "#1a2238",
+                        "inverse-surface": "#303030",
+                        "secondary-fixed": "#ffdad8",
+                        "surface-container-high": "#eae7e7",
+                        "surface": "#fcf9f8",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#c8c6c3",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "background": "#fcf9f8",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-dim": "#dcd9d9",
+                        "surface-bright": "#fcf9f8",
+                        "on-secondary-container": "#751c22",
+                        "surface-container-low": "#f6f3f2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "unit": "8px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "container-max": "1200px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Newsreader"],
+                        "title-sm": ["Newsreader"],
+                        "display-lg": ["Newsreader"],
+                        "body-md": ["Work Sans"],
+                        "label-caps": ["Work Sans"],
+                        "data-mono": ["Work Sans"],
+                        "body-lg": ["Work Sans"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "title-sm": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600" }],
+                        "data-mono": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .paper-texture {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background paper-texture min-h-screen flex flex-col font-body-md antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="docked full-width top-0 border-b border-[#1A2238]/10 bg-[#F5F2EA] dark:bg-stone-950 flex justify-between items-center w-full px-6 py-4 double-rule-bottom border-b-[0.5pt] border-[#1A2238]/20 flat no shadows tonal-layering z-40 relative">
+<button class="text-[#1A2238] dark:text-stone-100 hover:bg-[#1A2238]/5 transition-colors scale-95 duration-150 p-2 -ml-2 rounded-none flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="font-serif Newsreader italic leading-relaxed text-2xl font-bold tracking-tighter text-[#1A2238] dark:text-stone-50 uppercase">THE KITCHEN CODEX</h1>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-[#1A2238]/20 hover:bg-[#1A2238]/5 transition-colors scale-95 duration-150 cursor-pointer">
+<img alt="Chef Portrait" class="w-full h-full object-cover" data-alt="Portrait of a professional chef in a white uniform, subtle warm lighting, high quality" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxtSvzOEW8u21aH5Lr0JV02nhU7WPbKMiwm8qx8IltgH25Dk_PD1p92LeqzXL1VV66vzYvB6IvyyXQEw90ogN_gSDVzvq4-iw5tKtQFOvGP6ecoAv9v_p6-PW-3eZeqiIBLYN6UMsre3blxm3VBPFxvD5cH-Ao7B0HNzGuBRtx61SHxsG72Io-G_Md8u_zRrCXNQlJ3wQjcTV0v5q_43yparq15x5vzZ5EYzLiZI2zN3oAw3ARIU6mmxHBw65fJBFdOvORD9W50A"/>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12 flex flex-col items-center justify-center mb-20 md:mb-0">
+<!-- Chapter Header -->
+<div class="text-center mb-16 max-w-2xl">
+<h2 class="font-label-caps text-label-caps text-outline uppercase tracking-widest mb-4">Active Manuscript</h2>
+<p class="font-headline-md text-headline-md text-on-surface italic">Chapter IV: The Maillard Reaction</p>
+<div class="w-12 h-px bg-outline-variant mx-auto mt-6"></div>
+</div>
+<!-- Central Command Area -->
+<div class="w-full max-w-3xl bg-surface-container-low border border-outline-variant/30 p-8 md:p-16 relative">
+<!-- decorative corners -->
+<div class="absolute top-0 left-0 w-4 h-4 border-t border-l border-on-surface/20"></div>
+<div class="absolute top-0 right-0 w-4 h-4 border-t border-r border-on-surface/20"></div>
+<div class="absolute bottom-0 left-0 w-4 h-4 border-b border-l border-on-surface/20"></div>
+<div class="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-on-surface/20"></div>
+<!-- Timer Display -->
+<div class="flex flex-col items-center justify-center mb-12">
+<div class="font-display-lg text-display-lg text-primary tracking-tighter mb-2" style="font-feature-settings: 'tnum' 1;">
+                    14:28
+                </div>
+<div class="w-full max-w-xs h-px bg-outline-variant relative">
+<div class="absolute top-0 left-0 h-full bg-primary w-[45%]"></div>
+</div>
+<div class="font-body-md text-body-md text-on-surface-variant italic mt-3">
+                    Processing phase...
+                </div>
+</div>
+<!-- Command -->
+<div class="text-center mb-16">
+<h3 class="font-headline-md text-headline-md text-on-surface leading-tight">
+                    Regulate heat to <br/>
+<span class="font-bold underline decoration-1 underline-offset-4">Level 7</span>
+</h3>
+</div>
+<!-- Technical Data Grid (Bento style but minimal) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-outline-variant/30 pt-8">
+<!-- Data Point 1 -->
+<div class="flex flex-col border-l-2 border-primary-container pl-4">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">Core Temperature</span>
+<div class="flex items-baseline gap-2">
+<span class="font-data-mono text-data-mono text-on-surface font-medium text-lg">145°F</span>
+<span class="inline-flex items-center px-2 py-0.5 bg-primary-container text-on-primary text-[10px] uppercase font-bold tracking-wider">Target: 160°F</span>
+</div>
+</div>
+<!-- Data Point 2 -->
+<div class="flex flex-col border-l-2 border-primary-container pl-4">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">Thermal Stability</span>
+<div class="flex items-baseline gap-2">
+<span class="font-data-mono text-data-mono text-on-surface font-medium text-lg">Optimal</span>
+<span class="text-xs text-on-surface-variant italic">Variance ±2°</span>
+</div>
+</div>
+</div>
+<!-- Vision Reference Action -->
+<div class="mt-12 flex justify-center">
+<button class="group flex items-center gap-3 border border-outline-variant hover:bg-surface-variant/50 transition-colors px-6 py-3">
+<span class="material-symbols-outlined text-on-surface text-sm" data-icon="search">search</span>
+<span class="font-label-caps text-label-caps text-on-surface uppercase tracking-widest group-hover:text-primary transition-colors">Vision Reference</span>
+</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center bg-[#F5F2EA] dark:bg-stone-950 h-20 px-4 border-t-[1pt] border-[#1A2238]/20 flat no shadows border-t border-[#1A2238]/30">
+<button class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity w-full">
+<span class="material-symbols-outlined mb-1" data-icon="psychology">psychology</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest hidden">Intelligence</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity w-full">
+<span class="material-symbols-outlined mb-1" data-icon="tune">tune</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest hidden">Options</span>
+</button>
+<!-- Active Item -->
+<button class="flex flex-col items-center justify-center text-[#1A2238] dark:text-white border-t-2 border-[#1A2238] pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity w-full">
+<span class="material-symbols-outlined mb-1" data-icon="restaurant_menu" style="font-variation-settings: 'FILL' 1;">restaurant_menu</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest hidden">Operations</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity w-full">
+<span class="material-symbols-outlined mb-1" data-icon="settings">settings</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest hidden">Configuration</span>
+</button>
+</nav>
+</body></html>

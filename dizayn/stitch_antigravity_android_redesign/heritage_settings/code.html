@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Apparatus Configuration - The Kitchen Codex</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Work+Sans:wght@300..700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-fixed-variant": "#3e465e",
+                        "on-primary-fixed": "#131b30",
+                        "outline": "#76777e",
+                        "on-tertiary-fixed": "#1b1c1a",
+                        "on-surface": "#1b1c1c",
+                        "on-error": "#ffffff",
+                        "tertiary": "#0c0d0b",
+                        "on-primary-container": "#8189a4",
+                        "primary-fixed-dim": "#bec6e3",
+                        "tertiary-fixed": "#e4e2de",
+                        "tertiary-container": "#222321",
+                        "surface-tint": "#565e77",
+                        "surface-container": "#f0eded",
+                        "on-surface-variant": "#45464d",
+                        "on-secondary-fixed-variant": "#82252a",
+                        "outline-variant": "#c6c6cd",
+                        "secondary-fixed-dim": "#ffb3b1",
+                        "secondary-container": "#ff8484",
+                        "surface-variant": "#e4e2e1",
+                        "on-tertiary-container": "#8a8a87",
+                        "on-tertiary-fixed-variant": "#474744",
+                        "secondary": "#a13c3f",
+                        "on-secondary": "#ffffff",
+                        "primary": "#040c21",
+                        "inverse-on-surface": "#f3f0f0",
+                        "surface-container-highest": "#e4e2e1",
+                        "on-background": "#1b1c1c",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "primary-fixed": "#dae2ff",
+                        "on-secondary-fixed": "#410007",
+                        "inverse-primary": "#bec6e3",
+                        "primary-container": "#1a2238",
+                        "inverse-surface": "#303030",
+                        "secondary-fixed": "#ffdad8",
+                        "surface-container-high": "#eae7e7",
+                        "surface": "#fcf9f8",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#c8c6c3",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "background": "#fcf9f8",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-dim": "#dcd9d9",
+                        "surface-bright": "#fcf9f8",
+                        "on-secondary-container": "#751c22",
+                        "surface-container-low": "#f6f3f2"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0rem",
+                        "lg": "0rem",
+                        "xl": "0rem",
+                        "full": "0rem"
+                    },
+                    spacing: {
+                        "margin-mobile": "16px",
+                        "unit": "8px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "container-max": "1200px"
+                    },
+                    fontFamily: {
+                        "headline-md": ["Newsreader"],
+                        "title-sm": ["Newsreader"],
+                        "display-lg": ["Newsreader"],
+                        "body-md": ["Work Sans"],
+                        "label-caps": ["Work Sans"],
+                        "data-mono": ["Work Sans"],
+                        "body-lg": ["Work Sans"]
+                    },
+                    fontSize: {
+                        "headline-md": ["32px", { "lineHeight": "1.2", "fontWeight": "500" }],
+                        "title-sm": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600" }],
+                        "data-mono": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: theme('colors.background'); }
+        /* Paper Grain Effect Overlay */
+        .paper-grain::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22 opacity=%220.03%22/%3E%3C/svg%3E');
+            z-index: 9999;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-on-background paper-grain antialiased pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed w-full z-40 bg-[#F5F2EA] dark:bg-stone-950 text-[#1A2238] dark:text-stone-100 font-serif Newsreader italic leading-relaxed docked full-width top-0 border-b border-[#1A2238]/10 double-rule-bottom border-b-[0.5pt] border-[#1A2238]/20 flat no shadows tonal-layering hover:bg-[#1A2238]/5 transition-colors scale-95 duration-150 flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-4">
+<button class="hover:bg-[#1A2238]/5 transition-colors scale-95 duration-150">
+<span class="material-symbols-outlined text-2xl">menu</span>
+</button>
+</div>
+<h1 class="text-2xl font-bold tracking-tighter text-[#1A2238] dark:text-stone-50 uppercase">THE KITCHEN CODEX</h1>
+<div class="w-8 h-8 bg-surface-variant overflow-hidden">
+<img alt="Chef Portrait" class="w-full h-full object-cover" data-alt="Black and white distinguished chef portrait, soft classic lighting, cinematic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxbkMHBy5MSKRDgWZnLfS4-142cYYcuSXn9EzZIjsB0RzD97DOZ5jffB3ROqPJ6lX7QrKBaryrDJCqP4ExnulfsvVL8eGi7Wa4HAeaiWaXle0C3vn4ld22lGq6yORDcyMRB4Me6Vaq_UcCKZkBpsEw2ceIv0nD-URmiHXLd_eTjqc3FXBX9WAvgdB5fEH3Pek996memv3jsEnZrmXaRkFunjCIuxcL959DPwhcd70OD5r6ItsTrZfOdN_uXwBGWUxAYFM4HP19Qw"/>
+</div>
+</header>
+<!-- Main Content -->
+<main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-32 pb-16 grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Header -->
+<div class="col-span-1 md:col-span-12 mb-12">
+<h2 class="font-display-lg text-display-lg text-primary mb-4">Apparatus Configuration</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">Refine your culinary mechanics. Adjust the parameters below to align the system with your heritage techniques and dietary philosophies.</p>
+</div>
+<div class="col-span-1 md:col-span-8 lg:col-span-6 space-y-16">
+<!-- Section 1: Stove Calibration -->
+<section>
+<div class="border-b border-outline/20 pb-2 mb-6 double-rule-bottom">
+<h3 class="font-title-sm text-title-sm text-primary uppercase tracking-wider">Stove Calibration</h3>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Map your physical apparatus settings (1-9) to the digital thermal indexes.</p>
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<label class="font-data-mono text-data-mono text-on-surface w-24">Level 1</label>
+<input class="w-full bg-transparent border-0 border-b border-outline/40 focus:ring-0 focus:border-primary font-body-md text-body-md px-0 py-2 rounded-none" type="text" value="Low Simmer (85°C)"/>
+</div>
+<div class="flex items-center justify-between">
+<label class="font-data-mono text-data-mono text-on-surface w-24">Level 5</label>
+<input class="w-full bg-transparent border-0 border-b border-outline/40 focus:ring-0 focus:border-primary font-body-md text-body-md px-0 py-2 rounded-none" type="text" value="Medium High (190°C)"/>
+</div>
+<div class="flex items-center justify-between">
+<label class="font-data-mono text-data-mono text-on-surface w-24">Level 9</label>
+<input class="w-full bg-transparent border-0 border-b border-outline/40 focus:ring-0 focus:border-primary font-body-md text-body-md px-0 py-2 rounded-none" type="text" value="Rolling Boil (100°C+)"/>
+</div>
+</div>
+</section>
+<!-- Section 2: Dietary Philosophy -->
+<section>
+<div class="border-b border-outline/20 pb-2 mb-6 double-rule-bottom">
+<h3 class="font-title-sm text-title-sm text-primary uppercase tracking-wider">Dietary Philosophy</h3>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Select the foundational principles governing your recipe generation.</p>
+<div class="grid grid-cols-2 gap-4">
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-5 w-5 text-primary border-outline focus:ring-primary focus:ring-offset-background rounded-none bg-transparent" type="checkbox"/>
+<span class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Vegetarian</span>
+</label>
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input checked="" class="form-checkbox h-5 w-5 text-primary border-outline focus:ring-primary focus:ring-offset-background rounded-none bg-transparent" type="checkbox"/>
+<span class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Pescatarian</span>
+</label>
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-5 w-5 text-primary border-outline focus:ring-primary focus:ring-offset-background rounded-none bg-transparent" type="checkbox"/>
+<span class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Vegan</span>
+</label>
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-5 w-5 text-primary border-outline focus:ring-primary focus:ring-offset-background rounded-none bg-transparent" type="checkbox"/>
+<span class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Ketogenic</span>
+</label>
+</div>
+</section>
+<!-- Section 3: System Uplink -->
+<section>
+<div class="border-b border-outline/20 pb-2 mb-6 double-rule-bottom">
+<h3 class="font-title-sm text-title-sm text-primary uppercase tracking-wider">System Uplink</h3>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">Provide secure access credentials for computational intelligence augmentation.</p>
+<div class="space-y-6">
+<div>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-2">API KEY IDENTIFIER</label>
+<input class="w-full bg-surface-container border border-outline/30 focus:ring-0 focus:border-primary font-data-mono text-data-mono px-4 py-3 rounded-none shadow-inner" type="password" value="sk-1234567890abcdef"/>
+</div>
+<button class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 uppercase tracking-widest hover:bg-primary/90 transition-colors">
+                        Authenticate Uplink
+                    </button>
+</div>
+</section>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full border-t border-[#1A2238]/30 border-t-[1pt] border-[#1A2238]/20 flat no shadows fixed bottom-0 left-0 w-full z-50 flex justify-around items-center bg-[#F5F2EA] dark:bg-stone-950 h-20 px-4">
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">psychology</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Intelligence</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">tune</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Options</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#1A2238]/40 dark:text-stone-500 pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1">restaurant_menu</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Operations</span>
+</a>
+<!-- Active Navigation -->
+<a class="flex flex-col items-center justify-center text-[#1A2238] dark:text-white border-t-2 border-[#1A2238] pt-2 pb-safe hover:text-[#1A2238] dark:hover:text-white Active: opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="font-serif Newsreader text-[11px] uppercase tracking-widest">Configuration</span>
+</a>
+</nav>
+</body></html>
