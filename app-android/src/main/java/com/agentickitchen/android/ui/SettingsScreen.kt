@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.agentickitchen.android.BuildConfig
 import com.agentickitchen.android.DietSettings
 import com.agentickitchen.android.HardwareSettings
 import com.agentickitchen.android.L
@@ -25,13 +26,11 @@ fun SettingsScreen(
     hw: HardwareSettings,
     diet: DietSettings,
     theme: String,
-    notificationsEnabled: Boolean,
     language: String,
     selectedEquipment: Set<String>,
     mealTime: String,
     onSaveHardware: (HardwareSettings) -> Unit,
     onSaveDiet: (DietSettings) -> Unit,
-    onToggleNotifications: (Boolean) -> Unit,
     onSetLanguage: (String) -> Unit,
     onSetTheme: (String) -> Unit,
     onEditSetup: () -> Unit
@@ -99,12 +98,6 @@ fun SettingsScreen(
         // ── Uygulama ──────────────────────────────────────────────────
         SettingsSectionHeader(title = L.app, colors = colors)
 
-        SettingsItemToggle(
-            icon = Icons.Filled.Notifications, iconTint = Color(0xFF7C83FD),
-            title = L.notifications, subtitle = L.notifSubtitle,
-            checked = notificationsEnabled, onCheckedChange = onToggleNotifications, colors = colors
-        )
-
         SettingsItemClickable(
             icon = Icons.Filled.Language, iconTint = colors.primaryLight,
             title = L.language, subtitle = language,
@@ -121,7 +114,7 @@ fun SettingsScreen(
 
         SettingsItemInfo(
             icon = Icons.Filled.Info, iconTint = colors.onSurfaceSub,
-            title = L.version, subtitle = "Agentic Kitchen v1.10-beta", colors = colors
+            title = L.version, subtitle = BuildConfig.VERSION_NAME, colors = colors
         )
 
         Spacer(Modifier.height(24.dp))

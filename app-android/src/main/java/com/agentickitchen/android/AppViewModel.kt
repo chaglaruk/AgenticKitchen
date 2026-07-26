@@ -180,7 +180,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val dietSettings = MutableStateFlow(DietSettings(dietType = prefs.getString("diet_type", "none") ?: "none"))
     val theme = MutableStateFlow(prefs.getString("theme", "heritage") ?: "heritage")
     val language = MutableStateFlow(prefs.getString("lang", "Türkçe") ?: "Türkçe")
-    val notificationsEnabled = MutableStateFlow(prefs.getBoolean("notif", true))
     private var lastOptions: List<RecipeOption> = emptyList()
     private val _pantryIntel = MutableStateFlow(
         pantryIntelAgent.analyze(
@@ -630,10 +629,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setTheme(t: String) { 
         theme.value = t
         prefs.edit().putString("theme", t).apply() 
-    }
-    fun setNotifications(enabled: Boolean) { 
-        notificationsEnabled.value = enabled
-        prefs.edit().putBoolean("notif", enabled).apply() 
     }
     fun setLanguage(lang: String) { 
         language.value = lang

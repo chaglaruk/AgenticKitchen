@@ -141,7 +141,7 @@ fun AppNavigation(viewModel: AppViewModel) {
     val mealTime by viewModel.mealTime.collectAsState()
     val planState by viewModel.planState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
-    val notif by viewModel.notificationsEnabled.collectAsState()
+
     val theme by viewModel.theme.collectAsState()
     val diet by viewModel.dietSettings.collectAsState()
     val lang by viewModel.language.collectAsState()
@@ -241,13 +241,11 @@ fun AppNavigation(viewModel: AppViewModel) {
                     hw = hw,
                     diet = diet,
                     theme = theme,
-                    notificationsEnabled = notif,
                     language = lang,
                     selectedEquipment = selectedEquipment,
                     mealTime = mealTime,
                     onSaveHardware = viewModel::saveHardwareSettings,
                     onSaveDiet = viewModel::saveDietSettings,
-                    onToggleNotifications = viewModel::setNotifications,
                     onSetLanguage = viewModel::setLanguage,
                     onSetTheme = viewModel::setTheme,
                     onEditSetup = viewModel::startEditingSetup
