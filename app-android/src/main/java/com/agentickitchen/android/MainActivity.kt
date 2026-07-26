@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import com.agentickitchen.android.app.AgenticKitchenApp
+import com.agentickitchen.android.app.AppViewModelFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -41,7 +43,7 @@ import com.agentickitchen.android.ui.SettingsScreen
 import com.agentickitchen.android.ui.SetupScreen
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: AppViewModel by viewModels()
+    private val viewModel: AppViewModel by viewModels { AppViewModelFactory.from((application as AgenticKitchenApp).container) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

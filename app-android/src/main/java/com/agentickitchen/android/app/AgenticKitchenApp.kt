@@ -1,9 +1,7 @@
 package com.agentickitchen.android.app
 
 import android.app.Application
-import app.cash.sqldelight.db.SqlDriver
-import app.cash.sqldelight.driver.android.AndroidSqliteDriver
-import com.agentickitchen.shared.db.AppDatabase
+import com.agentickitchen.android.AppLogger
 
 class AgenticKitchenApp : Application() {
 
@@ -12,6 +10,7 @@ class AgenticKitchenApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppLogger.init(this)
         container = AppContainer(this)
     }
 }

@@ -43,4 +43,6 @@ class HuggingFaceVisionService(private val apiKey: String = "") {
             null
         }
     }
+
+    fun close() = client.close()
 }

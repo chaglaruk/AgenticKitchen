@@ -44,4 +44,6 @@ class HuggingFaceService(private val apiKey: String, private val modelId: String
             null
         }
     }
+
+    fun close() = client.close()
 }

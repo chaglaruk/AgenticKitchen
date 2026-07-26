@@ -106,4 +106,6 @@ class DuckDuckGoProvider : LlmProvider {
     private suspend fun HttpResponse.bodyAsText(): String {
         return this.call.response.body<String>()
     }
+
+    fun close() = client.close()
 }

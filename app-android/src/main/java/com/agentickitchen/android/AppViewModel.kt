@@ -1,24 +1,19 @@
 package com.agentickitchen.android
 
-import com.agentickitchen.android.ai.GeminiProvider
-import com.agentickitchen.android.ai.HuggingFaceService
 import com.agentickitchen.android.ai.LlmProvider
-import android.app.Application
-import android.content.Context
 import android.graphics.Bitmap
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.agentickitchen.shared.agents.SimpleIngredientAgent
-import com.agentickitchen.shared.agents.SimpleOrchestrator
-import com.agentickitchen.shared.agents.SimplePantryIntelAgent
-import com.agentickitchen.shared.agents.SimpleTimingAgent
+import com.agentickitchen.shared.agents.Orchestrator
+import com.agentickitchen.shared.agents.PantryIntelAgent
 import com.agentickitchen.shared.models.*
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
-import app.cash.sqldelight.driver.android.AndroidSqliteDriver
-import com.agentickitchen.shared.db.AppDatabase
 import com.agentickitchen.shared.db.RecipeHistory
-import com.agentickitchen.shared.db.HistoryRepository
+import com.agentickitchen.shared.db.RecipeHistoryRepository
+import com.agentickitchen.shared.scheduler.TargetTimeResolver
+import com.agentickitchen.android.data.preferences.AppPreferences
+import com.agentickitchen.android.ai.AiProviderFactory
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -132,18 +127,16 @@ data class HardwareSettings(
 data class DietSettings(val dietType: String = "none", val allergies: Set<String> = emptySet())
 
 // ── ViewModel ─────────────────────────────────────────────────────────────
-class AppViewModel(application: Application) : AndroidViewModel(application) {
+class AppViewModel(
+    private val prefs: AppPreferences,
+    private val historyRepo: RecipeHistoryRepository,
+    private val orchestrator: Orchestrator,
+    private val pantryIntelAgent: PantryIntelAgent,
+    private val providerFactory: AiProviderFactory,
+    private val targetTimeResolver: TargetTimeResolver
+) : ViewModel() {
 
-    init { AppLogger.init(application); AppLogger.i("ViewModel", "AppViewModel oluşturuldu") }
-
-    private val prefs = application.getSharedPreferences("agentic_prefs", Context.MODE_PRIVATE)
-    private val orchestrator = SimpleOrchestrator(SimpleIngredientAgent(), SimpleTimingAgent())
-    private val pantryIntelAgent = SimplePantryIntelAgent()
-    
-    private val database = AppDatabase(AndroidSqliteDriver(AppDatabase.Schema, application, "agentic.db"))
-    private val historyRepo = HistoryRepository(database)
-
-    private val _setupDone = MutableStateFlow(prefs.getBoolean("setup_done", false))
+    private val _setupDone = MutableStateFlow(prefs.setupDone())
     val setupDone: StateFlow<Boolean> = _setupDone.asStateFlow()
 
     private val _isEditingSetup = MutableStateFlow(false)
@@ -152,7 +145,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedEquipment = MutableStateFlow<Set<String>>(loadEquipment())
     val selectedEquipment: StateFlow<Set<String>> = _selectedEquipment.asStateFlow()
 
-    private val _mealTime = MutableStateFlow(prefs.getString("meal_time", "19:00") ?: "19:00")
+    private val _mealTime = MutableStateFlow(prefs.mealTime())
     val mealTime: StateFlow<String> = _mealTime.asStateFlow()
 
     private val _chips = MutableStateFlow<List<String>>(emptyList())
@@ -177,9 +170,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _hw = MutableStateFlow(loadHardwareSettings())
     val hardwareSettings: StateFlow<HardwareSettings> = _hw.asStateFlow()
-    val dietSettings = MutableStateFlow(DietSettings(dietType = prefs.getString("diet_type", "none") ?: "none"))
-    val theme = MutableStateFlow(prefs.getString("theme", "heritage") ?: "heritage")
-    val language = MutableStateFlow(prefs.getString("lang", "Türkçe") ?: "Türkçe")
+    val dietSettings = MutableStateFlow(prefs.dietSettings())
+    val theme = MutableStateFlow(prefs.theme())
+    val language = MutableStateFlow(prefs.language())
     private var lastOptions: List<RecipeOption> = emptyList()
     private val _pantryIntel = MutableStateFlow(
         pantryIntelAgent.analyze(
@@ -196,7 +189,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init { loadHistory() }
     
     private fun loadHistory() {
-        viewModelScope.launch { _history.value = historyRepo.getAllHistory() }
+        _history.value = historyRepo.getAllHistory()
     }
 
     fun completeSetup(equipment: Set<String>, servings: Int, mealTime: String, hw: HardwareSettings) {
@@ -206,8 +199,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _hw.value = hw
         _setupDone.value = true
         _isEditingSetup.value = false
-        prefs.edit().putStringSet("equipment", equipment).putInt("setup_servings", servings)
-            .putString("meal_time", mealTime).putBoolean("setup_done", true).apply()
+        prefs.saveSetup(true, equipment, servings, mealTime)
         saveHardwareSettings(hw)
         refreshPantryIntel()
     }
@@ -391,34 +383,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getGeminiModel(modelName: String = "gemini-1.5-flash"): GenerativeModel? {
-        val key = _hw.value.geminiApiKey
-        if (key.isBlank()) {
-            AppLogger.w("Gemini", "API key boş — AI devre dışı")
-            return null
-        }
-        AppLogger.d("Gemini", "Model oluşturuldu ($modelName) — key uzunluğu: ${key.length}")
-        return GenerativeModel(modelName, key)
+        return providerFactory.gemini(_hw.value, modelName)
     }
 
     private fun getActiveProvider(): LlmProvider? {
-        val hw = _hw.value
-        return when (hw.aiProvider) {
-            "GEMINI" -> {
-                val key = hw.geminiApiKey
-                if (key.isBlank()) null else GeminiProvider(GenerativeModel("gemini-1.5-flash", key))
-            }
-            "HUGGINGFACE" -> {
-                val key = hw.hfApiKey
-                if (key.isBlank()) null else HuggingFaceService(key)
-            }
-            "DUCKDUCKGO" -> {
-                com.agentickitchen.android.ai.DuckDuckGoProvider()
-            }
-            "FREE" -> {
-                com.agentickitchen.android.ai.PollinationsProvider()
-            }
-            else -> null
-        }
+        return providerFactory.provider(_hw.value)
     }
 
     private suspend fun <T> executeAiWithProvider(action: suspend (LlmProvider) -> T): T {
@@ -505,7 +474,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             var caption: String? = null
             try {
                 AppLogger.i("ScanIngr", "Hugging Face ile gerçek analiz yapılıyor...")
-                val visionService = com.agentickitchen.android.ai.HuggingFaceVisionService(hw.hfApiKey)
+                val visionService = providerFactory.vision(hw)
                 caption = visionService.analyzeImage(image)
             } catch (e: Exception) {
                 AppLogger.w("ScanIngr", "HF Vision başarısız: ${e.message}")
@@ -571,7 +540,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             // Free Vision Check Fallback
             try {
-                val visionService = com.agentickitchen.android.ai.HuggingFaceVisionService(hw.hfApiKey)
+                val visionService = providerFactory.vision(hw)
                 val caption = visionService.analyzeImage(image)
                 if (caption != null) {
                     val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
@@ -599,15 +568,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveHardwareSettings(hw: HardwareSettings) {
         _hw.value = hw
-        prefs.edit()
-            .putString("stove_type", hw.stoveType).putInt("stove_power_max", hw.stovePowerMax)
-            .putBoolean("oven_available", hw.ovenAvailable).putBoolean("oven_has_fan", hw.ovenHasFan)
-            .putBoolean("oven_has_grill", hw.ovenHasGrill)
-            .putInt("serving_size", hw.servingSize).putInt("power_level", hw.powerLevel)
-            .putString("gemini_api_key", hw.geminiApiKey)
-            .putString("hf_api_key", hw.hfApiKey)
-            .putString("ai_provider", hw.aiProvider)
-            .apply()
+        prefs.saveHardwareSettings(hw)
         refreshPantryIntel()
     }
 
@@ -622,20 +583,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveDietSettings(diet: DietSettings) {
         dietSettings.value = diet
-        prefs.edit().putString("diet_type", diet.dietType).putStringSet("allergies", diet.allergies).apply()
+        prefs.saveDietSettings(diet)
         refreshPantryIntel()
     }
 
     fun setTheme(t: String) { 
         theme.value = t
-        prefs.edit().putString("theme", t).apply() 
+        prefs.saveTheme(t)
     }
     fun setLanguage(lang: String) { 
         language.value = lang
-        prefs.edit().putString("lang", lang).apply() 
+        prefs.saveLanguage(lang)
     }
 
-    private fun loadEquipment() = prefs.getStringSet("equipment", setOf("oven", "elec")) ?: setOf("oven", "elec")
+    private fun loadEquipment() = prefs.equipment()
     private fun refreshPantryIntel() {
         _pantryIntel.value = pantryIntelAgent.analyze(
             ingredients = _chips.value,
@@ -645,18 +606,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadHardwareSettings(): HardwareSettings {
-        return HardwareSettings(
-            stoveType = prefs.getString("stove_type", "electric") ?: "electric",
-            stovePowerMax = prefs.getInt("stove_power_max", 9),
-            ovenAvailable = prefs.getBoolean("oven_available", true),
-            ovenHasFan = prefs.getBoolean("oven_has_fan", true),
-            ovenHasGrill = prefs.getBoolean("oven_has_grill", false),
-            servingSize = prefs.getInt("serving_size", 2),
-            powerLevel = prefs.getInt("power_level", 7),
-            geminiApiKey = prefs.getString("gemini_api_key", "") ?: "",
-            hfApiKey = prefs.getString("hf_api_key", "") ?: "",
-            aiProvider = prefs.getString("ai_provider", "FREE") ?: "FREE"
-        )
+        return prefs.hardwareSettings()
     }
 
 

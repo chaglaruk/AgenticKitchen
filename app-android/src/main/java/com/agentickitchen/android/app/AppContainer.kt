@@ -1,8 +1,6 @@
 package com.agentickitchen.android.app
 
 import android.app.Application
-import android.content.Context
-import android.content.SharedPreferences
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.agentickitchen.shared.agents.SimpleIngredientAgent
@@ -12,10 +10,16 @@ import com.agentickitchen.shared.agents.SimpleTimingAgent
 import com.agentickitchen.shared.db.AppDatabase
 import com.agentickitchen.shared.db.HistoryRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
+import com.agentickitchen.android.ai.AiProviderFactory
+import com.agentickitchen.android.ai.DefaultAiProviderFactory
+import com.agentickitchen.android.data.preferences.AppPreferences
+import com.agentickitchen.android.data.preferences.PreferencesManager
+import com.agentickitchen.android.security.SecureCredentialStore
+import java.io.Closeable
 
-class AppContainer(private val app: Application) {
+class AppContainer(private val app: Application) : Closeable {
 
-    val prefs: SharedPreferences = app.getSharedPreferences("agentic_prefs", Context.MODE_PRIVATE)
+    val preferences: AppPreferences = PreferencesManager(app)
 
     private val sqlDriver: SqlDriver = AndroidSqliteDriver(AppDatabase.Schema, app, "agentic.db")
 
@@ -35,4 +39,11 @@ class AppContainer(private val app: Application) {
     )
 
     val pantryIntelAgent: SimplePantryIntelAgent = SimplePantryIntelAgent()
+    val providerFactory: AiProviderFactory = DefaultAiProviderFactory()
+    val credentialStore = SecureCredentialStore(app)
+
+    override fun close() {
+        providerFactory.close()
+        sqlDriver.close()
+    }
 }

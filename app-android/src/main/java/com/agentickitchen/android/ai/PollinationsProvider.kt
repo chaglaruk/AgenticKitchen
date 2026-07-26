@@ -35,4 +35,6 @@ class PollinationsProvider : LlmProvider {
     private suspend fun io.ktor.client.statement.HttpResponse.bodyAsText(): String {
         return this.call.response.body<String>()
     }
+
+    fun close() = client.close()
 }

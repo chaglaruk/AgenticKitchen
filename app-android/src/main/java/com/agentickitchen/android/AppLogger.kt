@@ -14,7 +14,7 @@ object AppLogger {
     private const val TAG = "AK"
     private const val MAX_ENTRIES = 500
     private var logFile: File? = null
-    private var isRelease = false
+    private var isRelease = true
 
     private val ringBuffer = ConcurrentLinkedQueue<String>()
 
@@ -65,6 +65,7 @@ object AppLogger {
     }
 
     private fun log(level: String, component: String, message: String) {
+        if (isRelease) return
         val timestamp = dateFormat.format(Date())
         val entry = "$timestamp [$level] [$component] $message"
 
