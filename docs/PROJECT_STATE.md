@@ -29,4 +29,4 @@ AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3.21, Compose BOM 
 
 ## Lint
 
-The old broad lint baseline was removed because it hid 52 warnings and 8 hints, while retaining eight stale entries. The current lint run reports 0 errors, 118 warnings, and 8 hints with no baseline. The warnings are visible and must be fixed or individually documented; this branch does not claim zero warnings.
+The old broad lint baseline was removed because it hid 52 warnings and 8 hints, while retaining eight stale entries. The current lint run reports 0 errors, 108 warnings, and 8 hints with no baseline. The warnings are visible and must be fixed or individually documented; this branch does not claim zero warnings.
