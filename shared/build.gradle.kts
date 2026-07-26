@@ -13,8 +13,8 @@ java {
 }
 
 kotlin {
-    sourceSets["main"].kotlin.srcDir("src/commonMain/kotlin")
-    sourceSets["test"].kotlin.srcDir("src/commonTest/kotlin")
+    sourceSets["main"].kotlin.srcDir("src/main/kotlin")
+    sourceSets["test"].kotlin.srcDir("src/test/kotlin")
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
