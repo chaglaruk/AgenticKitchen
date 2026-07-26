@@ -1,182 +1,139 @@
 # Agentic Kitchen
 
-**An AI-powered smart chef assistant for Android** — delivers military-precision cooking instructions tailored to your kitchen hardware, dietary preferences, and available ingredients.
+An AI-powered smart chef assistant for Android — delivers military-precision cooking instructions tailored to your kitchen hardware, dietary preferences, and available ingredients.
 
-The application takes full initiative: instead of vague terms like "medium heat", it tells you exactly "Set burner to level 7 for 4 minutes." It integrates real-time visual feedback via camera, multi-provider AI (Gemini, HuggingFace, DuckDuckGo, Pollinations.ai), and persistent cooking history via SQLDelight.
+## Product Goal
 
-## Current Status
+Zero-initiative cooking: instead of "medium heat", the app tells you exactly "Set burner to level 7 for 4 minutes 30 seconds." The AI handles ingredient substitution analysis, timing orchestration, and visual cooking supervision.
 
-Active development (v1.12.3). The project is a functional prototype with:
-- Full UI flow (Setup → Home → Options → Active Recipe)
-- Real AI integration with multiple providers (free tier works without API keys)
-- Camera-based ingredient scanning and cooking supervision
+## Implemented
+
+- Multi-provider AI: Gemini, HuggingFace, DuckDuckGo, Pollinations.ai — free tier works without API keys
+- Hardware profile: stove type, power levels, oven features, serving size
+- Ingredient management: add, remove, scan via camera, categorize
+- Recipe options: AI generates 3 alternatives per ingredient set
+- Cooking plan: step-by-step instructions with resource allocation
+- Deterministic agents: SimpleTimingAgent, SimpleIngredientAgent, SimplePantryIntelAgent
+- Target time system: resolve exact time, duration, "this evening" with DST handling
+- 4-color theme system: Green, Blue, Orange, Dark
+- Turkish / English language support (via Android string resources)
 - SQLDelight persistence for cooking history
-- Multi-language support (Turkish / English)
+- Deterministic CookingPlanValidator (15+ rule types)
+- Structured AI output contract (AiResult, JSON schemas)
+- Encrypted credential storage (EncryptedSharedPreferences)
+- Data extraction rules and backup protection
+- Build-type aware logging (file logging disabled in release)
 
-## Key Features
+## Experimental
 
-- **Zero-Initiative Instructions** — No ambiguous terms like "medium heat"; exact burner levels and durations.
-- **Multi-Provider AI** — Gemini, HuggingFace, DuckDuckGo (GPT-4o-mini), Pollinations.ai (Mistral-7B). Free providers work out of the box.
-- **Visual Cooking Supervision** — Take a photo mid-cooking; AI inspects doneness and gives corrective instructions.
-- **Hardware-Aware Cooking** — Configure your stove type, power levels, oven features, and serving size.
-- **Reverse Scheduling** — Set a target meal time; the system back-calculates when to start each step.
-- **Ingredient Agent** — Ask if an ingredient can be substituted; the AI enforces flavor profile integrity.
-- **4-Color Theme System** — Green, Blue, Orange, and Dark themes with dynamic gradients.
-- **SQLDelight History** — Persistent recipe history with structured query support.
-- **Offline-First Design** — Falls back gracefully when no API key is configured.
+- Vision/camera ingredient scanning
+- DuckDuckGo AI provider (SSE-based)
+- Pollinations.ai free provider
 
-## Technologies Used
+## Planned
 
-| Layer | Technology |
-|-------|-----------|
-| Language | Kotlin 1.9.21 |
-| Platform | Android (Min SDK 24, Target SDK 34) |
-| UI | Jetpack Compose (Material 2) |
-| Architecture | Clean Architecture + MVVM |
-| AI SDK | Gemini 1.5 Flash, Ktor-based providers |
-| Database | SQLDelight 2.0.0 (SQLite) |
-| Networking | Ktor 2.3.5, Kotlinx Serialization |
-| Persistence | SharedPreferences |
-| Logging | Custom AppLogger (Logcat + file) |
-| Build | Gradle 8.9, AGP 8.1.4 |
-| KMP | Shared Kotlin Multiplatform module (JVM target) |
+- Cooking session runtime with notification-based timers
+- History UI with session restore
+- Platform-native notification system (foreground service)
+- Full screen reader accessibility
 
-## Requirements
+## Architecture
 
-- Android Studio (or VS Code with Kotlin plugin)
-- JDK 17
-- Android SDK 34
-- Gradle 8.9 (wrapper included)
+```
+app-android/src/main/java/com/agentickitchen/android/
+├── app/                    # Application + manual DI container
+├── presentation/           # ViewModel + UI state
+├── feature/setup/          # Feature-specific composables
+├── feature/pantry/
+├── feature/options/
+├── feature/cooking/
+├── feature/settings/
+├── data/ai/                # AI provider implementations
+├── data/preferences/       # SharedPreferences wrapper
+├── data/database/          # SQLDelight driver + database
+├── data/repository/        # Repository implementations
+└── security/               # Encrypted credential storage
 
-No API key is required to start — the app defaults to free AI providers.
-
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/chaglaruk/AgenticKitchen.git
-   ```
-
-2. Open the project in Android Studio.
-
-3. Sync Gradle and let dependencies resolve.
-
-4. Run on an emulator or physical device (API 24+).
-
-## Environment Variables
-
-This project does not require environment variables at build time. API keys are configured at runtime through the app's Settings screen and stored securely in SharedPreferences.
-
-For development reference, a `.env.example` file is provided:
-
-```env
-GEMINI_API_KEY=
-HUGGINGFACE_API_KEY=
+shared/src/main/kotlin/com/agentickitchen/shared/
+├── agents/                 # Agent interfaces + implementations
+├── ai/                     # AiResult, AiProviderId, AiFailureType
+│   ├── dto/                # Structured DTOs (RecipeOptionsResponse, CookingPlanResponse)
+│   └── prompt/             # PromptFactory
+├── models/                 # Domain data classes
+├── scheduler/              # TargetTimeResolver, TargetTimeChoice
+├── validator/              # CookingPlanValidator
+├── db/                     # HistoryRepository
+└── util/                   # DurationFormatter
 ```
 
-These are entirely optional — the app works with free providers (Pollinations.ai, DuckDuckGo) without any API key.
+## Build Requirements
 
-## Running
+- Android Studio Ladybug or later
+- JDK 17
+- Android SDK 34+
+- Gradle 8.9 (wrapper included)
+
+## Local Setup
 
 ```bash
+# Clone
+git clone https://github.com/chaglaruk/AgenticKitchen.git
+
+# Open in Android Studio and sync Gradle
+
 # Build debug APK
 ./gradlew :app-android:assembleDebug
 
-# Run tests (shared module)
+# Run shared module tests
 ./gradlew :shared:test
 
-# Install via ADB
-adb install -r app-android/build/outputs/apk/debug/app-android-debug.apk
+# Run Android unit tests
+./gradlew :app-android:testDebugUnitTest
 ```
 
-## Build
+## External AI Setup
 
-```bash
-# Full build
-./gradlew build
+The app defaults to free AI providers (Pollinations.ai, DuckDuckGo) — no API key required to get started.
 
-# Clean build
-./gradlew clean build
-```
+For improved quality:
+1. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey)
+2. Go to Settings → Hardware Profile → AI Provider → Select "Google Gemini"
+3. Enter your API key (stored encrypted in Android Keystore)
+
+See `docs/EXTERNAL_SETUP.md` for detailed provider configuration.
 
 ## Testing
 
 ```bash
-# Shared module unit tests
+# All shared module tests (49 tests)
 ./gradlew :shared:test
 
-# Android module tests
-./gradlew :app-android:test
+# Android unit tests
+./gradlew :app-android:testDebugUnitTest
+
+# Lint
+./gradlew :app-android:lintDebug
+
+# Full build
+./gradlew build
 ```
 
-## Project Structure
+## Security and Privacy
 
-```
-agentic-kitchen/
-├── settings.gradle.kts          # Root project config
-├── build.gradle.kts             # Root Gradle build
-├── gradle.properties            # Gradle properties
-├── gradlew / gradlew.bat        # Gradle wrapper
-│
-├── shared/                      # KMP shared module (domain + agents)
-│   ├── build.gradle.kts
-│   └── src/
-│       ├── commonMain/kotlin/com/agentickitchen/shared/
-│       │   ├── agents/          # Orchestrator, TimingAgent, IngredientAgent, etc.
-│       │   ├── models/          # Domain data classes
-│       │   └── db/              # SQLDelight HistoryRepository
-│       ├── main/sqldelight/     # AppDatabase.sq schema
-│       └── commonTest/          # Unit tests
-│
-├── app-android/                 # Android application module
-│   ├── build.gradle.kts
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/agentickitchen/android/
-│       │   ├── MainActivity.kt
-│       │   ├── AppViewModel.kt  # Central ViewModel with all state + AI orchestration
-│       │   ├── AppLogger.kt     # Central logging system
-│       │   ├── HardwareProfileManager.kt
-│       │   ├── ai/              # GeminiProvider, HuggingFaceService, etc.
-│       │   ├── vision/          # VisionAgentAndroid
-│       │   └── ui/              # Compose screens (Home, Setup, Settings, etc.)
-│       └── res/                 # Android resources
-│
-├── data/                        # Seed data
-│   └── ingredients_seed.json
-│
-├── docs/                        # Architecture and planning docs
-│   ├── architecture.md
-│   └── superpowers/plans/
-│
-├── dizayn/                      # UI/UX design documentation
-│   ├── analog_heritage/
-│   └── zen_precision/
-│
-├── run_tests.ps1                # Test utility script
-├── setup_android_sdk.ps1        # Android SDK setup script
-├── CONTINUE.md                  # Comprehensive handoff guide for AI agents
-├── AGENTS.md                    # Universal AI coding rules
-├── copilot-instructions.md      # GitHub Copilot guidelines
-├── .gitignore
-└── .env.example                 # Environment variable template
-```
+- API keys stored in EncryptedSharedPreferences (AES256-GCM)
+- `android:allowBackup=false` with data extraction rules to exclude sensitive data
+- Release build: no file logging, no AI prompt/response logging
+- Vision images are not persisted or logged
+- See `docs/SECURITY.md` for full details
 
-## Known Issues / Limitations
+## Known Limitations
 
-- Theme changes may cause contrast issues on some color palettes.
-- DuckDuckGo provider (SSE stream) can occasionally truncate long responses.
-- Free provider (Pollinations.ai) may be rate-limited; for production use, configure a Gemini API key.
-- Build currently shows compile errors in `HomeScreen.kt` and `SettingsScreen.kt` (import/resolution issues) — doğrulanması gerekiyor.
-- Android SDK must be installed separately (see `setup_android_sdk.ps1` for automated setup).
-
-## Security Notes
-
-- No API keys or secrets are hardcoded in the source code.
-- API keys are stored in Android SharedPreferences (private mode).
-- Log files only record API key length, never the key value itself.
-- The `.env` file is never committed (excluded via `.gitignore`).
-- If you use a custom API key, keep it private and do not share your `SharedPreferences` backup.
+- Build shows warnings: AGP 8.1.4 not tested with compileSdk 36 (suppressed)
+- Vision provider requires Gemini API key for real analysis
+- Free providers (Pollinations, DuckDuckGo) may be rate-limited
+- Cooking session runtime with notifications is planned, not yet implemented
+- Navigation uses local Compose state, not a navigation library
+- Some hardcoded strings remain in L object (migration to string resources in progress)
 
 ## License
 
