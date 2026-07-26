@@ -38,7 +38,7 @@ Android smart-chef assistant built with Kotlin and Jetpack Compose.
 
 ## Build requirements
 
-The current branch is transitional: `compileSdk` and `targetSdk` are 36, but AGP 8.1.4 is not a supported API-36 pairing and the warning is suppressed. Do not treat the current matrix as release-ready. JDK 17 is required.
+Verified matrix: AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3.21, Compose BOM 2026.06.00, JDK 17, `compileSdk` 36, and `targetSdk` 36. The unsupported-SDK suppression has been removed.
 
 ## Local verification
 

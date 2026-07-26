@@ -17,8 +17,9 @@ Status terms are strict: **Implemented and integrated** means a production entry
 
 ## Ordered work
 
-- [ ] Replace the unsupported API-36 build matrix; remove the SDK-warning suppression and document the verified matrix.
-- [ ] Modernize CI with PR-range whitespace checking, supported Gradle setup, mandatory build stages, reports, and a reviewed lint baseline.
+- [x] Replace the unsupported API-36 build matrix; remove the SDK-warning suppression and document the verified matrix.
+- [x] Modernize CI with PR-range whitespace checking, supported Gradle setup, mandatory build stages, reports, and no broad lint baseline.
+- [ ] Triage each visible lint warning: fix it or add a narrow, documented justification.
 - [ ] Make `AppContainer` the single owner of preferences, database, providers, validators, and closeable resources; inject `AppViewModel` through a factory.
 - [ ] Replace plaintext credential use with Android-Keystore AEAD storage and one-time migration.
 - [ ] Define an explicit logging policy; make release logs metadata-only and non-sensitive.

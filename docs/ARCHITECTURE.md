@@ -14,6 +14,6 @@ The shared module is a Kotlin/JVM domain module, not Kotlin Multiplatform.
 
 `AgenticKitchenApp` must own one `AppContainer`; the container must provide the database driver/database, preferences, Keystore credential store, repositories, resolver, validators, provider registry, orchestrator, and closeable application resources. An `AppViewModelFactory` must pass only those dependencies to the ViewModel.
 
-## Build compatibility target
+## Verified build matrix
 
-The current API-36/AGP-8.1.4 combination is unsupported and must not be released. The matrix will be recorded here only after each selected version is compiled and tested. JDK 17 remains required.
+AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3.21, Compose BOM 2026.06.00, JDK 17, `compileSdk` 36, and `targetSdk` 36. Shared tests and Android compilation/unit-test task passed after the change. The unsupported-SDK suppression was removed.
