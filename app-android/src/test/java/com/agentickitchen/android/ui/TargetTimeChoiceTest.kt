@@ -1,18 +1,25 @@
 package com.agentickitchen.android.ui
 
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.Duration
+import java.time.LocalTime
 
 class TargetTimeChoiceTest {
-    @Test fun mapsRelativeChoices() {
-        assertTrue(targetTimeChoice("Now (20m)") is TargetTimeChoice.After)
-        assertTrue(targetTimeChoice("In 45 Minutes") is TargetTimeChoice.After)
-        assertTrue(targetTimeChoice("In 1 Hour") is TargetTimeChoice.After)
+    @Test fun mapsTypedPresetChoices() {
+        val choices = targetTimePresetOptions(isTurkish = false).associateBy { it.id }
+
+        assertEquals(TargetTimeChoice.After(Duration.ofMinutes(20)), choices.getValue("after_20").choice)
+        assertEquals(TargetTimeChoice.After(Duration.ofMinutes(45)), choices.getValue("after_45").choice)
+        assertEquals(TargetTimeChoice.After(Duration.ofHours(1)), choices.getValue("after_60").choice)
+        assertEquals(TargetTimeChoice.ThisEvening, choices.getValue("evening").choice)
+        assertEquals(TargetTimeChoice.Flexible, choices.getValue("flexible").choice)
     }
 
-    @Test fun mapsExactTime() {
-        assertTrue(targetTimeChoice("19:30") is TargetTimeChoice.Exact)
+    @Test fun mapsOnlyValidExactTimeInput() {
+        assertEquals(TargetTimeChoice.Exact(LocalTime.of(19, 30)), exactTargetTimeChoice("19:30"))
+        assertNull(exactTargetTimeChoice("19.30"))
     }
 }

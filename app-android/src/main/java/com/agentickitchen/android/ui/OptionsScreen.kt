@@ -1,12 +1,14 @@
 package com.agentickitchen.android.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,13 +24,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -49,10 +55,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
@@ -74,7 +85,6 @@ fun OptionsScreen(
 ) {
     val colors = LocalAppColors.current
     var selectedOptionForTime by remember { mutableStateOf<RecipeOption?>(null) }
-    var targetTimeInput by remember { mutableStateOf("19:30") }
 
     Column(
         modifier = Modifier
@@ -105,85 +115,203 @@ fun OptionsScreen(
     }
 
     if (selectedOptionForTime != null) {
-        Dialog(onDismissRequest = { selectedOptionForTime = null }) {
-            Card(
-                backgroundColor = colors.surface,
-                shape = RoundedCornerShape(22.dp),
-                elevation = 8.dp,
-                border = androidx.compose.foundation.BorderStroke(1.dp, colors.divider)
+        EditorialRecipeDetailOverlay(
+            recipe = selectedOptionForTime!!,
+            onDismiss = { selectedOptionForTime = null },
+            onConfirm = { choice ->
+                onSelectOption(selectedOptionForTime!!, choice)
+                selectedOptionForTime = null
+            }
+        )
+    }
+}
+
+internal data class TargetTimeUiOption(
+    val id: String,
+    val label: String,
+    val choice: TargetTimeChoice
+)
+
+internal fun targetTimePresetOptions(isTurkish: Boolean): List<TargetTimeUiOption> = listOf(
+    TargetTimeUiOption("after_20", if (isTurkish) "20 dakika" else "20 minutes", TargetTimeChoice.After(Duration.ofMinutes(20))),
+    TargetTimeUiOption("after_45", if (isTurkish) "45 dakika" else "45 minutes", TargetTimeChoice.After(Duration.ofMinutes(45))),
+    TargetTimeUiOption("after_60", if (isTurkish) "1 saat" else "1 hour", TargetTimeChoice.After(Duration.ofHours(1))),
+    TargetTimeUiOption("evening", if (isTurkish) "Bu akşam" else "This evening", TargetTimeChoice.ThisEvening),
+    TargetTimeUiOption("flexible", if (isTurkish) "Farketmez" else "Flexible", TargetTimeChoice.Flexible),
+    TargetTimeUiOption("exact", if (isTurkish) "Saat seç" else "Choose time", TargetTimeChoice.Exact(LocalTime.of(19, 30)))
+)
+
+internal fun exactTargetTimeChoice(value: String): TargetTimeChoice.Exact? =
+    runCatching { TargetTimeChoice.Exact(LocalTime.parse(value)) }.getOrNull()
+
+@Composable
+private fun EditorialRecipeDetailOverlay(
+    recipe: RecipeOption,
+    onDismiss: () -> Unit,
+    onConfirm: (TargetTimeChoice) -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        EditorialRecipeDetailContent(recipe = recipe, onDismiss = onDismiss, onConfirm = onConfirm)
+    }
+}
+
+@Composable
+private fun EditorialRecipeDetailContent(
+    recipe: RecipeOption,
+    onDismiss: () -> Unit,
+    onConfirm: (TargetTimeChoice) -> Unit,
+    initialTargetId: String = "after_20"
+) {
+    val colors = LocalAppColors.current
+    val presets = targetTimePresetOptions(L.isTr)
+    var selectedTargetId by remember(recipe.id, initialTargetId) { mutableStateOf(initialTargetId) }
+    var exactTime by remember(recipe.id) { mutableStateOf("19:30") }
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    val selected = presets.firstOrNull { it.id == selectedTargetId } ?: presets.first()
+    val selectedChoice = if (selected.id == "exact") exactTargetTimeChoice(exactTime) else selected.choice
+
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(320)) + slideInVertically(tween(320)) { it / 12 } + scaleIn(tween(320), initialScale = .96f)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp)
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Text(
-                        if (L.isTr) "Operasyon Zamanı" else "Operation Timing",
-                        color = colors.onSurface,
-                        style = MaterialTheme.typography.h6
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (L.isTr) "Yemek ne zaman hazır olsun?" else "When should the dish be ready?",
-                        color = colors.onSurfaceSub,
-                        style = MaterialTheme.typography.body1
-                    )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss, modifier = Modifier.semantics {
+                        contentDescription = if (L.isTr) "Tarif ayrıntısını kapat" else "Close recipe detail"
+                    }) {
+                        Text(if (L.isTr) "Kapat" else "Close", color = colors.onSurfaceSub)
+                    }
+                }
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(196.dp).semantics {
+                        contentDescription = if (L.isTr) "${recipe.name} tarif görseli" else "${recipe.name} recipe artwork"
+                    },
+                    contentAlignment = Alignment.Center
+                ) {
+                    IngredientArtwork(recipe.name, Modifier.size(176.dp))
+                }
+                Spacer(Modifier.height(20.dp))
+                Text(recipe.type.uppercase(), color = colors.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp)
+                Spacer(Modifier.height(10.dp))
+                Text(recipe.name, color = colors.onSurface, style = MaterialTheme.typography.h1)
+                Spacer(Modifier.height(12.dp))
+                Text(recipe.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+                Spacer(Modifier.height(28.dp))
+                Divider(color = colors.divider, thickness = 1.dp)
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    if (L.isTr) "Ne zaman hazır olsun?" else "When should it be ready?",
+                    color = colors.onSurface,
+                    style = MaterialTheme.typography.h6
+                )
+                Spacer(Modifier.height(14.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    presets.forEach { option ->
+                        TargetTimeChoicePill(
+                            option = option,
+                            selected = option.id == selectedTargetId,
+                            onClick = { selectedTargetId = option.id }
+                        )
+                    }
+                }
+                if (selected.id == "exact") {
                     Spacer(Modifier.height(16.dp))
-                    val predefinedTimes = listOf(
-                        if (L.isTr) "Hemen (20 dk)" else "Now (20m)",
-                        if (L.isTr) "45 Dakika Sonra" else "In 45 Minutes",
-                        if (L.isTr) "1 Saat Sonra" else "In 1 Hour",
-                        if (L.isTr) "Akşam" else "This Evening",
-                        if (L.isTr) "Farketmez" else "Flexible"
+                    ExactTimeEditor(
+                        value = exactTime,
+                        onValueChange = { exactTime = it },
+                        valid = selectedChoice != null
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        predefinedTimes.forEach { time ->
-                            val selected = targetTimeInput == time
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        if (selected) colors.primary else colors.surfaceAlt,
-                                        RoundedCornerShape(999.dp)
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (selected) colors.primary else colors.divider,
-                                        RoundedCornerShape(999.dp)
-                                    )
-                                    .clickable { targetTimeInput = time }
-                                    .padding(horizontal = 14.dp, vertical = 9.dp)
-                            ) {
-                                Text(
-                                    text = time,
-                                    color = if (selected) colors.onPrimary else colors.onSurface,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.align(Alignment.Center)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(24.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { selectedOptionForTime = null }) {
-                            Text(L.cancel, color = colors.onSurfaceSub)
-                        }
-                        Button(
-                            onClick = {
-                                onSelectOption(selectedOptionForTime!!, targetTimeChoice(targetTimeInput))
-                                selectedOptionForTime = null
-                            },
-                            colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
-                            shape = RoundedCornerShape(999.dp)
-                        ) {
-                            Text(if (L.isTr) "Operasyonu Başlat" else "Launch Operation", color = colors.onPrimary)
-                        }
-                    }
+                }
+                Spacer(Modifier.height(32.dp))
+                Button(
+                    onClick = { selectedChoice?.let(onConfirm) },
+                    enabled = selectedChoice != null,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary, disabledBackgroundColor = colors.divider),
+                    shape = RoundedCornerShape(999.dp)
+                ) {
+                    Text(if (L.isTr) "Tarifi Hazırla" else "Prepare Recipe", color = colors.onPrimary)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TargetTimeChoicePill(option: TargetTimeUiOption, selected: Boolean, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    val background by animateColorAsState(if (selected) colors.primary else colors.surfaceAlt, tween(240), label = "targetBackground")
+    val textColor by animateColorAsState(if (selected) colors.onPrimary else colors.onSurface, tween(240), label = "targetText")
+    val scale by animateFloatAsState(if (selected) 1f else .97f, tween(240), label = "targetScale")
+    Box(
+        modifier = Modifier.defaultMinSize(minHeight = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            .background(background, RoundedCornerShape(999.dp))
+            .border(1.dp, if (selected) colors.primary else colors.divider, RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            if (selected) "✓ ${option.label}" else option.label,
+            color = textColor,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun ExactTimeEditor(value: String, onValueChange: (String) -> Unit, valid: Boolean) {
+    val colors = LocalAppColors.current
+    Column {
+        Text(if (L.isTr) "Hazır olma saati" else "Ready time", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        Spacer(Modifier.height(6.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().semantics {
+                contentDescription = if (L.isTr) "Hazır olma saatini gir" else "Enter ready time"
+            }.background(colors.surfaceAlt, RoundedCornerShape(12.dp))
+                .border(1.dp, if (valid) colors.divider else Color(0xFF9B3F32), RoundedCornerShape(12.dp))
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true
+        )
+        if (!valid) {
+            Spacer(Modifier.height(6.dp))
+            Text(if (L.isTr) "Saati SS:DD biçiminde gir." else "Enter time as HH:MM.", color = Color(0xFF9B3F32), fontSize = 12.sp)
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditorialRecipeDetailPresetPreview() {
+    AgenticTheme("editorial") {
+        EditorialRecipeDetailContent(
+            recipe = RecipeOption("1", "Makarna", "Kremalı Tavuklu Makarna", "Tavuk ve kiler malzemeleriyle sakin, kremalı bir akşam yemeği."),
+            onDismiss = {}, onConfirm = {}, initialTargetId = "after_45"
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditorialRecipeDetailExactPreview() {
+    AgenticTheme("editorial") {
+        EditorialRecipeDetailContent(
+            recipe = RecipeOption("1", "Makarna", "Kremalı Tavuklu Makarna", "Tavuk ve kiler malzemeleriyle sakin, kremalı bir akşam yemeği."),
+            onDismiss = {}, onConfirm = {}, initialTargetId = "exact"
+        )
     }
 }
 
@@ -395,15 +523,6 @@ private fun EditorialRecipeOptionsPreview() {
             onBackToOptions = {}
         )
     }
-}
-
-internal fun targetTimeChoice(label: String): TargetTimeChoice = when {
-    label.contains("20") -> TargetTimeChoice.After(Duration.ofMinutes(20))
-    label.contains("45") -> TargetTimeChoice.After(Duration.ofMinutes(45))
-    label.contains("1 Saat") || label.contains("1 Hour") -> TargetTimeChoice.After(Duration.ofHours(1))
-    label.contains("Ak") || label.contains("Evening") -> TargetTimeChoice.ThisEvening
-    label.contains("Farketmez") || label.contains("Flexible") -> TargetTimeChoice.Flexible
-    else -> TargetTimeChoice.Exact(LocalTime.parse(label))
 }
 
 @Composable
