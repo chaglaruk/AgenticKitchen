@@ -184,6 +184,7 @@ fun AppNavigation(viewModel: AppViewModel) {
             when (currentScreen) {
                 Screen.Intelligence -> HomeScreen(
                     chips = chips,
+                    servings = hw.servingSize,
                     scannedIngredients = scannedIngredients,
                     pantryIntel = pantryIntel,
                     onScanImage = viewModel::scanIngredients,

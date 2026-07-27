@@ -1,5 +1,9 @@
 package com.agentickitchen.android.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,9 +78,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -104,6 +110,7 @@ private data class IntelligenceCategory(
 @Composable
 fun HomeScreen(
     chips: List<String>,
+    servings: Int,
     scannedIngredients: List<String>?,
     pantryIntel: PantryIntelReport,
     onScanImage: (android.graphics.Bitmap) -> Unit,
@@ -149,12 +156,12 @@ fun HomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(getBgGradient())
+            .background(colors.background)
             .verticalScroll(rememberScrollState())
             .padding(bottom = 28.dp)
     ) {
-        IntelligenceHero(themeId = themeSpec.id)
-        InputManifestCard(
+        EditorialHomeHeader(chips = chips, servings = servings)
+        IngredientComposer(
             input = input,
             onInputChange = { input = it },
             expandedAuto = expandedAuto,
@@ -169,6 +176,7 @@ fun HomeScreen(
                 input = ""
                 keyboard?.hide()
             },
+            canGenerate = chips.isNotEmpty(),
             onStart = onStart,
             onOpenCamera = { showCameraModal = true }
         )
@@ -188,22 +196,23 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            QuickActionCard(
+            EditorialTextAction(
                 modifier = Modifier.weight(1f),
-                title = if (L.isTr) "Kategori Atlası" else "Category Atlas",
+                title = if (L.isTr) "Tüm malzemeler" else "All ingredients",
                 icon = Icons.Filled.GridView,
                 onClick = { showPicker = true }
             )
-            QuickActionCard(
+            EditorialTextAction(
                 modifier = Modifier.weight(1f),
                 title = if (L.isTr) "Kurulum" else "Setup",
                 icon = Icons.Filled.Tune,
                 onClick = onEditSetup
             )
-            QuickActionCard(
+            EditorialTextAction(
                 modifier = Modifier.weight(1f),
                 title = if (L.isTr) "Temizle" else "Clear",
                 icon = Icons.Filled.DeleteSweep,
+                destructive = true,
                 onClick = onClearAll
             )
         }
@@ -211,6 +220,7 @@ fun HomeScreen(
         Spacer(Modifier.height(24.dp))
         Text(
             when (themeSpec.id) {
+                "editorial" -> if (L.isTr) "Malzeme kategorileri" else "Ingredient categories"
                 "heritage" -> if (L.isTr) "Taksonomi" else "Taxonomy"
                 "zen" -> if (L.isTr) "Kategori Izgarası" else "Category Grid"
                 else -> if (L.isTr) "Operasyon Sınıfları" else "Operational Classes"
@@ -282,6 +292,146 @@ fun HomeScreen(
             },
             onImageCaptured = { bmp -> onScanImage(bmp) }
         )
+    }
+}
+
+@Composable
+private fun EditorialHomeHeader(chips: List<String>, servings: Int) {
+    val colors = LocalAppColors.current
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(260)) + slideInVertically(tween(260)) { -it / 5 }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp)
+        ) {
+            Text("Agentic Kitchen", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (L.isTr) "Bu akşam ne pişiriyoruz?" else "What are we cooking tonight?",
+                color = colors.onBackground,
+                style = MaterialTheme.typography.h1
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                when {
+                    chips.isEmpty() -> if (L.isTr) {
+                        "Mutfağındaki malzemeleri ekleyerek başla."
+                    } else {
+                        "Start by adding what you have in the kitchen."
+                    }
+                    L.isTr -> "${chips.size} malzeme · $servings kişilik"
+                    else -> "${chips.size} ingredients · serves $servings"
+                },
+                color = colors.onSurfaceSub,
+                style = MaterialTheme.typography.body1
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterialApi::class)
+@Composable
+private fun IngredientComposer(
+    input: String,
+    onInputChange: (String) -> Unit,
+    expandedAuto: Boolean,
+    filteredIngredients: List<String>,
+    onAddSelection: (String) -> Unit,
+    onDone: () -> Unit,
+    canGenerate: Boolean,
+    onStart: () -> Unit,
+    onOpenCamera: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    var isFocused by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+            .background(colors.surfaceAlt, RoundedCornerShape(18.dp))
+            .border(1.dp, colors.divider, RoundedCornerShape(18.dp))
+            .padding(14.dp)
+    ) {
+        Text(
+            if (L.isTr) "Mutfağında ne var?" else "What is in your kitchen?",
+            color = colors.onSurface,
+            style = MaterialTheme.typography.subtitle1
+        )
+        Spacer(Modifier.height(8.dp))
+        Box(modifier = Modifier.fillMaxWidth()) {
+            ExposedDropdownMenuBox(expanded = expandedAuto, onExpandedChange = { }, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .background(colors.surface, RoundedCornerShape(12.dp))
+                        .border(1.dp, if (isFocused) colors.primary else colors.divider, RoundedCornerShape(12.dp))
+                        .padding(start = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicTextField(
+                        value = input,
+                        onValueChange = onInputChange,
+                        modifier = Modifier.weight(1f).onFocusChanged { isFocused = it.isFocused }.padding(vertical = 13.dp),
+                        textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { onDone() }),
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (input.isEmpty()) Text(
+                                    if (L.isTr) "Örn: tavuk, pirinç, sarımsak" else "E.g. chicken, rice, garlic",
+                                    color = colors.onSurfaceSub,
+                                    fontSize = 15.sp
+                                )
+                                innerTextField()
+                            }
+                        }
+                    )
+                    IconButton(onClick = onOpenCamera) {
+                        Icon(
+                            Icons.Filled.CameraAlt,
+                            contentDescription = if (L.isTr) "Kamera" else "Camera",
+                            tint = colors.onSurfaceSub
+                        )
+                    }
+                    TextButton(onClick = onDone) {
+                        Text(if (L.isTr) "Ekle" else "Add", color = colors.primary)
+                    }
+                }
+                DropdownMenu(
+                    expanded = expandedAuto,
+                    onDismissRequest = { },
+                    modifier = Modifier.background(colors.surface)
+                ) {
+                    filteredIngredients.forEach { selection ->
+                        DropdownMenuItem(onClick = { onAddSelection(selection) }) {
+                            Text(text = selection, color = colors.onSurface)
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onStart,
+            enabled = canGenerate,
+            modifier = Modifier.fillMaxWidth().height(46.dp),
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = colors.primary,
+                disabledBackgroundColor = colors.divider
+            ),
+            shape = RoundedCornerShape(999.dp)
+        ) {
+            Text(
+                if (L.isTr) "Tarifleri Gör" else "See Recipes",
+                color = colors.onPrimary,
+                style = MaterialTheme.typography.button
+            )
+        }
     }
 }
 
@@ -465,7 +615,11 @@ private fun PantryIntelOverviewCard(pantryIntel: PantryIntelReport, onEditSetup:
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("PANTRY INTEL", color = colors.primary, style = MaterialTheme.typography.caption)
+                    Text(
+                        if (L.isTr) "MUTFAK ÖZETİ" else "KITCHEN SUMMARY",
+                        color = colors.primary,
+                        style = MaterialTheme.typography.caption
+                    )
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "${pantryIntel.readinessScore}/100 • ${pantryCategoryLabel(pantryIntel.focusCategoryId)}",
@@ -502,29 +656,61 @@ private fun PantryIntelOverviewCard(pantryIntel: PantryIntelReport, onEditSetup:
 }
 
 @Composable
-private fun QuickActionCard(
+private fun EditorialTextAction(
     modifier: Modifier = Modifier,
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    destructive: Boolean = false,
     onClick: () -> Unit
 ) {
     val colors = LocalAppColors.current
+    val actionColor = if (destructive) Color(0xFF9B3F32) else colors.primary
 
-    Card(
-        modifier = modifier.clickable { onClick() },
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(18.dp),
-        elevation = 0.dp,
-        border = BorderStroke(1.dp, colors.divider)
+    Row(
+        modifier = modifier.clickable { onClick() }.padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 14.dp, horizontal = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, contentDescription = null, tint = colors.primary)
-            Spacer(Modifier.height(8.dp))
-            Text(title, color = colors.onSurface, fontSize = 12.sp, textAlign = TextAlign.Center)
-        }
+        Icon(icon, contentDescription = title, tint = actionColor, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(title, color = if (destructive) actionColor else colors.onSurfaceSub, fontSize = 12.sp, textAlign = TextAlign.Center)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EmptyEditorialHomePreview() = EditorialHomePreview(emptyList())
+
+@Preview(showBackground = true)
+@Composable
+private fun PopulatedEditorialHomePreview() = EditorialHomePreview(
+    listOf("Domates", "Tavuk", "Pirinç", "Sarımsak")
+)
+
+@Composable
+private fun EditorialHomePreview(chips: List<String>) {
+    AgenticTheme("editorial") {
+        HomeScreen(
+            chips = chips,
+            servings = 2,
+            scannedIngredients = null,
+            pantryIntel = PantryIntelReport(
+                readinessScore = 70,
+                focusCategoryId = "vegetables",
+                focusCategoryLabel = "Vegetables",
+                categoryBreakdown = emptyList(),
+                warnings = emptyList(),
+                tactics = emptyList(),
+                equipmentLane = "stovetop"
+            ),
+            onScanImage = {},
+            onClearScannedIngredients = {},
+            onAddChip = {},
+            onAddMultipleChips = {},
+            onRemoveChip = {},
+            onClearAll = {},
+            onStart = {},
+            onEditSetup = {}
+        )
     }
 }
 
