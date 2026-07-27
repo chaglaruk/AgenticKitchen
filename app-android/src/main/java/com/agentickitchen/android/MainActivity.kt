@@ -9,8 +9,6 @@ import com.agentickitchen.android.app.AppViewModelFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.BottomNavigation
-import androidx.compose.material.BottomNavigationItem
 import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
 import androidx.compose.material.rememberScaffoldState
@@ -41,6 +39,8 @@ import com.agentickitchen.android.ui.OptionsScreen
 import com.agentickitchen.android.ui.OperationsScreen
 import com.agentickitchen.android.ui.SettingsScreen
 import com.agentickitchen.android.ui.SetupScreen
+import com.agentickitchen.android.ui.EditorialBottomBar
+import com.agentickitchen.android.ui.EditorialNavItem
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels { AppViewModelFactory.from((application as AgenticKitchenApp).container) }
@@ -60,19 +60,19 @@ sealed class Screen(val route: String, val icon: ImageVector) {
     abstract fun title(): String
 
     data object Intelligence : Screen("intelligence", Icons.Filled.Psychology) {
-        override fun title() = if (L.isTr) "İstihbarat" else "Intelligence"
+        override fun title() = if (L.isTr) "Malzemeler" else "Kitchen"
     }
 
     data object Options : Screen("options", Icons.Filled.RestaurantMenu) {
-        override fun title() = if (L.isTr) "Seçenekler" else "Options"
+        override fun title() = if (L.isTr) "Tarifler" else "Recipes"
     }
 
     data object Operations : Screen("operations", Icons.Filled.PendingActions) {
-        override fun title() = if (L.isTr) "Operasyon" else "Operations"
+        override fun title() = if (L.isTr) "Pişir" else "Cook"
     }
 
     data object Settings : Screen("settings", Icons.Filled.Settings) {
-        override fun title() = if (L.isTr) "Ayarlar" else "Configuration"
+        override fun title() = if (L.isTr) "Ayarlar" else "Settings"
     }
 }
 
@@ -175,30 +175,9 @@ fun AppNavigation(viewModel: AppViewModel) {
         scaffoldState = scaffoldState,
         backgroundColor = colors.background,
         bottomBar = {
-            BottomNavigation(
-                backgroundColor = if (themeSpec.id == "heritage") colors.surfaceAlt else colors.surface,
-                contentColor = colors.onSurface,
-                elevation = if (themeSpec.id == "signal") 10.dp else 0.dp
-            ) {
-                screens.forEach { screen ->
-                    val selected = currentScreen == screen
-                    BottomNavigationItem(
-                        selected = selected,
-                        onClick = { currentScreen = screen },
-                        icon = { Icon(screen.icon, contentDescription = screen.title()) },
-                        label = {
-                            Text(
-                                screen.title(),
-                                fontSize = 10.sp,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        },
-                        selectedContentColor = colors.primary,
-                        unselectedContentColor = colors.onSurfaceSub,
-                        alwaysShowLabel = true
-                    )
-                }
-            }
+            EditorialBottomBar(screens.map { screen ->
+                EditorialNavItem(screen.title(), screen.icon, currentScreen == screen) { currentScreen = screen }
+            })
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
