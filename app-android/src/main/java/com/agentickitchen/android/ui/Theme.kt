@@ -166,7 +166,26 @@ val PaletteSignal = AppColors(
     success = Color(0xFF00A66F)
 )
 
+val PaletteEditorial = AppColors(
+    primary = Color(0xFFB7644C),
+    primaryDark = Color(0xFF8F4E3D),
+    primaryLight = Color(0xFFD7A18E),
+    accent = Color(0xFF74806B),
+    background = Color(0xFFF4F0E8),
+    surface = Color(0xFFFAF7F1),
+    onPrimary = Color.White,
+    onBackground = Color(0xFF191714),
+    onSurface = Color(0xFF191714),
+    onSurfaceSub = Color(0xFF5F5951),
+    divider = Color(0xFFD8D0C5),
+    surfaceAlt = Color(0xFFFAF7F1),
+    heroStart = Color(0xFFF4F0E8),
+    heroEnd = Color(0xFFF4F0E8),
+    success = Color(0xFF74806B)
+)
+
 val ThemeCatalog = listOf(
+    ThemeSpec("editorial", "Editorial Kitchen", "Warm paper cookbook", PaletteEditorial),
     ThemeSpec("heritage", "Analog Heritage", "Editorial archive shell from Stitch", PaletteHeritage),
     ThemeSpec("zen", "Zen Precision", "Minimal culinary sanctuary from Stitch", PaletteZen),
     ThemeSpec("signal", "Signal Deck", "Original live-operations cockpit theme", PaletteSignal),
@@ -178,6 +197,7 @@ val ThemeCatalog = listOf(
 
 fun themeSpec(themeName: String): ThemeSpec {
     val key = themeName.lowercase()
+    if (key in setOf("heritage", "zen", "signal", "green", "blue", "orange", "dark")) return ThemeCatalog.first { it.id == "editorial" }
     return ThemeCatalog.firstOrNull {
         when (it.id) {
             "green" -> key == "green" || key == "yeşil" || key == "yesil"
@@ -187,21 +207,17 @@ fun themeSpec(themeName: String): ThemeSpec {
             "zen" -> key == "zen" || key == "zen precision"
             else -> it.id == key
         }
-    } ?: ThemeCatalog.first { it.id == "heritage" }
+    } ?: ThemeCatalog.first { it.id == "editorial" }
 }
 
-val LocalAppColors = compositionLocalOf { PaletteHeritage }
-val LocalThemeSpec = compositionLocalOf { themeSpec("heritage") }
+val LocalAppColors = compositionLocalOf { themeSpec("editorial").colors }
+val LocalThemeSpec = compositionLocalOf { themeSpec("editorial") }
 
 @Composable
 fun AgenticTheme(themeName: String, content: @Composable () -> Unit) {
     val spec = themeSpec(themeName)
     val colors = spec.colors
-    val typography = when (spec.id) {
-        "heritage" -> heritageTypography()
-        "zen" -> zenTypography()
-        else -> signalTypography()
-    }
+    val typography = heritageTypography()
 
     val materialColors = androidx.compose.material.Colors(
         primary = colors.primary,
@@ -216,7 +232,7 @@ fun AgenticTheme(themeName: String, content: @Composable () -> Unit) {
         onBackground = colors.onBackground,
         onSurface = colors.onSurface,
         onError = Color.White,
-        isLight = spec.id in setOf("heritage", "zen", "signal")
+        isLight = true
     )
 
     CompositionLocalProvider(

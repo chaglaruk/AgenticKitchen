@@ -26,7 +26,7 @@ class PreferencesManager(context: Context) : AppPreferences {
     override fun saveHardwareSettings(settings: HardwareSettings) { prefs.edit().putString("stove_type", settings.stoveType).putInt("stove_power_max", settings.stovePowerMax).putBoolean("oven_available", settings.ovenAvailable).putBoolean("oven_has_fan", settings.ovenHasFan).putBoolean("oven_has_grill", settings.ovenHasGrill).putInt("serving_size", settings.servingSize).putInt("power_level", settings.powerLevel).putString("gemini_api_key", settings.geminiApiKey).putString("hf_api_key", settings.hfApiKey).putString("ai_provider", settings.aiProvider).apply() }
     override fun dietSettings() = DietSettings(prefs.getString("diet_type", "none") ?: "none", prefs.getStringSet("allergies", emptySet()) ?: emptySet())
     override fun saveDietSettings(settings: DietSettings) { prefs.edit().putString("diet_type", settings.dietType).putStringSet("allergies", settings.allergies).apply() }
-    override fun theme() = prefs.getString("theme", "heritage") ?: "heritage"
+    override fun theme() = prefs.getString("theme", "editorial") ?: "editorial"
     override fun saveTheme(theme: String) { prefs.edit().putString("theme", theme).apply() }
     override fun language() = prefs.getString("lang", "Türkçe") ?: "Türkçe"
     override fun saveLanguage(language: String) { prefs.edit().putString("lang", language).apply() }
