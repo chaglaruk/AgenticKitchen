@@ -1,18 +1,67 @@
 package com.agentickitchen.android.ui
 
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Card
+import androidx.compose.material.Divider
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.RadioButton
+import androidx.compose.material.RadioButtonDefaults
+import androidx.compose.material.Slider
+import androidx.compose.material.SliderDefaults
+import androidx.compose.material.Switch
+import androidx.compose.material.SwitchDefaults
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -39,117 +88,110 @@ fun SettingsScreen(
     var showLangDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showDietDialog by remember { mutableStateOf(false) }
-
+    var contentVisible by remember { mutableStateOf(false) }
     val colors = LocalAppColors.current
     val activeThemeSpec = themeSpec(theme)
+
+    androidx.compose.runtime.LaunchedEffect(Unit) { contentVisible = true }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(getBgGradient())
+            .background(colors.background)
             .verticalScroll(rememberScrollState())
+            .padding(bottom = 36.dp)
     ) {
-        // Header
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 28.dp)
+        AnimatedVisibility(
+            visible = contentVisible,
+            enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 12 }
         ) {
-            Column {
-                Text("⚙️ ${L.settings}", color = colors.onSurface, style = MaterialTheme.typography.h1)
-                Text(
-                    if (L.isTr) "Uygulama tercihlerini yönet" else "Manage your preferences",
-                    color = colors.onSurfaceSub, style = MaterialTheme.typography.body1, modifier = Modifier.padding(top = 4.dp)
+            EditorialSettingsMasthead()
+        }
+
+        AnimatedVisibility(
+            visible = contentVisible,
+            enter = fadeIn(tween(220, delayMillis = 60)) + slideInVertically(tween(220, delayMillis = 60)) { it / 14 }
+        ) {
+            EditorialSettingsSection(number = "01", title = if (L.isTr) "Mutfağın" else "Your kitchen") {
+                EditorialSettingsRow(
+                    title = if (L.isTr) "Pişirme araçları" else "Cooking equipment",
+                    subtitle = if (L.isTr) "${selectedEquipment.size} araç seçili · $mealTime" else "${selectedEquipment.size} items selected · $mealTime",
+                    onClick = onEditSetup
+                )
+                EditorialSettingsRow(
+                    title = if (L.isTr) "Donanım profili" else "Hardware profile",
+                    subtitle = buildHardwareSummary(hw),
+                    onClick = { showHwDialog = true }
                 )
             }
         }
 
-        // ── Mutfak Kurulumu ────────────────────────────────────────────
-        SettingsSectionHeader(title = if (L.isTr) "Mutfak" else "Kitchen", colors = colors)
-
-        SettingsItemClickable(
-            icon = Icons.Filled.Restaurant, iconTint = colors.accent,
-            title = if (L.isTr) "Pişirme Araçları" else "Cooking Equipment",
-            subtitle = "${selectedEquipment.size} ${if (L.isTr) "araç seçili" else "items selected"} • $mealTime",
-            colors = colors, onClick = onEditSetup
-        )
-
-        SettingsItemClickable(
-            icon = Icons.Filled.Build, iconTint = colors.primaryLight,
-            title = L.hardwareProfile,
-            subtitle = "${if (hw.stoveType == "gas") "Gaz ocak" else "Elektrik ocak"} • ${hw.servingSize} ${L.persons}",
-            colors = colors, onClick = { showHwDialog = true }
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        // ── Kişisel ───────────────────────────────────────────────────
-        SettingsSectionHeader(title = if (L.isTr) "Kişisel Tercihler" else "Personal Preferences", colors = colors)
-
-        SettingsItemClickable(
-            icon = Icons.Filled.LocalDining, iconTint = Color(0xFFEF4444),
-            title = L.dietary,
-            subtitle = if (diet.dietType == "none") (if (L.isTr) "Kısıtlama yok" else "No restrictions") else diet.dietType.replaceFirstChar { it.uppercase() },
-            colors = colors, onClick = { showDietDialog = true }
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        // ── Uygulama ──────────────────────────────────────────────────
-        SettingsSectionHeader(title = L.app, colors = colors)
-
-        SettingsItemClickable(
-            icon = Icons.Filled.Language, iconTint = colors.primaryLight,
-            title = L.language, subtitle = language,
-            colors = colors, onClick = { showLangDialog = true }
-        )
-
-        SettingsItemClickable(
-            icon = Icons.Filled.Palette, iconTint = colors.accent,
-            title = L.theme, subtitle = activeThemeSpec.title,
-            colors = colors, onClick = { showThemeDialog = true }
-        )
-
-        ThemeShowcaseStrip(currentTheme = theme, onOpen = { showThemeDialog = true })
-
-        SettingsItemInfo(
-            icon = Icons.Filled.Info, iconTint = colors.onSurfaceSub,
-            title = L.version, subtitle = BuildConfig.VERSION_NAME, colors = colors
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        // Yeniden kurulum butonu
-        OutlinedButton(
-            onClick = onEditSetup,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(50.dp),
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, colors.divider),
-            colors = ButtonDefaults.outlinedButtonColors(backgroundColor = Color.Transparent)
+        AnimatedVisibility(
+            visible = contentVisible,
+            enter = fadeIn(tween(220, delayMillis = 110)) + slideInVertically(tween(220, delayMillis = 110)) { it / 14 }
         ) {
-            Icon(Icons.Filled.Refresh, contentDescription = null, tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(if (L.isTr) "Kurulumu Yeniden Yap" else "Redo Setup", color = colors.onSurfaceSub, style = MaterialTheme.typography.button)
+            EditorialSettingsSection(number = "02", title = if (L.isTr) "Tercihlerin" else "Your preferences") {
+                EditorialSettingsRow(
+                    title = if (L.isTr) "Beslenme tercihi" else "Dietary preference",
+                    subtitle = dietSummary(diet),
+                    onClick = { showDietDialog = true }
+                )
+            }
         }
 
-        Spacer(Modifier.height(32.dp))
+        AnimatedVisibility(
+            visible = contentVisible,
+            enter = fadeIn(tween(220, delayMillis = 160)) + slideInVertically(tween(220, delayMillis = 160)) { it / 14 }
+        ) {
+            EditorialSettingsSection(number = "03", title = if (L.isTr) "Uygulama" else "Application") {
+                EditorialSettingsRow(
+                    title = if (L.isTr) "Dil" else "Language",
+                    subtitle = language,
+                    onClick = { showLangDialog = true }
+                )
+                EditorialSettingsRow(
+                    title = if (L.isTr) "Uygulama teması" else "App theme",
+                    subtitle = activeThemeSpec.title,
+                    onClick = { showThemeDialog = true },
+                    trailing = { ThemeSwatches(activeThemeSpec) }
+                )
+                EditorialInfoRow(
+                    title = if (L.isTr) "Sürüm" else "Version",
+                    value = BuildConfig.VERSION_NAME
+                )
+                Spacer(Modifier.height(18.dp))
+                TextButton(
+                    onClick = onEditSetup,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .semantics { contentDescription = if (L.isTr) "Kurulumu yeniden yap" else "Redo setup" }
+                ) {
+                    Icon(Icons.Filled.Refresh, contentDescription = null, tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (L.isTr) "Kurulumu yeniden yap" else "Redo setup", color = colors.onSurfaceSub)
+                }
+            }
+        }
     }
 
     if (showHwDialog) {
         HardwareDialog(
-            current = hw, colors = colors,
+            current = hw,
+            colors = colors,
             onSave = { updated -> onSaveHardware(updated); showHwDialog = false },
             onDismiss = { showHwDialog = false }
         )
     }
-
     if (showLangDialog) {
         ListDialog(
-            title = L.selectLanguage, current = language, options = listOf("Türkçe", "English", "Deutsch", "Français"),
-            colors = colors, onSelect = { onSetLanguage(it); showLangDialog = false }, onDismiss = { showLangDialog = false }
+            title = if (L.isTr) "Dil seç" else "Choose language",
+            current = language,
+            options = listOf("Türkçe", "English", "Deutsch", "Français"),
+            colors = colors,
+            onSelect = { onSetLanguage(it); showLangDialog = false },
+            onDismiss = { showLangDialog = false }
         )
     }
-
     if (showThemeDialog) {
         ThemePickerDialog(
             current = theme,
@@ -157,128 +199,140 @@ fun SettingsScreen(
             onDismiss = { showThemeDialog = false }
         )
     }
-
     if (showDietDialog) {
         DietDialog(
-            current = diet, colors = colors,
+            current = diet,
+            colors = colors,
             onSave = { updated -> onSaveDiet(updated); showDietDialog = false },
             onDismiss = { showDietDialog = false }
         )
     }
 }
 
-// ── Settings Item Components ──────────────────────────────────────────────
+private fun buildHardwareSummary(hw: HardwareSettings): String = if (L.isTr) {
+    "${if (hw.stoveType == "gas") "Gaz ocak" else "Elektrikli ocak"} · ${hw.servingSize} kişi"
+} else {
+    "${if (hw.stoveType == "gas") "Gas stove" else "Electric stove"} · serves ${hw.servingSize}"
+}
 
-@Composable
-fun SettingsSectionHeader(title: String, colors: AppColors) {
-    Text(
-        title.uppercase(), color = colors.primaryLight, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-        letterSpacing = 1.5.sp, modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 6.dp)
-    )
+private fun dietSummary(diet: DietSettings): String = when (diet.dietType) {
+    "none" -> if (L.isTr) "Kısıtlama yok" else "No restrictions"
+    else -> diet.dietType.replaceFirstChar { it.uppercase() }
 }
 
 @Composable
-fun SettingsItemClickable(icon: ImageVector, iconTint: Color, title: String, subtitle: String, colors: AppColors, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable { onClick() },
-        backgroundColor = colors.surface, shape = RoundedCornerShape(16.dp), elevation = 0.dp, border = BorderStroke(1.dp, colors.divider)
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(42.dp).background(iconTint.copy(alpha = 0.15f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, color = colors.onSurface, style = MaterialTheme.typography.h6, fontSize = 16.sp)
-                Text(subtitle, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-            }
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.onSurfaceSub)
-        }
-    }
-}
-
-@Composable
-fun SettingsItemToggle(icon: ImageVector, iconTint: Color, title: String, subtitle: String, checked: Boolean, colors: AppColors, onCheckedChange: (Boolean) -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        backgroundColor = colors.surface, shape = RoundedCornerShape(16.dp), elevation = 0.dp, border = BorderStroke(1.dp, colors.divider)
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(42.dp).background(iconTint.copy(alpha = 0.15f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, color = colors.onSurface, style = MaterialTheme.typography.h6, fontSize = 16.sp)
-                Text(subtitle, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-            }
-            Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = colors.primary, checkedTrackColor = colors.primary.copy(alpha = 0.5f)))
-        }
-    }
-}
-
-@Composable
-fun SettingsItemInfo(icon: ImageVector, iconTint: Color, title: String, subtitle: String, colors: AppColors) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        backgroundColor = colors.surface, shape = RoundedCornerShape(16.dp), elevation = 0.dp, border = BorderStroke(1.dp, colors.divider)
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(42.dp).background(iconTint.copy(alpha = 0.1f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(title, color = colors.onSurface, style = MaterialTheme.typography.h6, fontSize = 16.sp)
-                Text(subtitle, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-            }
-        }
-    }
-}
-
-@Composable
-fun ThemeShowcaseStrip(currentTheme: String, onOpen: () -> Unit) {
+private fun EditorialSettingsMasthead() {
     val colors = LocalAppColors.current
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 30.dp, bottom = 34.dp)) {
+        Text(if (L.isTr) "MUTFAK DEFTERİ" else "KITCHEN NOTES", color = colors.primary, style = MaterialTheme.typography.caption)
+        Spacer(Modifier.size(10.dp))
+        Text(if (L.isTr) "Ayarlar" else "Settings", color = colors.onSurface, style = MaterialTheme.typography.h1)
+        Spacer(Modifier.size(10.dp))
+        Text(
+            if (L.isTr) "Mutfağının ayrıntılarını ve uygulama tercihlerini burada düzenleyebilirsin." else "Keep your kitchen details and app preferences close at hand.",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+    }
+}
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable { onOpen() },
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(18.dp),
-        elevation = 0.dp,
-        border = BorderStroke(1.dp, colors.divider)
+@Composable
+private fun EditorialSettingsSection(number: String, title: String, content: @Composable ColumnScope.() -> Unit) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+        Divider(color = colors.divider, thickness = 1.dp)
+        Spacer(Modifier.size(18.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(number, color = colors.primary, style = MaterialTheme.typography.h6)
+            Spacer(Modifier.width(14.dp))
+            Text(title, color = colors.onSurface, style = MaterialTheme.typography.h6)
+        }
+        Spacer(Modifier.size(8.dp))
+        content()
+        Spacer(Modifier.size(24.dp))
+    }
+}
+
+@Composable
+private fun EditorialSettingsRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    trailing: @Composable (() -> Unit)? = null
+) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 68.dp)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "$title. $subtitle" },
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(if (L.isTr) "Tema Galerisi" else "Theme Gallery", color = colors.onSurface, style = MaterialTheme.typography.h6)
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                ThemeCatalog.take(3).forEach { spec ->
-                    val selected = spec.id == currentTheme
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(spec.colors.surfaceAlt, RoundedCornerShape(16.dp))
-                            .border(1.dp, if (selected) spec.colors.primary else colors.divider, RoundedCornerShape(16.dp))
-                            .padding(12.dp)
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(spec.colors.primary, spec.colors.accent, spec.colors.heroStart).forEach { preview ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .background(preview, RoundedCornerShape(6.dp))
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Text(spec.title, color = spec.colors.onSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = colors.onSurface, style = MaterialTheme.typography.body1, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.size(3.dp))
+            Text(subtitle, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+        }
+        if (trailing != null) {
+            trailing()
+        } else {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.primary)
+        }
+    }
+    Divider(color = colors.divider, thickness = 1.dp)
+}
+
+@Composable
+private fun EditorialInfoRow(title: String, value: String) {
+    val colors = LocalAppColors.current
+    Row(modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
+        Text(value, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+    }
+    Divider(color = colors.divider, thickness = 1.dp)
+}
+
+@Composable
+private fun ThemeSwatches(spec: ThemeSpec) {
+    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        listOf(spec.colors.primary, spec.colors.accent, spec.colors.surfaceAlt).forEach { color ->
+            Box(modifier = Modifier.size(12.dp).background(color, RoundedCornerShape(6.dp)).border(1.dp, LocalAppColors.current.divider, RoundedCornerShape(6.dp)))
         }
     }
 }
 
-// ── Dialogs ───────────────────────────────────────────────────────────────
+@Composable
+private fun EditorialDialogSurface(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    val colors = LocalAppColors.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            backgroundColor = colors.surface,
+            shape = RoundedCornerShape(16.dp),
+            elevation = 0.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, colors.divider)
+        ) {
+            Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState()), content = content)
+        }
+    }
+}
+
+@Composable
+private fun EditorialDialogHeader(title: String, onDismiss: () -> Unit) {
+    val colors = LocalAppColors.current
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = colors.onSurface, style = MaterialTheme.typography.h6, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.semantics { contentDescription = if (L.isTr) "Kapat" else "Close" }
+        ) {
+            Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub)
+        }
+    }
+    Spacer(Modifier.size(14.dp))
+    Divider(color = colors.divider, thickness = 1.dp)
+    Spacer(Modifier.size(14.dp))
+}
 
 @Composable
 fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (HardwareSettings) -> Unit, onDismiss: () -> Unit) {
@@ -289,194 +343,236 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
     var geminiKey by remember { mutableStateOf(current.geminiApiKey) }
     var hfKey by remember { mutableStateOf(current.hfApiKey) }
     var aiProvider by remember { mutableStateOf(current.aiProvider) }
+    val clipboardManager = LocalClipboardManager.current
+    val uriHandler = LocalUriHandler.current
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(backgroundColor = colors.surface, shape = RoundedCornerShape(24.dp), elevation = 16.dp) {
-            Column(modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState())) {
-                Text(L.hardwareProfile, color = colors.onSurface, style = MaterialTheme.typography.h6)
-                Spacer(Modifier.height(20.dp))
+    EditorialDialogSurface(onDismiss) {
+        EditorialDialogHeader(if (L.isTr) "Donanım profili" else "Hardware profile", onDismiss)
+        Text(if (L.isTr) "Yapay zekâ sağlayıcısı" else "AI provider", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        Spacer(Modifier.size(8.dp))
+        listOf(
+            "GEMINI" to "Google Gemini",
+            "HUGGINGFACE" to "Hugging Face",
+            "DUCKDUCKGO" to "DuckDuckGo (No-Key)",
+            "FREE" to "Bedava (No-Key)"
+        ).forEach { (key, label) ->
+            EditorialProviderOption(
+                label = label,
+                selected = aiProvider == key,
+                onSelect = { aiProvider = key }
+            )
+        }
 
-                // AI Provider Selection
-                Text("AI Model Sağlayıcı", color = colors.onSurfaceSub, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(
-                        "GEMINI" to "Google Gemini", 
-                        "HUGGINGFACE" to "Hugging Face", 
-                        "DUCKDUCKGO" to "DuckDuckGo (No-Key)",
-                        "FREE" to "Bedava (No-Key)"
-                    ).forEach { (key, label) ->
-                        val selected = aiProvider == key
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) colors.primary.copy(alpha = 0.1f) else Color.Transparent)
-                                .border(1.dp, if (selected) colors.primary else colors.divider, RoundedCornerShape(12.dp))
-                                .clickable { aiProvider = key }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selected, onClick = { aiProvider = key },
-                                colors = RadioButtonDefaults.colors(selectedColor = colors.primary)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(label, color = if (selected) colors.primary else colors.onSurface, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-                        }
-                    }
-                }
+        Spacer(Modifier.size(14.dp))
+        when (aiProvider) {
+            "GEMINI" -> CredentialField(
+                value = geminiKey,
+                onValueChange = { geminiKey = it },
+                label = "Gemini API Key",
+                onPaste = { clipboardManager.getText()?.text?.takeIf(String::isNotBlank)?.let { geminiKey = it } },
+                helpText = if (L.isTr) "Anahtarı aistudio.google.com adresinden alabilirsin." else "Get a key from aistudio.google.com.",
+                onHelp = { uriHandler.openUri("https://aistudio.google.com/app/apikey") }
+            )
+            "HUGGINGFACE" -> CredentialField(
+                value = hfKey,
+                onValueChange = { hfKey = it },
+                label = "Hugging Face Token",
+                onPaste = { clipboardManager.getText()?.text?.takeIf(String::isNotBlank)?.let { hfKey = it } },
+                helpText = if (L.isTr) "Token'ı huggingface.co adresinden alabilirsin." else "Get a token from huggingface.co.",
+                onHelp = { uriHandler.openUri("https://huggingface.co/settings/tokens") }
+            )
+            else -> Text(
+                if (L.isTr) "Bu sağlayıcı için anahtar gerekmez. Görsel analiz sınırlı olabilir." else "This provider does not need a key. Vision analysis may be limited.",
+                color = colors.success,
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
 
-                Spacer(Modifier.height(16.dp))
-
-                val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-
-                if (aiProvider == "GEMINI") {
-                    OutlinedTextField(
-                        value = geminiKey, onValueChange = { geminiKey = it }, modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Gemini API Key", color = colors.onSurfaceSub) },
-                        colors = TextFieldDefaults.outlinedTextFieldColors(textColor = colors.onSurface, focusedBorderColor = colors.primary, unfocusedBorderColor = colors.divider),
-                        shape = RoundedCornerShape(12.dp), singleLine = true,
-                        trailingIcon = {
-                            IconButton(onClick = { clipboardManager.getText()?.text?.let { if (it.isNotBlank()) geminiKey = it } }) {
-                                Icon(Icons.Filled.ContentPaste, contentDescription = "Paste", tint = colors.primary)
-                            }
-                        }
+        Spacer(Modifier.size(18.dp))
+        Divider(color = colors.divider, thickness = 1.dp)
+        Spacer(Modifier.size(16.dp))
+        Text(if (L.isTr) "Ocak tipi" else "Stove type", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        Spacer(Modifier.size(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            EditorialChoiceButton(
+                label = if (L.isTr) "Elektrik" else "Electric",
+                selected = stoveType == "electric",
+                onClick = { stoveType = "electric" }
+            )
+            EditorialChoiceButton(
+                label = if (L.isTr) "Gaz" else "Gas",
+                selected = stoveType == "gas",
+                onClick = { stoveType = "gas" }
+            )
+        }
+        Spacer(Modifier.size(12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (L.isTr) "Fırın kullanılabilir" else "Oven available", color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
+            Switch(
+                checked = ovenAvailable,
+                onCheckedChange = { ovenAvailable = it },
+                colors = SwitchDefaults.colors(checkedThumbColor = colors.primary, checkedTrackColor = colors.primaryLight)
+            )
+        }
+        Spacer(Modifier.size(12.dp))
+        Text(if (L.isTr) "Porsiyon: $servingSize kişi" else "Servings: $servingSize", color = colors.onSurface, style = MaterialTheme.typography.body1)
+        Slider(
+            value = servingSize.toFloat(),
+            onValueChange = { servingSize = it.toInt() },
+            valueRange = 1f..8f,
+            steps = 6,
+            colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.divider)
+        )
+        Spacer(Modifier.size(18.dp))
+        DialogActions(
+            onDismiss = onDismiss,
+            onSave = {
+                onSave(
+                    current.copy(
+                        stoveType = stoveType,
+                        ovenAvailable = ovenAvailable,
+                        servingSize = servingSize,
+                        powerLevel = powerLevel,
+                        geminiApiKey = geminiKey,
+                        hfApiKey = hfKey,
+                        aiProvider = aiProvider
                     )
-                    Text("aistudio.google.com adresinden alabilirsiniz.", color = colors.primaryLight, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp).clickable { uriHandler.openUri("https://aistudio.google.com/app/apikey") })
-                } else if (aiProvider == "HUGGINGFACE") {
-                    OutlinedTextField(
-                        value = hfKey, onValueChange = { hfKey = it }, modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Hugging Face Token", color = colors.onSurfaceSub) },
-                        colors = TextFieldDefaults.outlinedTextFieldColors(textColor = colors.onSurface, focusedBorderColor = colors.primary, unfocusedBorderColor = colors.divider),
-                        shape = RoundedCornerShape(12.dp), singleLine = true,
-                        trailingIcon = {
-                            IconButton(onClick = { clipboardManager.getText()?.text?.let { if (it.isNotBlank()) hfKey = it } }) {
-                                Icon(Icons.Filled.ContentPaste, contentDescription = "Paste", tint = colors.primary)
-                            }
-                        }
-                    )
-                    Text("huggingface.co/settings/tokens adresinden alabilirsiniz.", color = colors.primaryLight, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp).clickable { uriHandler.openUri("https://huggingface.co/settings/tokens") })
-                } else {
-                    Box(modifier = Modifier.fillMaxWidth().background(colors.accent.copy(alpha = 0.1f), RoundedCornerShape(12.dp)).padding(16.dp)) {
-                        Column {
-                            Text(
-                                if (aiProvider == "DUCKDUCKGO") "DuckDuckGo üzerinden GPT-4o-mini kullanılır. Anahtar gerekmez."
-                                else "Bedava modda anahtar gerekmez. (Pollinations.ai / Mistral-7B)", 
-                                color = colors.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "⚠️ Görsel analiz (Vision) bu modlarda simüle edilir. Tam performans için Gemini API anahtarı önerilir.",
-                                color = colors.onSurfaceSub, fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
+                )
+            }
+        )
+    }
+}
 
-                Divider(modifier = Modifier.padding(vertical = 20.dp), color = colors.divider)
+@Composable
+private fun EditorialProviderOption(label: String, selected: Boolean, onSelect: () -> Unit) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onSelect)
+            .semantics { contentDescription = "$label, ${if (selected) if (L.isTr) "seçili" else "selected" else if (L.isTr) "seçili değil" else "not selected"}" },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onSelect, colors = RadioButtonDefaults.colors(selectedColor = colors.primary))
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = if (selected) colors.onSurface else colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+    }
+    Divider(color = colors.divider, thickness = 1.dp)
+}
 
-                Text(L.stoveType, color = colors.onSurfaceSub, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("electric" to L.electric, "gas" to L.gas).forEach { (key, label) ->
-                        val selected = stoveType == key
-                        OutlinedButton(
-                            onClick = { stoveType = key },
-                            colors = ButtonDefaults.outlinedButtonColors(backgroundColor = if (selected) colors.primary else colors.background),
-                            border = BorderStroke(1.dp, if (selected) colors.primary else colors.divider),
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text(label, color = if (selected) colors.onPrimary else colors.onSurfaceSub, style = MaterialTheme.typography.button) }
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(L.hasOven, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
-                    Switch(checked = ovenAvailable, onCheckedChange = { ovenAvailable = it }, colors = SwitchDefaults.colors(checkedThumbColor = colors.primary))
-                }
-
-                Spacer(Modifier.height(12.dp))
-                Text("${L.serving}: $servingSize ${L.persons}", color = colors.onSurface, style = MaterialTheme.typography.body1)
-                Slider(value = servingSize.toFloat(), onValueChange = { servingSize = it.toInt() }, valueRange = 1f..8f, steps = 6, colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary))
-
-                Spacer(Modifier.height(24.dp))
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) { Text(L.cancel, color = colors.onSurfaceSub) }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = { 
-                            onSave(current.copy(
-                                stoveType = stoveType, 
-                                ovenAvailable = ovenAvailable, 
-                                servingSize = servingSize, 
-                                powerLevel = powerLevel, 
-                                geminiApiKey = geminiKey,
-                                hfApiKey = hfKey,
-                                aiProvider = aiProvider
-                            )) 
-                        }, 
-                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), 
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(L.save, color = colors.onPrimary, style = MaterialTheme.typography.button)
-                    }
-                }
+@Composable
+private fun CredentialField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    onPaste: () -> Unit,
+    helpText: String,
+    onHelp: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true,
+        colors = TextFieldDefaults.outlinedTextFieldColors(
+            textColor = colors.onSurface,
+            focusedBorderColor = colors.primary,
+            unfocusedBorderColor = colors.divider
+        ),
+        shape = RoundedCornerShape(12.dp),
+        trailingIcon = {
+            IconButton(
+                onClick = onPaste,
+                modifier = Modifier.semantics { contentDescription = if (L.isTr) "Panodan yapıştır" else "Paste from clipboard" }
+            ) {
+                Icon(Icons.Filled.ContentPaste, contentDescription = null, tint = colors.primary)
             }
         }
+    )
+    Text(
+        helpText,
+        color = colors.primary,
+        style = MaterialTheme.typography.caption,
+        modifier = Modifier.padding(top = 6.dp).clickable(onClick = onHelp)
+    )
+}
+
+@Composable
+private fun EditorialChoiceButton(label: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    OutlinedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) colors.primary else colors.divider),
+        colors = ButtonDefaults.outlinedButtonColors(backgroundColor = if (selected) colors.primary.copy(alpha = .12f) else Color.Transparent)
+    ) {
+        Text(label, color = if (selected) colors.primary else colors.onSurfaceSub)
     }
 }
 
 @Composable
 fun DietDialog(current: DietSettings, colors: AppColors, onSave: (DietSettings) -> Unit, onDismiss: () -> Unit) {
     var dietType by remember { mutableStateOf(current.dietType) }
-    Dialog(onDismissRequest = onDismiss) {
-        Card(backgroundColor = colors.surface, shape = RoundedCornerShape(24.dp), elevation = 16.dp) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(L.dietary, color = colors.onSurface, style = MaterialTheme.typography.h6)
-                Spacer(Modifier.height(16.dp))
-                listOf("none" to (if (L.isTr) "Kısıtlama Yok" else "None"), "vegetarian" to "Vegetarian", "vegan" to "Vegan", "keto" to "Keto").forEach { (key, label) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { dietType = key }.padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(label, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
-                        if (dietType == key) Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = colors.primary)
-                    }
-                    Divider(color = colors.divider)
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) { Text(L.cancel, color = colors.onSurfaceSub) }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = { onSave(DietSettings(dietType, current.allergies)) }, colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(12.dp)) {
-                        Text(L.save, color = colors.onPrimary, style = MaterialTheme.typography.button)
-                    }
-                }
-            }
+    EditorialDialogSurface(onDismiss) {
+        EditorialDialogHeader(if (L.isTr) "Beslenme tercihi" else "Dietary preference", onDismiss)
+        listOf(
+            "none" to if (L.isTr) "Kısıtlama yok" else "No restrictions",
+            "vegetarian" to "Vegetarian",
+            "vegan" to "Vegan",
+            "keto" to "Keto"
+        ).forEach { (key, label) ->
+            EditorialSelectionRow(label, dietType == key) { dietType = key }
         }
+        Spacer(Modifier.size(18.dp))
+        DialogActions(onDismiss = onDismiss, onSave = { onSave(DietSettings(dietType, current.allergies)) })
     }
 }
 
 @Composable
 fun ListDialog(title: String, current: String, options: List<String>, colors: AppColors, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(backgroundColor = colors.surface, shape = RoundedCornerShape(24.dp), elevation = 16.dp) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(title, color = colors.onSurface, style = MaterialTheme.typography.h6)
-                Spacer(Modifier.height(16.dp))
-                options.forEach { opt ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onSelect(opt) }.padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(opt.replaceFirstChar { it.uppercase() }, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
-                        if (opt.equals(current, ignoreCase = true)) Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = colors.primary)
-                    }
-                    Divider(color = colors.divider)
-                }
-            }
+    EditorialDialogSurface(onDismiss) {
+        EditorialDialogHeader(title, onDismiss)
+        options.forEach { option ->
+            EditorialSelectionRow(option, option.equals(current, ignoreCase = true)) { onSelect(option) }
+        }
+    }
+}
+
+@Composable
+private fun EditorialSelectionRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clickable(onClick = onSelect)
+            .semantics { contentDescription = "$label, ${if (selected) if (L.isTr) "seçili" else "selected" else if (L.isTr) "seçili değil" else "not selected"}" },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
+        if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = colors.success)
+    }
+    Divider(color = colors.divider, thickness = 1.dp)
+}
+
+@Composable
+private fun DialogActions(onDismiss: () -> Unit, onSave: () -> Unit) {
+    val colors = LocalAppColors.current
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onDismiss) { Text(if (L.isTr) "İptal" else "Cancel", color = colors.onSurfaceSub) }
+        Spacer(Modifier.width(8.dp))
+        Button(
+            onClick = onSave,
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+            elevation = ButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+            modifier = Modifier.semantics { contentDescription = if (L.isTr) "Kaydet" else "Save" }
+        ) {
+            Text(if (L.isTr) "Kaydet" else "Save", color = colors.onPrimary)
         }
     }
 }
@@ -484,42 +580,67 @@ fun ListDialog(title: String, current: String, options: List<String>, colors: Ap
 @Composable
 fun ThemePickerDialog(current: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
     val colors = LocalAppColors.current
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(backgroundColor = colors.surface, shape = RoundedCornerShape(24.dp), elevation = 16.dp) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(L.theme, color = colors.onSurface, style = MaterialTheme.typography.h6)
-                Spacer(Modifier.height(16.dp))
-                ThemeCatalog.forEach { spec ->
-                    val selected = spec.id == current
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(spec.id) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(spec.colors.primary, spec.colors.accent, spec.colors.heroStart).forEach { preview ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .background(preview, RoundedCornerShape(6.dp))
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(spec.title, color = colors.onSurface, style = MaterialTheme.typography.body1, fontWeight = FontWeight.SemiBold)
-                            Text(spec.subtitle, color = colors.onSurfaceSub, fontSize = 12.sp)
-                        }
-                        if (selected) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = spec.colors.primary)
-                        }
-                    }
-                    Divider(color = colors.divider)
+    EditorialDialogSurface(onDismiss) {
+        EditorialDialogHeader(if (L.isTr) "Uygulama teması" else "App theme", onDismiss)
+        ThemeCatalog.forEach { spec ->
+            val selected = spec.id == current
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 62.dp)
+                    .clickable { onSelect(spec.id) }
+                    .semantics { contentDescription = "${spec.title}, ${if (selected) if (L.isTr) "seçili" else "selected" else if (L.isTr) "seçili değil" else "not selected"}" },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ThemeSwatches(spec)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(spec.title, color = colors.onSurface, style = MaterialTheme.typography.body1, fontWeight = FontWeight.SemiBold)
+                    Text(spec.subtitle, color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
                 }
+                if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = colors.primary)
             }
+            Divider(color = colors.divider, thickness = 1.dp)
         }
+    }
+}
+
+@Preview(showBackground = true, locale = "tr")
+@Composable
+private fun TurkishEditorialSettingsPreview() {
+    AgenticTheme("editorial") {
+        SettingsScreen(
+            hw = HardwareSettings(),
+            diet = DietSettings(),
+            theme = "editorial",
+            language = "Türkçe",
+            selectedEquipment = setOf("oven", "elec"),
+            mealTime = "19:00",
+            onSaveHardware = {},
+            onSaveDiet = {},
+            onSetLanguage = {},
+            onSetTheme = {},
+            onEditSetup = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, locale = "en")
+@Composable
+private fun EnglishEditorialSettingsPreview() {
+    AgenticTheme("editorial") {
+        SettingsScreen(
+            hw = HardwareSettings(stoveType = "gas", servingSize = 4, ovenAvailable = true),
+            diet = DietSettings(dietType = "vegetarian"),
+            theme = "heritage",
+            language = "English",
+            selectedEquipment = setOf("gas", "oven", "pan", "grill"),
+            mealTime = "20:30",
+            onSaveHardware = {},
+            onSaveDiet = {},
+            onSetLanguage = {},
+            onSetTheme = {},
+            onEditSetup = {}
+        )
     }
 }
