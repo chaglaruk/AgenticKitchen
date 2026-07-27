@@ -181,12 +181,8 @@ fun HomeScreen(
             onOpenCamera = { showCameraModal = true }
         )
 
-        if (chips.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            Box(Modifier.padding(horizontal = 24.dp)) {
-                FlowRow(chips = chips, colors = colors, onRemove = onRemoveChip)
-            }
-        }
+        Spacer(Modifier.height(16.dp))
+        EditorialIngredientCollection(chips = chips, onRemove = onRemoveChip)
 
         Spacer(Modifier.height(20.dp))
         PantryIntelOverviewCard(pantryIntel = pantryIntel, onEditSetup = onEditSetup)
@@ -683,7 +679,7 @@ private fun EmptyEditorialHomePreview() = EditorialHomePreview(emptyList())
 @Preview(showBackground = true)
 @Composable
 private fun PopulatedEditorialHomePreview() = EditorialHomePreview(
-    listOf("Domates", "Tavuk", "Pirinç", "Sarımsak")
+    listOf("Domates", "Ispanak", "Tavuk", "Pirinç", "Peynir", "Ekmek")
 )
 
 @Composable
