@@ -81,6 +81,8 @@ fun AppRoot(viewModel: AppViewModel) {
     val setupDone by viewModel.setupDone.collectAsState()
     val isEditingSetup by viewModel.isEditingSetup.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
+    val selectedEquipment by viewModel.selectedEquipment.collectAsState()
+    val mealTime by viewModel.mealTime.collectAsState()
 
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var apiKeySkipped by remember { mutableStateOf(false) }
@@ -101,6 +103,8 @@ fun AppRoot(viewModel: AppViewModel) {
     if (!setupDone || isEditingSetup) {
         SetupScreen(
             initialHw = hw,
+            initialEquipment = selectedEquipment,
+            initialMealTime = mealTime,
             canGoBack = setupDone,
             onBack = { viewModel.cancelEditingSetup() },
             onComplete = { equipment, servings, mealTime, updatedHw ->
