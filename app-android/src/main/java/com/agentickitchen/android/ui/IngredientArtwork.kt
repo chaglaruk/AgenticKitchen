@@ -87,7 +87,7 @@ private fun ingredientVisualFor(name: String): IngredientVisualKind {
 }
 
 @Composable
-private fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
+internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
     val kind = ingredientVisualFor(name)
     Canvas(modifier = modifier) {
         val s = size.minDimension
