@@ -94,6 +94,7 @@ import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.shared.models.PantryIntelReport
+import com.agentickitchen.shared.models.PantryIntelSignal
 import com.agentickitchen.shared.models.ScheduleEvent
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -532,55 +533,146 @@ private fun InputManifestCard(
 @Composable
 private fun PantryIntelOverviewCard(pantryIntel: PantryIntelReport, onEditSetup: () -> Unit) {
     val colors = LocalAppColors.current
-    val themeSpec = LocalThemeSpec.current
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(if (themeSpec.id == "heritage") 0.dp else 24.dp),
-        elevation = 0.dp,
-        border = BorderStroke(1.dp, colors.divider)
-    ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        if (L.isTr) "MUTFAK ÖZETİ" else "KITCHEN SUMMARY",
-                        color = colors.primary,
-                        style = MaterialTheme.typography.caption
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "${pantryIntel.readinessScore}/100 • ${pantryCategoryLabel(pantryIntel.focusCategoryId)}",
-                        color = colors.onSurface,
-                        style = MaterialTheme.typography.h6
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        equipmentLaneLabel(pantryIntel.equipmentLane),
-                        color = colors.onSurfaceSub,
-                        style = MaterialTheme.typography.body1
-                    )
-                }
-                OutlinedButton(
-                    onClick = onEditSetup,
-                    shape = RoundedCornerShape(if (themeSpec.id == "heritage") 0.dp else 999.dp),
-                    border = BorderStroke(1.dp, colors.divider),
-                    colors = ButtonDefaults.outlinedButtonColors(backgroundColor = colors.surfaceAlt)
-                ) {
-                    Text(if (L.isTr) "Kurulum" else "Setup", color = colors.onSurface)
-                }
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+        Divider(color = colors.divider)
+        Spacer(Modifier.height(18.dp))
+        Row(verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (L.isTr) "MUTFAK NOTLARI" else "KITCHEN NOTES",
+                    color = colors.primary,
+                    style = MaterialTheme.typography.overline,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    text = if (L.isTr) "Bugünkü mutfak görünümü" else "Today’s kitchen view",
+                    color = colors.onSurface,
+                    style = MaterialTheme.typography.h2
+                )
             }
-            Spacer(Modifier.height(14.dp))
-            pantryIntel.warnings.take(1).forEach { warning ->
-                Text("• ${pantrySignalText(warning)}", color = colors.accent, style = MaterialTheme.typography.body1)
-                Spacer(Modifier.height(4.dp))
-            }
-            pantryIntel.tactics.take(2).forEach { tactic ->
-                Text("• ${pantrySignalText(tactic)}", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
-                Spacer(Modifier.height(4.dp))
+            TextButton(
+                onClick = onEditSetup,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics {
+                        contentDescription = if (L.isTr) "Kurulumu düzenle" else "Edit setup"
+                    }
+            ) {
+                Text(
+                    text = if (L.isTr) "Kurulumu düzenle" else "Edit setup",
+                    color = colors.primary,
+                    style = MaterialTheme.typography.button
+                )
             }
         }
+        Spacer(Modifier.height(18.dp))
+
+        val focusCategory = pantryCategoryLabel(pantryIntel.focusCategoryId)
+        val readinessDescription = if (L.isTr) {
+            "Hazırlık düzeyi ${pantryIntel.readinessScore}/100, $focusCategory"
+        } else {
+            "Readiness ${pantryIntel.readinessScore}/100, $focusCategory"
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = readinessDescription },
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Text(
+                text = pantryIntel.readinessScore.toString(),
+                color = colors.onSurface,
+                style = MaterialTheme.typography.h1
+            )
+            Text(
+                text = "/100",
+                color = colors.onSurfaceSub,
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 16.dp, bottom = 6.dp)) {
+                Text(
+                    text = if (L.isTr) "Hazırlık düzeyi" else "Readiness",
+                    color = colors.onSurfaceSub,
+                    style = MaterialTheme.typography.caption
+                )
+                Text(focusCategory, color = colors.onSurface, style = MaterialTheme.typography.body1)
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Divider(color = colors.divider)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = if (L.isTr) "01 EKİPMAN" else "01 EQUIPMENT",
+            color = colors.success,
+            style = MaterialTheme.typography.overline,
+            letterSpacing = 1.1.sp
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = equipmentLaneLabel(pantryIntel.equipmentLane),
+            color = colors.onSurface,
+            style = MaterialTheme.typography.body1
+        )
+
+        pantryIntel.warnings.take(1).forEach { warning ->
+            Spacer(Modifier.height(16.dp))
+            Divider(color = colors.divider)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        contentDescription = "${if (L.isTr) "Uyarı" else "Warning"}: ${pantrySignalText(warning)}"
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(32.dp)
+                        .background(MaterialTheme.colors.error)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = pantrySignalText(warning),
+                    color = MaterialTheme.colors.error,
+                    style = MaterialTheme.typography.body1
+                )
+            }
+        }
+
+        pantryIntel.tactics.take(2).forEachIndexed { index, tactic ->
+            Spacer(Modifier.height(12.dp))
+            Divider(color = colors.divider)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        contentDescription = "${if (L.isTr) "Not" else "Note"} ${index + 1}: ${pantrySignalText(tactic)}"
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Text(
+                    text = "%02d".format(index + 1),
+                    color = colors.success,
+                    style = MaterialTheme.typography.h6,
+                    modifier = Modifier.width(34.dp)
+                )
+                Text(
+                    text = pantrySignalText(tactic),
+                    color = colors.onSurfaceSub,
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        Divider(color = colors.divider)
     }
 }
 
@@ -717,6 +809,47 @@ private fun EditorialHomePreview(chips: List<String>) {
             onRemoveChip = {},
             onClearAll = {},
             onStart = {},
+            onEditSetup = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditorialKitchenSummaryPreview() {
+    AgenticTheme("editorial") {
+        PantryIntelOverviewCard(
+            pantryIntel = PantryIntelReport(
+                readinessScore = 72,
+                focusCategoryId = "vegetation",
+                focusCategoryLabel = "Vegetation",
+                categoryBreakdown = emptyList(),
+                warnings = listOf(PantryIntelSignal("needs_liquid", "")),
+                tactics = listOf(
+                    PantryIntelSignal("add_protein_anchor", ""),
+                    PantryIntelSignal("rapid_pan_lane", "")
+                ),
+                equipmentLane = "rapid_pan"
+            ),
+            onEditSetup = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditorialKitchenSummaryQuietPreview() {
+    AgenticTheme("editorial") {
+        PantryIntelOverviewCard(
+            pantryIntel = PantryIntelReport(
+                readinessScore = 88,
+                focusCategoryId = "carb_matrix",
+                focusCategoryLabel = "Carb Matrix",
+                categoryBreakdown = emptyList(),
+                warnings = emptyList(),
+                tactics = emptyList(),
+                equipmentLane = "controlled_roast"
+            ),
             onEditSetup = {}
         )
     }
