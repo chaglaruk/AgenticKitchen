@@ -9,10 +9,8 @@ import com.agentickitchen.android.app.AppViewModelFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
 import androidx.compose.material.rememberScaffoldState
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,9 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.Psychology
@@ -34,7 +29,6 @@ import com.agentickitchen.android.ui.AgenticTheme
 import com.agentickitchen.android.ui.ApiKeyOnboardingDialog
 import com.agentickitchen.android.ui.HomeScreen
 import com.agentickitchen.android.ui.LocalAppColors
-import com.agentickitchen.android.ui.LocalThemeSpec
 import com.agentickitchen.android.ui.OptionsScreen
 import com.agentickitchen.android.ui.OperationsScreen
 import com.agentickitchen.android.ui.SettingsScreen
@@ -165,7 +159,6 @@ fun AppNavigation(viewModel: AppViewModel) {
 
     val screens = listOf(Screen.Intelligence, Screen.Options, Screen.Operations, Screen.Settings)
     val colors = LocalAppColors.current
-    val themeSpec = LocalThemeSpec.current
     val scaffoldState = rememberScaffoldState()
     val uiEvent by viewModel.uiEvent.collectAsState(initial = null)
 
