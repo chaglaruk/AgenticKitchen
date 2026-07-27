@@ -19,6 +19,8 @@ import com.agentickitchen.shared.ai.StructuredRecipeParser
 import com.agentickitchen.shared.ai.prompt.PromptFactory
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import com.agentickitchen.shared.validator.CookingPlanValidator
+import com.agentickitchen.shared.cooking.CookingSessionController
+import com.agentickitchen.shared.cooking.CookingSessionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -158,6 +160,9 @@ class AppViewModel(
 
     private val _planState = MutableStateFlow<PlanState>(PlanState.Idle)
     val planState: StateFlow<PlanState> = _planState.asStateFlow()
+    private val cookingController = CookingSessionController()
+    private val _cookingState = MutableStateFlow(CookingSessionState())
+    val cookingState: StateFlow<CookingSessionState> = _cookingState.asStateFlow()
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
@@ -278,6 +283,13 @@ class AppViewModel(
             }
         }
     }
+
+    fun startCooking() { val active = _planState.value as? PlanState.RecipeActive ?: run { _cookingState.value = CookingSessionState(error = "Choose a recipe first"); return }; _cookingState.value = cookingController.start(active.recipe.name, active.events) }
+    fun pauseCooking() { _cookingState.value = cookingController.pause() }
+    fun resumeCooking() { _cookingState.value = cookingController.resume() }
+    fun completeCookingStep(id: String) { _cookingState.value = cookingController.complete(id) }
+    fun skipCookingStep(id: String) { _cookingState.value = cookingController.complete(id, true) }
+    fun endCooking() { _cookingState.value = cookingController.end() }
 
     fun refreshSession() {
         startSession(isRefresh = true)
