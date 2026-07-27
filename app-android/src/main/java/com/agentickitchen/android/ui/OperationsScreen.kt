@@ -2,6 +2,7 @@ package com.agentickitchen.android.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -12,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,27 +25,47 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Card
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Divider
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import android.app.Activity
 import android.view.WindowManager
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import com.agentickitchen.android.HardwareSettings
 import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
+import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
@@ -99,26 +121,24 @@ fun OperationsScreen(
             onEnd = onEndCooking
         )
         Spacer(Modifier.height(18.dp))
-        OperationsTelemetryCard(
-            pantryIntel = pantryIntel,
-            hardwareSettings = hardwareSettings,
-            selectedEquipment = selectedEquipment
-        )
-        Spacer(Modifier.height(18.dp))
-
         when (planState) {
-            is PlanState.RecipeActive -> MilitaryRecipeCard(
-                state = planState,
-                colors = colors,
-                onAskAgent = onAskAgent,
-                onClearChat = onClearChat,
-                onCheckPan = onCheckPan,
-                onClearVision = onClearVision,
-                onBack = onBackToOptions
-            )
+            is PlanState.RecipeActive -> {
+                Spacer(Modifier.height(24.dp))
+                KitchenAssistantSection(
+                    state = planState,
+                    onAskAgent = onAskAgent,
+                    onClearChat = onClearChat,
+                    onCheckPan = onCheckPan,
+                    onClearVision = onClearVision
+                )
+                Spacer(Modifier.height(24.dp))
+                KitchenSummary(pantryIntel, hardwareSettings, selectedEquipment)
+                Spacer(Modifier.height(12.dp))
+                BackToRecipesAction(onBackToOptions)
+            }
 
-            is PlanState.Error -> ErrorCard(planState.message, colors)
-            else -> IdleOperationsCard()
+            is PlanState.Error -> EditorialOperationsError(planState.message, onBackToOptions)
+            else -> EditorialIdleOperations(onBackToOptions)
         }
     }
 }
@@ -454,6 +474,219 @@ private fun CookingResourceLabel(resource: String): String = when (resource) {
     else -> resource.uppercase()
 }
 
+@Composable
+private fun KitchenAssistantSection(
+    state: PlanState.RecipeActive,
+    onAskAgent: (String) -> Unit,
+    onClearChat: () -> Unit,
+    onCheckPan: (android.graphics.Bitmap) -> Unit,
+    onClearVision: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    var question by remember { mutableStateOf("") }
+    var inputFocused by remember { mutableStateOf(false) }
+    val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: android.graphics.Bitmap? -> if (bitmap != null) onCheckPan(bitmap) }
+    fun submitQuestion() {
+        val trimmed = question.trim()
+        if (trimmed.isNotEmpty()) {
+            onAskAgent(trimmed)
+            question = ""
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().animateContentSize(tween(240))) {
+        Text(if (L.isTr) "Mutfak Asistanı" else "Kitchen Assistant", color = colors.onSurface, style = MaterialTheme.typography.h3)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (L.isTr) "Pişirirken bir şey danışabilirsin." else "Ask while you cook.",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().background(colors.surfaceAlt, RoundedCornerShape(14.dp))
+                .border(1.dp, if (inputFocused) colors.primary else colors.divider, RoundedCornerShape(14.dp))
+                .padding(start = 14.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            BasicTextField(
+                value = question,
+                onValueChange = { question = it },
+                modifier = Modifier.weight(1f).onFocusChanged { inputFocused = it.isFocused }.padding(vertical = 14.dp),
+                textStyle = TextStyle(color = colors.onSurface, fontSize = 15.sp),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { submitQuestion() }),
+                singleLine = false,
+                decorationBox = { inner ->
+                    Box {
+                        if (question.isBlank()) Text(
+                            if (L.isTr) "Örn: Sos çok koyu oldu, ne yapmalıyım?" else "E.g. The sauce is too thick. What should I do?",
+                            color = colors.onSurfaceSub,
+                            fontSize = 14.sp
+                        )
+                        inner()
+                    }
+                }
+            )
+            IconButton(onClick = ::submitQuestion, enabled = question.isNotBlank(), modifier = Modifier.size(48.dp)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = if (L.isTr) "Soruyu gönder" else "Send question",
+                    tint = if (question.isNotBlank()) colors.primary else colors.divider
+                )
+            }
+        }
+        AnimatedVisibility(
+            visible = state.agentChatResponse != null,
+            enter = fadeIn(tween(240)) + slideInVertically(tween(240)) { it / 10 },
+            exit = fadeOut(tween(200))
+        ) {
+            state.agentChatResponse?.let { response ->
+                Spacer(Modifier.height(16.dp))
+                AssistantResponse(response, onClearChat)
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+        Divider(color = colors.divider, thickness = 1.dp)
+        Spacer(Modifier.height(20.dp))
+        Text(if (L.isTr) "Tavayı kontrol et" else "Check the pan", color = colors.onSurface, style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (L.isTr) "Fotoğraf çekerek pişirme durumunu değerlendirebilirsin." else "Take a photo to assess how the cooking is progressing.",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = { cameraLauncher.launch(null) }) {
+            Icon(Icons.Filled.CameraAlt, contentDescription = if (L.isTr) "Kamerayı aç" else "Open camera", tint = colors.primary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(if (L.isTr) "Tavayı kontrol et" else "Check the pan", color = colors.primary)
+        }
+        AnimatedVisibility(
+            visible = state.visionScanResponse != null,
+            enter = fadeIn(tween(240)) + scaleIn(tween(240), initialScale = .98f),
+            exit = fadeOut(tween(200))
+        ) {
+            state.visionScanResponse?.let { response ->
+                Spacer(Modifier.height(12.dp))
+                PanCheckResponse(response, onClearVision)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssistantResponse(response: String, onClear: () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(
+        modifier = Modifier.fillMaxWidth().background(colors.surfaceAlt, RoundedCornerShape(12.dp))
+            .padding(14.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(if (L.isTr) "Asistanın notu" else "Assistant note", color = colors.primary, style = MaterialTheme.typography.caption, modifier = Modifier.weight(1f))
+            IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = if (L.isTr) "Asistan notunu temizle" else "Clear assistant response", tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
+            }
+        }
+        Text(response, color = colors.onSurface, style = MaterialTheme.typography.body1)
+    }
+}
+
+@Composable
+private fun PanCheckResponse(response: String, onClear: () -> Unit) {
+    val colors = LocalAppColors.current
+    val isError = response.contains("hata", ignoreCase = true) || response.contains("error", ignoreCase = true) || response.contains("başarısız", ignoreCase = true)
+    val accent = if (isError) androidx.compose.ui.graphics.Color(0xFF9B3F32) else colors.success
+    Column(
+        modifier = Modifier.fillMaxWidth().background(colors.surfaceAlt, RoundedCornerShape(12.dp))
+            .border(1.dp, accent.copy(alpha = .45f), RoundedCornerShape(12.dp)).padding(14.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(if (L.isTr) "Tava kontrolü" else "Pan check", color = accent, style = MaterialTheme.typography.caption, modifier = Modifier.weight(1f))
+            IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = if (L.isTr) "Tava kontrolünü temizle" else "Clear pan-check response", tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
+            }
+        }
+        Text(response, color = colors.onSurface, style = MaterialTheme.typography.body1)
+    }
+}
+
+@Composable
+private fun KitchenSummary(pantryIntel: PantryIntelReport, hardwareSettings: HardwareSettings, selectedEquipment: Set<String>) {
+    val colors = LocalAppColors.current
+    val stove = if (hardwareSettings.stoveType == "gas") {
+        if (L.isTr) "Gaz" else "Gas"
+    } else {
+        if (L.isTr) "Elektrikli" else "Electric"
+    }
+    val notes = (pantryIntel.warnings + pantryIntel.tactics).take(2)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(if (L.isTr) "Mutfak özeti" else "Kitchen summary", color = colors.onSurface, style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (L.isTr) "Ocak: $stove" else "Stove: $stove",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Text(
+            if (L.isTr) "${selectedEquipment.size} ekipman hazır" else "${selectedEquipment.size} tools ready",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        notes.forEach { note ->
+            Spacer(Modifier.height(8.dp))
+            Divider(color = colors.divider, thickness = 1.dp)
+            Spacer(Modifier.height(8.dp))
+            Text("• ${note.message}", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+        }
+    }
+}
+
+@Composable
+private fun BackToRecipesAction(onBack: () -> Unit) {
+    val colors = LocalAppColors.current
+    TextButton(
+        onClick = onBack,
+        modifier = Modifier
+            .size(width = 150.dp, height = 48.dp)
+            .semantics { contentDescription = if (L.isTr) "Tariflere dön" else "Back to recipes" }
+    ) {
+        Text(if (L.isTr) "Tariflere dön" else "Back to recipes", color = colors.primary)
+    }
+}
+
+@Composable
+private fun EditorialIdleOperations(onBack: () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
+        IngredientArtwork("", Modifier.size(100.dp))
+        Spacer(Modifier.height(14.dp))
+        Text(if (L.isTr) "Henüz pişirilen bir tarif yok." else "Nothing is cooking yet.", color = colors.onSurface, style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (L.isTr) "Tarifler bölümünden bir tarif seçerek başlayabilirsin." else "Choose a recipe from Recipes to begin.",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(12.dp))
+        TextButton(onClick = onBack) { Text(if (L.isTr) "Tariflere Git" else "Browse Recipes", color = colors.primary) }
+    }
+}
+
+@Composable
+private fun EditorialOperationsError(message: String, onBack: () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+        Text(if (L.isTr) "Bir sorun oluştu." else "Something went wrong.", color = androidx.compose.ui.graphics.Color(0xFF9B3F32), style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(8.dp))
+        Text(message, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+        Spacer(Modifier.height(12.dp))
+        BackToRecipesAction(onBack)
+    }
+}
+
 private fun previewCookingEvent(id: String, instruction: String, resource: String) = ScheduleEvent(
     id = id,
     startIso = "2026-07-27T18:00:00Z",
@@ -529,139 +762,47 @@ private fun CookingPreview(state: CookingSessionState) {
 }
 
 @Composable
-private fun OperationsHero(pantryIntel: PantryIntelReport, equipmentCount: Int) {
-    val colors = LocalAppColors.current
-    val themeSpec = LocalThemeSpec.current
-    val title = when (themeSpec.id) {
-        "heritage" -> if (L.isTr) "Operasyon Defteri" else "Operations Ledger"
-        "zen" -> if (L.isTr) "Canlı Operasyon" else "Live Operation"
-        else -> if (L.isTr) "Signal Deck" else "Signal Deck"
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        backgroundColor = colors.surfaceAlt,
-        shape = RoundedCornerShape(24.dp),
-        elevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.divider)
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Text(
-                if (L.isTr) "LIVE OPS" else "LIVE OPS",
-                color = colors.accent,
-                style = MaterialTheme.typography.caption
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(title, color = colors.onSurface, style = MaterialTheme.typography.h1)
-            Spacer(Modifier.height(10.dp))
-            Text(
-                if (L.isTr) {
-                    "Skor ${pantryIntel.readinessScore}/100 • ${equipmentCount} ekipman hattı aktif."
-                } else {
-                    "Readiness ${pantryIntel.readinessScore}/100 • $equipmentCount equipment lanes active."
-                },
-                color = colors.onSurfaceSub,
-                style = MaterialTheme.typography.body1
-            )
-        }
+private fun AssistantToolsPreview(active: PlanState.RecipeActive) {
+    AgenticTheme("editorial") {
+        KitchenAssistantSection(active, {}, {}, {}, {})
     }
 }
 
-@Composable
-private fun OperationsTelemetryCard(
-    pantryIntel: PantryIntelReport,
-    hardwareSettings: HardwareSettings,
-    selectedEquipment: Set<String>
-) {
-    val colors = LocalAppColors.current
+private fun previewActiveRecipe(
+    assistantResponse: String? = null,
+    panResponse: String? = null
+) = PlanState.RecipeActive(
+    recipe = RecipeOption(
+        id = "cream-pasta",
+        type = "Makarna",
+        name = "Kremalı Tavuklu Makarna",
+        description = "Tavuk ve taze otlarla hazırlanan sıcak bir makarna."
+    ),
+    events = listOf(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop")),
+    agentChatResponse = assistantResponse,
+    visionScanResponse = panResponse
+)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(20.dp),
-        elevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.divider)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                if (L.isTr) "Operasyon Telemetrisi" else "Operational Telemetry",
-                color = colors.onSurface,
-                style = MaterialTheme.typography.h6
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TelemetryPill("${pantryIntel.readinessScore}/100", colors.primary)
-                TelemetryPill(pantryCategoryLabel(pantryIntel.focusCategoryId), colors.accent)
-                TelemetryPill(equipmentLaneLabel(pantryIntel.equipmentLane), colors.success)
-            }
-            Spacer(Modifier.height(14.dp))
-            Text(
-                if (L.isTr) {
-                    "Ocak ${hardwareSettings.stoveType} • Güç ${hardwareSettings.stovePowerMax} • ${selectedEquipment.size} ekipman"
-                } else {
-                    "Stove ${hardwareSettings.stoveType} • Power ${hardwareSettings.stovePowerMax} • ${selectedEquipment.size} tools"
-                },
-                color = colors.onSurfaceSub,
-                style = MaterialTheme.typography.body1
-            )
-            if (pantryIntel.warnings.isNotEmpty()) {
-                Spacer(Modifier.height(14.dp))
-                Text(if (L.isTr) "Kırmızı Bayraklar" else "Risk Flags", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
-                Spacer(Modifier.height(8.dp))
-                pantryIntel.warnings.take(2).forEach { warning ->
-                    Text("• ${pantrySignalText(warning)}", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            Text(if (L.isTr) "Takip Taktikleri" else "Tracking Tactics", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
-            Spacer(Modifier.height(8.dp))
-            pantryIntel.tactics.take(3).forEach { tactic ->
-                Text("• ${pantrySignalText(tactic)}", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
-                Spacer(Modifier.height(4.dp))
-            }
-        }
+@Preview(showBackground = true)
+@Composable
+private fun AssistantToolsEmptyPreview() = AssistantToolsPreview(previewActiveRecipe())
+
+@Preview(showBackground = true)
+@Composable
+private fun AssistantToolsResponsePreview() = AssistantToolsPreview(
+    previewActiveRecipe(assistantResponse = "Sosu biraz sıcak suyla açıp iki dakika daha karıştır.")
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun PanCheckPreview() = AssistantToolsPreview(
+    previewActiveRecipe(panResponse = "Isı dengeli görünüyor; ara sıra karıştırmaya devam et.")
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun IdleOperationsPreview() {
+    AgenticTheme("editorial") {
+        EditorialIdleOperations {}
     }
-}
-
-@Composable
-private fun IdleOperationsCard() {
-    val colors = LocalAppColors.current
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(20.dp),
-        elevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.divider)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                if (L.isTr) "Henüz canlı operasyon yok." else "No live operation yet.",
-                color = colors.onSurface,
-                style = MaterialTheme.typography.h6
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                if (L.isTr) "Önce Seçenekler sekmesinden bir tarifi başlat." else "Launch a recipe from the Options tab first.",
-                color = colors.onSurfaceSub,
-                style = MaterialTheme.typography.body1
-            )
-        }
-    }
-}
-
-@Composable
-private fun TelemetryPill(text: String, color: androidx.compose.ui.graphics.Color) {
-    val colors = LocalAppColors.current
-    Text(
-        text = text,
-        color = color,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .background(colors.surfaceAlt, RoundedCornerShape(999.dp))
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 12.dp, vertical = 7.dp)
-    )
 }
