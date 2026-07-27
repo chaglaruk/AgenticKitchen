@@ -1,5 +1,14 @@
 package com.agentickitchen.android.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -10,12 +19,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Card
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Divider
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
@@ -23,6 +38,7 @@ import android.app.Activity
 import android.view.WindowManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agentickitchen.android.HardwareSettings
@@ -31,7 +47,8 @@ import com.agentickitchen.android.PlanState
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
-import androidx.compose.material.Button
+import com.agentickitchen.shared.cooking.LiveOperation
+import com.agentickitchen.shared.models.ScheduleEvent
 
 @Composable
 fun OperationsScreen(
@@ -62,13 +79,25 @@ fun OperationsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(getBgGradient())
+            .background(colors.background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
-        OperationsHero(pantryIntel = pantryIntel, equipmentCount = selectedEquipment.size)
+        val recipeName = cookingState.recipeName.ifBlank {
+            (planState as? PlanState.RecipeActive)?.recipe?.name.orEmpty()
+        }
+        EditorialCookingHeader(recipeName)
         Spacer(Modifier.height(18.dp))
-        LiveCookingCard(cookingState, onStartCooking, onPauseCooking, onResumeCooking, onCompleteCookingStep, onSkipCookingStep, onEndCooking)
+        EditorialLiveCooking(
+            state = cookingState,
+            recipeName = recipeName,
+            onStart = onStartCooking,
+            onPause = onPauseCooking,
+            onResume = onResumeCooking,
+            onComplete = onCompleteCookingStep,
+            onSkip = onSkipCookingStep,
+            onEnd = onEndCooking
+        )
         Spacer(Modifier.height(18.dp))
         OperationsTelemetryCard(
             pantryIntel = pantryIntel,
@@ -94,16 +123,409 @@ fun OperationsScreen(
     }
 }
 
-@Composable private fun LiveCookingCard(state: CookingSessionState, start: () -> Unit, pause: () -> Unit, resume: () -> Unit, complete: (String) -> Unit, skip: (String) -> Unit, end: () -> Unit) {
+internal fun formatCookingDuration(totalSeconds: Long): String {
+    val seconds = totalSeconds.coerceAtLeast(0)
+    val hours = seconds / 3_600
+    val minutes = (seconds % 3_600) / 60
+    val remainder = seconds % 60
+    return if (hours > 0) "%02d:%02d:%02d".format(hours, minutes, remainder) else "%02d:%02d".format(minutes, remainder)
+}
+
+@Composable
+private fun EditorialCookingHeader(recipeName: String) {
     val colors = LocalAppColors.current
-    Card(Modifier.fillMaxWidth(), backgroundColor = colors.surface, shape = RoundedCornerShape(20.dp)) { Column(Modifier.padding(20.dp)) {
-        Text(state.recipeName.ifBlank { "Live Cooking" }, style = MaterialTheme.typography.h6); Text("${state.completed.size + state.skipped.size} steps done • ${state.elapsedSeconds}s")
-        state.error?.let { Text(it, color = colors.accent) }
-        state.active.forEach { op -> Text("${op.remainingSeconds}s • ${op.event.resource}\n${op.event.instruction}"); Row { Button({ complete(op.event.id) }) { Text("Complete Step") }; Button({ skip(op.event.id) }) { Text("Skip Step") } } }
-        if (state.upcoming.isNotEmpty()) Text("Upcoming: ${state.upcoming.first().instruction}")
-        Row { when (state.status) { CookingSessionStatus.READY, CookingSessionStatus.ERROR -> Button(start) { Text("Start Cooking") }; CookingSessionStatus.RUNNING -> Button(pause) { Text("Pause") }; CookingSessionStatus.PAUSED -> Button(resume) { Text("Resume") }; else -> Unit }; Button(end) { Text("End Cooking") } }
-        if (state.completed.isNotEmpty()) Text("Completed: ${state.completed.joinToString()}"); if (state.skipped.isNotEmpty()) Text("Skipped: ${state.skipped.joinToString()}")
-    } }
+    Column {
+        Text(
+            if (recipeName.isBlank()) {
+                if (L.isTr) "Pişirmeye hazır" else "Ready to cook"
+            } else {
+                if (L.isTr) "Şimdi pişiriyoruz" else "Now cooking"
+            },
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.caption
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (recipeName.isBlank()) {
+                if (L.isTr) "Bir tarif seçerek başlayabilirsin." else "Choose a recipe to begin."
+            } else {
+                recipeName
+            },
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h1
+        )
+    }
+}
+
+@Composable
+private fun EditorialLiveCooking(
+    state: CookingSessionState,
+    recipeName: String,
+    onStart: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onComplete: (String) -> Unit,
+    onSkip: (String) -> Unit,
+    onEnd: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    val total = state.completed.size + state.skipped.size + state.active.size + state.upcoming.size
+    val processed = state.completed.size + state.skipped.size
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        state.error?.let {
+            Text(it, color = androidx.compose.ui.graphics.Color(0xFF9B3F32), style = MaterialTheme.typography.body1)
+            Spacer(Modifier.height(12.dp))
+        }
+        when (state.status) {
+            CookingSessionStatus.READY -> ReadyCookingState(recipeName, onStart)
+            CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED -> ActiveCookingState(
+                state = state,
+                total = total,
+                processed = processed,
+                onComplete = onComplete,
+                onSkip = onSkip
+            )
+            CookingSessionStatus.COMPLETED, CookingSessionStatus.ENDED -> TerminalCookingState(state, recipeName, total)
+            CookingSessionStatus.ERROR -> ErrorCookingState(recipeName)
+        }
+        if (state.status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
+            Spacer(Modifier.height(20.dp))
+            GlobalCookingControls(state.status, onPause, onResume, onEnd)
+        } else if (state.status == CookingSessionStatus.ERROR) {
+            Spacer(Modifier.height(16.dp))
+            GlobalCookingControls(state.status, onPause, onResume, onEnd, onStart)
+        }
+    }
+}
+
+@Composable
+private fun ReadyCookingState(recipeName: String, onStart: () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        IngredientArtwork(recipeName, Modifier.size(108.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(if (L.isTr) "Tarif hazır." else "The recipe is ready.", color = colors.onSurface, style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (L.isTr) "Adımları başlatmaya hazırsın." else "Start when you are ready.",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(18.dp))
+        Button(
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+            shape = RoundedCornerShape(999.dp)
+        ) {
+            Text(if (L.isTr) "Pişirmeye Başla" else "Start Cooking", color = colors.onPrimary)
+        }
+    }
+}
+
+@Composable
+private fun ActiveCookingState(
+    state: CookingSessionState,
+    total: Int,
+    processed: Int,
+    onComplete: (String) -> Unit,
+    onSkip: (String) -> Unit
+) {
+    val primary = state.active.firstOrNull()
+    CookingProgressLedger(state, total, processed)
+    Spacer(Modifier.height(18.dp))
+    if (state.status == CookingSessionStatus.PAUSED) {
+        Text(if (L.isTr) "DURAKLATILDI" else "PAUSED", color = LocalAppColors.current.primary, style = MaterialTheme.typography.caption)
+        Spacer(Modifier.height(8.dp))
+    }
+    if (primary != null) {
+        AnimatedContent(
+            targetState = primary.event.id,
+            transitionSpec = { fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 10 } togetherWith fadeOut(tween(220)) + slideOutVertically(tween(220)) { -it / 10 } },
+            label = "activeCookingStep"
+        ) { operationId ->
+            val operation = state.active.firstOrNull { it.event.id == operationId } ?: primary
+            PrimaryCookingOperation(operation, paused = state.status == CookingSessionStatus.PAUSED, onComplete, onSkip)
+        }
+        if (state.active.size > 1) {
+            Spacer(Modifier.height(18.dp))
+            Text(if (L.isTr) "Aynı anda" else "At the same time", color = LocalAppColors.current.onSurfaceSub, style = MaterialTheme.typography.caption)
+            Spacer(Modifier.height(8.dp))
+            state.active.drop(1).forEach { operation ->
+                ParallelCookingOperation(operation, onComplete, onSkip)
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+    }
+    if (state.upcoming.isNotEmpty()) {
+        Spacer(Modifier.height(16.dp))
+        UpcomingCookingOperations(state.upcoming)
+    }
+}
+
+@Composable
+private fun CookingProgressLedger(state: CookingSessionState, total: Int, processed: Int) {
+    val colors = LocalAppColors.current
+    val remaining = state.active.size + state.upcoming.size
+    val fraction = if (total == 0) 0f else processed.toFloat() / total
+    Column {
+        Text(
+            if (L.isTr) "$processed / $total adım" else "$processed / $total steps",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.caption
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.weight(1f).height(2.dp).background(colors.divider)
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.fillMaxWidth(fraction).height(2.dp).background(colors.primary)
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (L.isTr) {
+                "${state.completed.size} tamamlandı · ${state.skipped.size} atlandı · $remaining kaldı"
+            } else {
+                "${state.completed.size} completed · ${state.skipped.size} skipped · $remaining remaining"
+            },
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+    }
+}
+
+@Composable
+private fun PrimaryCookingOperation(operation: LiveOperation, paused: Boolean, onComplete: (String) -> Unit, onSkip: (String) -> Unit) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AnimatedContent(targetState = formatCookingDuration(operation.remainingSeconds), label = "primaryCountdown") { value ->
+            Text(
+                value,
+                color = colors.onSurface.copy(alpha = if (paused) .55f else 1f),
+                style = MaterialTheme.typography.h1,
+                fontSize = 72.sp
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(operation.event.instruction, color = colors.onSurface, style = MaterialTheme.typography.h5)
+        Spacer(Modifier.height(10.dp))
+        Text(CookingResourceLabel(operation.event.resource), color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = { onComplete(operation.event.id) },
+                colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                shape = RoundedCornerShape(999.dp)
+            ) { Text(if (L.isTr) "Tamamla" else "Complete", color = colors.onPrimary) }
+            TextButton(onClick = { onSkip(operation.event.id) }) {
+                Text(if (L.isTr) "Atla" else "Skip", color = colors.onSurfaceSub)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParallelCookingOperation(operation: LiveOperation, onComplete: (String) -> Unit, onSkip: (String) -> Unit) {
+    val colors = LocalAppColors.current
+    Row(modifier = Modifier.fillMaxWidth().border(1.dp, colors.divider, RoundedCornerShape(12.dp)).padding(12.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
+            AnimatedContent(targetState = formatCookingDuration(operation.remainingSeconds), label = "parallelCountdown") { value ->
+                Text(value, color = colors.primary, style = MaterialTheme.typography.h6)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(operation.event.instruction, color = colors.onSurface, style = MaterialTheme.typography.body1)
+            Spacer(Modifier.height(4.dp))
+            Text(CookingResourceLabel(operation.event.resource), color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        }
+        Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+            TextButton(onClick = { onComplete(operation.event.id) }) { Text(if (L.isTr) "Tamamla" else "Complete", color = colors.primary) }
+            TextButton(onClick = { onSkip(operation.event.id) }) { Text(if (L.isTr) "Atla" else "Skip", color = colors.onSurfaceSub) }
+        }
+    }
+}
+
+@Composable
+private fun UpcomingCookingOperations(upcoming: List<ScheduleEvent>) {
+    val colors = LocalAppColors.current
+    Column {
+        Text(if (L.isTr) "Sıradaki" else "Up next", color = colors.onSurface, style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(8.dp))
+        upcoming.take(2).forEachIndexed { index, event ->
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                androidx.compose.foundation.layout.Box(modifier = Modifier.width(2.dp).height(34.dp).background(colors.divider))
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(event.instruction, color = colors.onSurface, style = MaterialTheme.typography.body1)
+                    Text(CookingResourceLabel(event.resource), color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+                }
+            }
+            if (index < upcoming.take(2).lastIndex) Divider(color = colors.divider, thickness = 1.dp)
+        }
+    }
+}
+
+@Composable
+private fun GlobalCookingControls(
+    status: CookingSessionStatus,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onEnd: () -> Unit,
+    onStart: () -> Unit = {}
+) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        when (status) {
+            CookingSessionStatus.RUNNING -> Button(onClick = onPause, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
+                Text(if (L.isTr) "Duraklat" else "Pause", color = colors.onPrimary)
+            }
+            CookingSessionStatus.PAUSED -> Button(onClick = onResume, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
+                Text(if (L.isTr) "Devam Et" else "Resume", color = colors.onPrimary)
+            }
+            CookingSessionStatus.ERROR -> Button(onClick = onStart, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
+                Text(if (L.isTr) "Pişirmeye Başla" else "Start Cooking", color = colors.onPrimary)
+            }
+            else -> Unit
+        }
+        if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
+            TextButton(onClick = onEnd, modifier = Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally)) {
+                Text(if (L.isTr) "Pişirmeyi Bitir" else "End Cooking", color = colors.onSurfaceSub)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TerminalCookingState(state: CookingSessionState, recipeName: String, total: Int) {
+    val colors = LocalAppColors.current
+    Column {
+        Text(
+            if (state.status == CookingSessionStatus.COMPLETED) {
+                if (L.isTr) "Afiyet olsun." else "Enjoy your meal."
+            } else {
+                if (L.isTr) "Pişirme bitti." else "Cooking ended."
+            },
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h3
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(recipeName, color = colors.primary, style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (state.status == CookingSessionStatus.COMPLETED) {
+                if (L.isTr) "Pişirme adımları tamamlandı." else "The cooking steps are complete."
+            } else {
+                if (L.isTr) "Pişirme erken sonlandırıldı." else "Cooking was ended early."
+            },
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            if (L.isTr) "${state.completed.size} tamamlandı · ${state.skipped.size} atlandı · ${formatCookingDuration(state.elapsedSeconds)}" else "${state.completed.size} completed · ${state.skipped.size} skipped · ${formatCookingDuration(state.elapsedSeconds)}",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+    }
+}
+
+@Composable
+private fun ErrorCookingState(recipeName: String) {
+    val colors = LocalAppColors.current
+    Text(
+        if (recipeName.isBlank()) {
+            if (L.isTr) "Pişirmeyi başlatmak için bir tarif seç." else "Choose a recipe before starting to cook."
+        } else {
+            if (L.isTr) "Pişirmeye yeniden başlayabilirsin." else "You can start cooking again."
+        },
+        color = colors.onSurfaceSub,
+        style = MaterialTheme.typography.body1
+    )
+}
+
+private fun CookingResourceLabel(resource: String): String = when (resource) {
+    "stovetop" -> if (L.isTr) "OCAK" else "STOVE"
+    "oven" -> if (L.isTr) "FIRIN" else "OVEN"
+    "airfryer" -> "AIRFRYER"
+    "microwave" -> if (L.isTr) "MİKRODALGA" else "MICROWAVE"
+    else -> resource.uppercase()
+}
+
+private fun previewCookingEvent(id: String, instruction: String, resource: String) = ScheduleEvent(
+    id = id,
+    startIso = "2026-07-27T18:00:00Z",
+    endIso = "2026-07-27T18:05:00Z",
+    instruction = instruction,
+    resource = resource
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun ReadyCookingPreview() = CookingPreview(
+    CookingSessionState(recipeName = "Kremalı Tavuklu Makarna")
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun RunningCookingPreview() = CookingPreview(
+    CookingSessionState(
+        recipeName = "Kremalı Tavuklu Makarna",
+        status = CookingSessionStatus.RUNNING,
+        active = listOf(LiveOperation(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop"), 272)),
+        upcoming = listOf(previewCookingEvent("onion", "Soğanları ekle.", "stovetop")),
+        completed = setOf("pasta"),
+        elapsedSeconds = 180
+    )
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun ParallelCookingPreview() = CookingPreview(
+    CookingSessionState(
+        recipeName = "Kremalı Tavuklu Makarna",
+        status = CookingSessionStatus.RUNNING,
+        active = listOf(
+            LiveOperation(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop"), 272),
+            LiveOperation(previewCookingEvent("pasta", "Makarnayı süz.", "stovetop"), 90)
+        ),
+        upcoming = listOf(previewCookingEvent("serve", "Tabağa al.", "stovetop")),
+        completed = setOf("onion"),
+        elapsedSeconds = 180
+    )
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun PausedCookingPreview() = CookingPreview(
+    CookingSessionState(
+        recipeName = "Kremalı Tavuklu Makarna",
+        status = CookingSessionStatus.PAUSED,
+        active = listOf(LiveOperation(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop"), 272)),
+        upcoming = listOf(previewCookingEvent("serve", "Tabağa al.", "stovetop")),
+        elapsedSeconds = 180
+    )
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun CompletedCookingPreview() = CookingPreview(
+    CookingSessionState(
+        recipeName = "Kremalı Tavuklu Makarna",
+        status = CookingSessionStatus.COMPLETED,
+        completed = setOf("pasta", "cream"),
+        skipped = setOf("onion"),
+        elapsedSeconds = 1_265
+    )
+)
+
+@Composable
+private fun CookingPreview(state: CookingSessionState) {
+    AgenticTheme("editorial") {
+        EditorialLiveCooking(state, state.recipeName, {}, {}, {}, {}, {}, {})
+    }
 }
 
 @Composable
