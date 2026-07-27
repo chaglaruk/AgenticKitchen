@@ -17,6 +17,10 @@ import androidx.compose.material.Card
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +49,15 @@ fun OperationsScreen(
     onCompleteCookingStep: (String) -> Unit, onSkipCookingStep: (String) -> Unit, onEndCooking: () -> Unit
 ) {
     val colors = LocalAppColors.current
+    val activity = LocalContext.current as? Activity
+    DisposableEffect(cookingState.status) {
+        if (cookingState.status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
 
     Column(
         modifier = Modifier
