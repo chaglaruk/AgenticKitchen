@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -163,6 +164,7 @@ class AppViewModel(
     private val cookingController = CookingSessionController()
     private val _cookingState = MutableStateFlow(CookingSessionState())
     val cookingState: StateFlow<CookingSessionState> = _cookingState.asStateFlow()
+    private var cookingTicker: Job? = null
 
     private val _uiEvent = MutableSharedFlow<UiEvent>()
     val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
@@ -284,12 +286,14 @@ class AppViewModel(
         }
     }
 
-    fun startCooking() { val active = _planState.value as? PlanState.RecipeActive ?: run { _cookingState.value = CookingSessionState(error = "Choose a recipe first"); return }; _cookingState.value = cookingController.start(active.recipe.name, active.events) }
-    fun pauseCooking() { _cookingState.value = cookingController.pause() }
-    fun resumeCooking() { _cookingState.value = cookingController.resume() }
-    fun completeCookingStep(id: String) { _cookingState.value = cookingController.complete(id) }
-    fun skipCookingStep(id: String) { _cookingState.value = cookingController.complete(id, true) }
-    fun endCooking() { _cookingState.value = cookingController.end() }
+    fun startCooking() { val active = _planState.value as? PlanState.RecipeActive ?: run { _cookingState.value = CookingSessionState(error = "Choose a recipe first"); return }; _cookingState.value = cookingController.start(active.recipe.name, active.events); startCookingTicker() }
+    fun pauseCooking() { _cookingState.value = cookingController.pause(); cookingTicker?.cancel() }
+    fun resumeCooking() { _cookingState.value = cookingController.resume(); startCookingTicker() }
+    fun completeCookingStep(id: String) { _cookingState.value = cookingController.complete(id); stopTickerIfFinished() }
+    fun skipCookingStep(id: String) { _cookingState.value = cookingController.skip(id); stopTickerIfFinished() }
+    fun endCooking() { _cookingState.value = cookingController.end(); cookingTicker?.cancel() }
+    private fun startCookingTicker() { cookingTicker?.cancel(); if (_cookingState.value.status != com.agentickitchen.shared.cooking.CookingSessionStatus.RUNNING) return; cookingTicker = viewModelScope.launch { while (true) { _cookingState.value = cookingController.current(); if (_cookingState.value.status != com.agentickitchen.shared.cooking.CookingSessionStatus.RUNNING) break; delay(500) } } }
+    private fun stopTickerIfFinished() { if (_cookingState.value.status != com.agentickitchen.shared.cooking.CookingSessionStatus.RUNNING) cookingTicker?.cancel() }
 
     fun refreshSession() {
         startSession(isRefresh = true)

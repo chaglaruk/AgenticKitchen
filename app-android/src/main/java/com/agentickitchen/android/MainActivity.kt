@@ -236,7 +236,14 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onClearChat = viewModel::clearAgentChat,
                     onCheckPan = viewModel::checkVisionAgent,
                     onClearVision = viewModel::clearVisionResponse,
-                    onBackToOptions = viewModel::backToOptions
+                    onBackToOptions = viewModel::backToOptions,
+                    cookingState = viewModel.cookingState.collectAsState().value,
+                    onStartCooking = viewModel::startCooking,
+                    onPauseCooking = viewModel::pauseCooking,
+                    onResumeCooking = viewModel::resumeCooking,
+                    onCompleteCookingStep = viewModel::completeCookingStep,
+                    onSkipCookingStep = viewModel::skipCookingStep,
+                    onEndCooking = viewModel::endCooking
                 )
 
                 Screen.Settings -> SettingsScreen(
