@@ -1,5 +1,6 @@
 package com.agentickitchen.android.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -19,9 +20,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -54,20 +57,14 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Grain
-import androidx.compose.material.icons.filled.LocalDrink
-import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.SetMeal
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -79,9 +76,10 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -99,12 +97,6 @@ import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.ScheduleEvent
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
-
-private data class IntelligenceCategory(
-    val title: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val tint: Color
-)
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class, ExperimentalMaterialApi::class)
 @Composable
@@ -127,7 +119,6 @@ fun HomeScreen(
     var showCameraModal by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val colors = LocalAppColors.current
-    val themeSpec = LocalThemeSpec.current
 
     val allIngredients = remember { INGREDIENT_CATEGORIES.flatMap { it.items } }
     var expandedAuto by remember { mutableStateOf(false) }
@@ -143,15 +134,6 @@ fun HomeScreen(
     LaunchedEffect(filteredIngredients) {
         expandedAuto = filteredIngredients.isNotEmpty()
     }
-
-    val categoryCards = listOf(
-        IntelligenceCategory("Vegetation", Icons.Filled.Eco, colors.success),
-        IntelligenceCategory("Protein Aqua", Icons.Filled.WaterDrop, colors.primary),
-        IntelligenceCategory("Protein Land", Icons.Filled.SetMeal, colors.accent),
-        IntelligenceCategory("Carb Matrix", Icons.Filled.Grain, colors.primaryLight),
-        IntelligenceCategory("Spice Payload", Icons.Filled.LocalFireDepartment, colors.accent),
-        IntelligenceCategory("Liquids", Icons.Filled.LocalDrink, colors.success)
-    )
 
     Column(
         modifier = Modifier
@@ -213,56 +195,7 @@ fun HomeScreen(
             )
         }
 
-        Spacer(Modifier.height(24.dp))
-        Text(
-            when (themeSpec.id) {
-                "editorial" -> if (L.isTr) "Malzeme kategorileri" else "Ingredient categories"
-                "heritage" -> if (L.isTr) "Taksonomi" else "Taxonomy"
-                "zen" -> if (L.isTr) "Kategori Izgarası" else "Category Grid"
-                else -> if (L.isTr) "Operasyon Sınıfları" else "Operational Classes"
-            },
-            color = colors.onSurface,
-            style = MaterialTheme.typography.h2,
-            modifier = Modifier.padding(horizontal = 24.dp)
-        )
-        Spacer(Modifier.height(12.dp))
-
-        Column(
-            modifier = Modifier.padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            categoryCards.chunked(2).forEach { rowCards ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    rowCards.forEach { item ->
-                        when (themeSpec.id) {
-                            "heritage" -> HeritageCategoryCard(
-                                modifier = Modifier.weight(1f),
-                                title = item.title,
-                                icon = item.icon,
-                                tint = item.tint,
-                                colors = colors,
-                                onClick = { showPicker = true }
-                            )
-                            "zen" -> ZenCategoryCard(
-                                modifier = Modifier.weight(1f),
-                                title = item.title,
-                                icon = item.icon,
-                                colors = colors,
-                                onClick = { showPicker = true }
-                            )
-                            else -> SignalCategoryCard(
-                                modifier = Modifier.weight(1f),
-                                title = item.title,
-                                icon = item.icon,
-                                tint = item.tint,
-                                colors = colors,
-                                onClick = { showPicker = true }
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        EditorialIngredientLibrarySection(onOpen = { showPicker = true })
     }
 
     if (showPicker) {
@@ -672,6 +605,85 @@ private fun EditorialTextAction(
     }
 }
 
+@Composable
+private fun EditorialIngredientLibrarySection(onOpen: () -> Unit) {
+    val colors = LocalAppColors.current
+    val openLabel = if (L.isTr) "Malzeme kütüphanesini aç" else "Open ingredient library"
+
+    Column(modifier = Modifier.padding(top = 28.dp, start = 24.dp, end = 24.dp)) {
+        Divider(color = colors.divider)
+        Spacer(Modifier.height(18.dp))
+        Text(
+            text = if (L.isTr) "MALZEME KÜTÜPHANESİ" else "INGREDIENT LIBRARY",
+            color = colors.primary,
+            style = MaterialTheme.typography.overline,
+            letterSpacing = 1.2.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = if (L.isTr) "Kategorilere göz at" else "Browse by category",
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h2
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = if (L.isTr) {
+                "Mutfağındaki malzemeleri kolayca bul ve ekle."
+            } else {
+                "Find what you have and add it to your kitchen."
+            },
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(14.dp))
+
+        INGREDIENT_CATEGORIES.forEachIndexed { index, category ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .clickable(onClick = onOpen)
+                    .semantics { contentDescription = "$openLabel: ${category.label}" }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "%02d".format(index + 1),
+                    color = colors.primary,
+                    style = MaterialTheme.typography.h6,
+                    modifier = Modifier.width(38.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(category.label, color = colors.onSurface, style = MaterialTheme.typography.body1)
+                    Text(
+                        text = if (L.isTr) "${category.items.size} malzeme" else "${category.items.size} ingredients",
+                        color = colors.onSurfaceSub,
+                        style = MaterialTheme.typography.caption
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = colors.onSurfaceSub,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Divider(color = colors.divider)
+        }
+
+        TextButton(
+            onClick = onOpen,
+            modifier = Modifier.heightIn(min = 48.dp)
+        ) {
+            Text(
+                text = if (L.isTr) "Tümünü gör" else "View all",
+                color = colors.primary,
+                style = MaterialTheme.typography.button
+            )
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun EmptyEditorialHomePreview() = EditorialHomePreview(emptyList())
@@ -710,90 +722,24 @@ private fun EditorialHomePreview(chips: List<String>) {
     }
 }
 
+@Preview(showBackground = true)
 @Composable
-private fun HeritageCategoryCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color,
-    colors: AppColors,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier.clickable { onClick() },
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(0.dp),
-        elevation = 0.dp,
-        border = BorderStroke(1.dp, colors.divider)
-    ) {
-        Box(
-            modifier = Modifier
-                .height(140.dp)
-                .background(Brush.verticalGradient(listOf(colors.surfaceAlt, colors.background)))
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = tint.copy(alpha = 0.6f),
-                modifier = Modifier.align(Alignment.Center).size(48.dp)
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .background(colors.background.copy(alpha = 0.92f))
-                    .padding(vertical = 12.dp)
-            ) {
-                Text(
-                    title,
-                    color = colors.onSurface,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.h6
-                )
-            }
-        }
+private fun EditorialIngredientLibrarySectionPreview() {
+    AgenticTheme("editorial") {
+        EditorialIngredientLibrarySection(onOpen = {})
     }
 }
 
+@Preview(showBackground = true)
 @Composable
-private fun SignalCategoryCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color,
-    colors: AppColors,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier.clickable { onClick() },
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(20.dp),
-        elevation = 0.dp,
-        border = BorderStroke(1.dp, colors.divider)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .background(tint.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = tint)
-                }
-                Spacer(Modifier.width(10.dp))
-                Text("LIVE", color = tint, style = MaterialTheme.typography.caption)
-            }
-            Spacer(Modifier.height(16.dp))
-            Text(title, color = colors.onSurface, style = MaterialTheme.typography.h6)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                if (L.isTr) "Dokun ve kategori atlasını aç." else "Tap to open the category atlas.",
-                color = colors.onSurfaceSub,
-                style = MaterialTheme.typography.body1
-            )
-        }
+private fun EditorialIngredientPickerPreview() {
+    AgenticTheme("editorial") {
+        SideTabCategoryPicker(
+            alreadyAdded = listOf("Domates", "Soğan"),
+            colors = LocalAppColors.current,
+            onAdd = {},
+            onDismiss = {}
+        )
     }
 }
 
@@ -845,123 +791,158 @@ fun SideTabCategoryPicker(
     onDismiss: () -> Unit
 ) {
     var selectedTabIndex by remember { mutableStateOf(0) }
+    val closeLabel = if (L.isTr) "Kapat" else "Close"
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Card(
-            backgroundColor = colors.background,
-            shape = RoundedCornerShape(20.dp),
+            backgroundColor = colors.surface,
+            shape = RoundedCornerShape(18.dp),
             elevation = 0.dp,
             border = BorderStroke(1.dp, colors.divider),
-            modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)
+            modifier = Modifier.fillMaxWidth(0.96f).fillMaxHeight(0.9f)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxWidth().background(colors.surface).padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(L.categoryBtn, color = colors.onSurface, style = MaterialTheme.typography.h6, modifier = Modifier.weight(1f))
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 24.dp, top = 24.dp, end = 12.dp, bottom = 18.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (L.isTr) "MALZEME KÜTÜPHANESİ" else "INGREDIENT LIBRARY",
+                            color = colors.primary,
+                            style = MaterialTheme.typography.overline,
+                            letterSpacing = 1.2.sp
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            text = if (L.isTr) "Mutfağına ekle" else "Add to your kitchen",
+                            color = colors.onSurface,
+                            style = MaterialTheme.typography.h2
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            text = if (L.isTr) {
+                                "Kategoriyi seç, sonra eksik malzemeleri ekle."
+                            } else {
+                                "Choose a category, then add what is missing."
+                            },
+                            color = colors.onSurfaceSub,
+                            style = MaterialTheme.typography.body1
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(48.dp).semantics { contentDescription = closeLabel }
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub)
+                }
+                Divider(color = colors.divider)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    INGREDIENT_CATEGORIES.forEachIndexed { index, category ->
+                        val selected = selectedTabIndex == index
+                        Column(
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .clickable { selectedTabIndex = index }
+                                .semantics {
+                                    contentDescription = "${category.label}, ${if (selected) if (L.isTr) "seçili" else "selected" else ""}"
+                                }
+                                .padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "%02d".format(index + 1),
+                                color = if (selected) colors.primary else colors.onSurfaceSub,
+                                style = MaterialTheme.typography.caption
+                            )
+                            Text(
+                                text = category.label,
+                                color = if (selected) colors.primary else colors.onSurface,
+                                style = MaterialTheme.typography.caption,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Divider(
+                                color = if (selected) colors.primary else Color.Transparent,
+                                thickness = 2.dp,
+                                modifier = Modifier.width(24.dp)
+                            )
                         }
                     }
                 }
                 Divider(color = colors.divider)
-                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                AnimatedContent(
+                    targetState = selectedTabIndex,
+                    modifier = Modifier.weight(1f),
+                    label = "ingredient-category"
+                ) { index ->
+                    val category = INGREDIENT_CATEGORIES[index]
                     Column(
                         modifier = Modifier
-                            .weight(0.35f)
-                            .fillMaxHeight()
-                            .background(colors.surface.copy(alpha = 0.5f))
+                            .fillMaxSize()
                             .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 24.dp, vertical = 8.dp)
                     ) {
-                        INGREDIENT_CATEGORIES.forEachIndexed { index, cat ->
-                            val isSelected = selectedTabIndex == index
-                            Box(
+                        category.items.map { if (L.isTr) it.first else it.second }.forEach { item ->
+                            val added = alreadyAdded.any { it.equals(item, ignoreCase = true) }
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (isSelected) colors.primary.copy(alpha = 0.12f) else Color.Transparent)
-                                    .clickable { selectedTabIndex = index }
-                                    .padding(vertical = 16.dp, horizontal = 12.dp),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(cat.icon, fontSize = 20.sp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(cat.label, color = if (isSelected) colors.primary else colors.onSurface, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                }
-                            }
-                            if (index < INGREDIENT_CATEGORIES.size - 1) Divider(color = colors.divider.copy(alpha = 0.3f))
-                        }
-                    }
-                    Divider(modifier = Modifier.fillMaxHeight().width(1.dp), color = colors.divider)
-                    val activeCat = INGREDIENT_CATEGORIES[selectedTabIndex]
-                    Column(
-                        modifier = Modifier
-                            .weight(0.65f)
-                            .fillMaxHeight()
-                            .padding(12.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        activeCat.items.map { if (L.isTr) it.first else it.second }.chunked(2).forEach { rowItems ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                rowItems.forEach { item ->
-                                    val isAdded = alreadyAdded.any { it.equals(item, ignoreCase = true) }
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(if (isAdded) colors.primary.copy(alpha = 0.12f) else colors.surface)
-                                            .border(1.dp, if (isAdded) colors.primary else colors.divider, RoundedCornerShape(12.dp))
-                                            .clickable { if (!isAdded) onAdd(item) }
-                                            .padding(vertical = 12.dp, horizontal = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(item, color = if (isAdded) colors.primary else colors.onSurface, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 1)
+                                    .heightIn(min = 56.dp)
+                                    .clickable(enabled = !added) { onAdd(item) }
+                                    .semantics {
+                                        contentDescription = if (added) {
+                                            "$item, ${if (L.isTr) "eklendi" else "added"}"
+                                        } else {
+                                            "$item, ${if (L.isTr) "ekle" else "add"}"
+                                        }
                                     }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(item, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
+                                if (added) {
+                                    Text(
+                                        text = if (L.isTr) "Eklendi" else "Added",
+                                        color = colors.success,
+                                        style = MaterialTheme.typography.caption
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = colors.success, modifier = Modifier.size(16.dp))
+                                } else {
+                                    Text(
+                                        text = if (L.isTr) "Ekle" else "Add",
+                                        color = colors.primary,
+                                        style = MaterialTheme.typography.button
+                                    )
                                 }
-                                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
                             }
-                            Spacer(Modifier.height(8.dp))
+                            Divider(color = colors.divider)
                         }
                     }
                 }
-                Box(modifier = Modifier.fillMaxWidth().background(colors.surface).padding(16.dp)) {
-                    Button(
-                        onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary)
-                    ) {
-                        Text(if (L.isTr) "TAMAM" else "DONE", color = colors.onPrimary, style = MaterialTheme.typography.button)
-                    }
+                Divider(color = colors.divider)
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .semantics { contentDescription = if (L.isTr) "Malzeme kütüphanesini tamamla" else "Finish ingredient library" }
+                ) {
+                    Text(
+                        text = if (L.isTr) "Tamam" else "Done",
+                        color = colors.primary,
+                        style = MaterialTheme.typography.button
+                    )
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun ZenCategoryCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    colors: AppColors,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier.clickable { onClick() },
-        backgroundColor = colors.surface,
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, colors.divider),
-        elevation = 0.dp
-    ) {
-        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier.size(48.dp).background(colors.surfaceAlt, RoundedCornerShape(24.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(24.dp))
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(title, color = colors.onSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, textAlign = TextAlign.Center)
         }
     }
 }
