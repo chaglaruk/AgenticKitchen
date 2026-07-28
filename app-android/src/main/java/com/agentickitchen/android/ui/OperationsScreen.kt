@@ -338,10 +338,11 @@ private fun PrimaryCookingOperation(operation: LiveOperation, paused: Boolean, o
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 onClick = { onComplete(operation.event.id) },
+                modifier = Modifier.height(48.dp),
                 colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
                 shape = RoundedCornerShape(999.dp)
             ) { Text(if (L.isTr) "Tamamla" else "Complete", color = colors.onPrimary) }
-            TextButton(onClick = { onSkip(operation.event.id) }) {
+            TextButton(onClick = { onSkip(operation.event.id) }, modifier = Modifier.height(48.dp)) {
                 Text(if (L.isTr) "Atla" else "Skip", color = colors.onSurfaceSub)
             }
         }
@@ -362,8 +363,8 @@ private fun ParallelCookingOperation(operation: LiveOperation, onComplete: (Stri
             Text(CookingResourceLabel(operation.event.resource), color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
         }
         Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-            TextButton(onClick = { onComplete(operation.event.id) }) { Text(if (L.isTr) "Tamamla" else "Complete", color = colors.primary) }
-            TextButton(onClick = { onSkip(operation.event.id) }) { Text(if (L.isTr) "Atla" else "Skip", color = colors.onSurfaceSub) }
+            TextButton(onClick = { onComplete(operation.event.id) }, modifier = Modifier.height(48.dp)) { Text(if (L.isTr) "Tamamla" else "Complete", color = colors.primary) }
+            TextButton(onClick = { onSkip(operation.event.id) }, modifier = Modifier.height(48.dp)) { Text(if (L.isTr) "Atla" else "Skip", color = colors.onSurfaceSub) }
         }
     }
 }
@@ -399,19 +400,19 @@ private fun GlobalCookingControls(
     val colors = LocalAppColors.current
     Column(modifier = Modifier.fillMaxWidth()) {
         when (status) {
-            CookingSessionStatus.RUNNING -> Button(onClick = onPause, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
+            CookingSessionStatus.RUNNING -> Button(onClick = onPause, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
                 Text(if (L.isTr) "Duraklat" else "Pause", color = colors.onPrimary)
             }
-            CookingSessionStatus.PAUSED -> Button(onClick = onResume, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
+            CookingSessionStatus.PAUSED -> Button(onClick = onResume, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
                 Text(if (L.isTr) "Devam Et" else "Resume", color = colors.onPrimary)
             }
-            CookingSessionStatus.ERROR -> Button(onClick = onStart, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
+            CookingSessionStatus.ERROR -> Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary), shape = RoundedCornerShape(999.dp)) {
                 Text(if (L.isTr) "Pişirmeye Başla" else "Start Cooking", color = colors.onPrimary)
             }
             else -> Unit
         }
         if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
-            TextButton(onClick = onEnd, modifier = Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally)) {
+            TextButton(onClick = onEnd, modifier = Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally).height(48.dp)) {
                 Text(if (L.isTr) "Pişirmeyi Bitir" else "End Cooking", color = colors.onSurfaceSub)
             }
         }
@@ -559,7 +560,7 @@ private fun KitchenAssistantSection(
             style = MaterialTheme.typography.body1
         )
         Spacer(Modifier.height(8.dp))
-        TextButton(onClick = { cameraLauncher.launch(null) }) {
+        TextButton(onClick = { cameraLauncher.launch(null) }, modifier = Modifier.height(48.dp)) {
             Icon(Icons.Filled.CameraAlt, contentDescription = if (L.isTr) "Kamerayı aç" else "Open camera", tint = colors.primary, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Text(if (L.isTr) "Tavayı kontrol et" else "Check the pan", color = colors.primary)
@@ -586,7 +587,7 @@ private fun AssistantResponse(response: String, onClear: () -> Unit) {
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(if (L.isTr) "Asistanın notu" else "Assistant note", color = colors.primary, style = MaterialTheme.typography.caption, modifier = Modifier.weight(1f))
-            IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onClear, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = if (L.isTr) "Asistan notunu temizle" else "Clear assistant response", tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
             }
         }
@@ -605,7 +606,7 @@ private fun PanCheckResponse(response: String, onClear: () -> Unit) {
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(if (L.isTr) "Tava kontrolü" else "Pan check", color = accent, style = MaterialTheme.typography.caption, modifier = Modifier.weight(1f))
-            IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onClear, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = if (L.isTr) "Tava kontrolünü temizle" else "Clear pan-check response", tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
             }
         }
@@ -671,7 +672,7 @@ private fun EditorialIdleOperations(onBack: () -> Unit) {
             style = MaterialTheme.typography.body1
         )
         Spacer(Modifier.height(12.dp))
-        TextButton(onClick = onBack) { Text(if (L.isTr) "Tariflere Git" else "Browse Recipes", color = colors.primary) }
+        TextButton(onClick = onBack, modifier = Modifier.height(48.dp)) { Text(if (L.isTr) "Tariflere Git" else "Browse Recipes", color = colors.primary) }
     }
 }
 

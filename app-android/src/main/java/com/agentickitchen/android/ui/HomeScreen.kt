@@ -349,7 +349,7 @@ private fun IngredientComposer(
         Button(
             onClick = onStart,
             enabled = canGenerate,
-            modifier = Modifier.fillMaxWidth().height(46.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp),
             colors = ButtonDefaults.buttonColors(
                 backgroundColor = colors.primary,
                 disabledBackgroundColor = colors.divider
@@ -963,12 +963,12 @@ fun SideTabCategoryPicker(
                             style = MaterialTheme.typography.body1
                         )
                     }
-                }
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(48.dp).semantics { contentDescription = closeLabel }
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub)
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(48.dp).semantics { contentDescription = closeLabel }
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub)
+                    }
                 }
                 Divider(color = colors.divider)
                 Row(

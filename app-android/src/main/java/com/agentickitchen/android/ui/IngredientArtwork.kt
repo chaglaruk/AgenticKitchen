@@ -245,14 +245,19 @@ private fun IngredientCollectionItem(
                 IngredientArtwork(item.name, Modifier.fillMaxWidth().height(108.dp).align(Alignment.Center))
                 IconButton(
                     onClick = onRemove,
-                    modifier = Modifier.align(Alignment.TopEnd).size(28.dp).clip(CircleShape).background(colors.surface)
+                    modifier = Modifier.align(Alignment.TopEnd).size(48.dp)
                 ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = if (L.isTr) "${item.name} malzemesini kaldır" else "Remove ${item.name}",
-                        tint = colors.onSurfaceSub,
-                        modifier = Modifier.size(15.dp)
-                    )
+                    Box(
+                        modifier = Modifier.size(28.dp).clip(CircleShape).background(colors.surface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = if (L.isTr) "${item.name} malzemesini kaldır" else "Remove ${item.name}",
+                            tint = colors.onSurfaceSub,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                 }
             }
             Text(item.name, color = colors.onSurface, style = MaterialTheme.typography.h6, maxLines = 1)

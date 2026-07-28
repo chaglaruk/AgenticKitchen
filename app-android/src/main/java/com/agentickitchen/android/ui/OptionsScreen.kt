@@ -252,7 +252,7 @@ private fun TargetTimeChoicePill(option: TargetTimeUiOption, selected: Boolean, 
     val textColor by animateColorAsState(if (selected) colors.onPrimary else colors.onSurface, tween(240), label = "targetText")
     val scale by animateFloatAsState(if (selected) 1f else .97f, tween(240), label = "targetScale")
     Box(
-        modifier = Modifier.defaultMinSize(minHeight = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+        modifier = Modifier.defaultMinSize(minHeight = 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }
             .background(background, RoundedCornerShape(999.dp))
             .border(1.dp, if (selected) colors.primary else colors.divider, RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
