@@ -195,12 +195,12 @@ fun EditorialIngredientCollection(chips: List<String>, onRemove: (String) -> Uni
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).animateContentSize(tween(260)),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         displayed.chunked(2).forEachIndexed { rowIndex, row ->
             Row(
                 modifier = Modifier.fillMaxWidth().animateContentSize(tween(260)),
-                horizontalArrangement = Arrangement.spacedBy(18.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 row.forEachIndexed { columnIndex, item ->
                     key(item.name) {
@@ -235,9 +235,9 @@ private fun IngredientCollectionItem(
         enter = fadeIn(tween(260, entranceDelay)) + scaleIn(tween(260, entranceDelay), initialScale = .94f) + slideInVertically(tween(260, entranceDelay)) { -it / 8 },
         exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = .94f)
     ) {
-        Column(modifier = modifier.animateContentSize(tween(220))) {
-            Box(modifier = Modifier.fillMaxWidth().height(116.dp)) {
-                IngredientArtwork(item.name, Modifier.fillMaxWidth().height(108.dp).align(Alignment.Center))
+        Column(modifier = modifier.animateContentSize(tween(220)).height(88.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                IngredientArtwork(item.name, Modifier.fillMaxWidth().height(46.dp).align(Alignment.Center))
                 IconButton(
                     onClick = onRemove,
                     modifier = Modifier.align(Alignment.TopEnd).size(48.dp)
@@ -255,7 +255,7 @@ private fun IngredientCollectionItem(
                     }
                 }
             }
-            Text(item.name, color = colors.onSurface, style = MaterialTheme.typography.h6, maxLines = 1)
+            Text(item.name, color = colors.onSurface, style = MaterialTheme.typography.subtitle1, maxLines = 2)
             Spacer(Modifier.height(2.dp))
             Text(if (L.isTr) visual.labelTr else visual.labelEn, color = colors.onSurfaceSub, fontSize = 11.sp)
         }
@@ -269,7 +269,7 @@ fun EmptyIngredientCollection() {
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        IngredientArtwork("", Modifier.size(108.dp))
+        IngredientArtwork("", Modifier.size(64.dp))
         Text(
             if (L.isTr) "İlk malzemeni ekle." else "Add your first ingredient.",
             color = colors.onSurfaceSub,

@@ -163,8 +163,10 @@ fun HomeScreen(
         Spacer(Modifier.height(16.dp))
         EditorialIngredientCollection(chips = chips, onRemove = onRemoveChip)
 
-        Spacer(Modifier.height(20.dp))
-        PantryIntelOverviewCard(pantryIntel = pantryIntel, onEditSetup = onEditSetup)
+        if (chips.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            CompactKitchenSummary(pantryIntel)
+        }
         Spacer(Modifier.height(20.dp))
 
         Row(
@@ -192,7 +194,7 @@ fun HomeScreen(
             )
         }
 
-        EditorialIngredientLibrarySection(onOpen = { showPicker = true })
+        Spacer(Modifier.height(24.dp))
     }
 
     if (showPicker) {
@@ -234,7 +236,7 @@ private fun EditorialHomeHeader(chips: List<String>) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
-            Text("Agentic Kitchen", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+            EditorialBrandLockup()
             Spacer(Modifier.height(10.dp))
             Text(
                 if (L.isTr) "Bu akşam ne pişiriyoruz?" else "What are we cooking tonight?",
@@ -277,9 +279,9 @@ private fun IngredientComposer(
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-            .background(colors.surfaceAlt, RoundedCornerShape(18.dp))
-            .border(1.dp, colors.divider, RoundedCornerShape(18.dp))
-            .padding(14.dp)
+            .background(colors.surfaceAlt, RoundedCornerShape(14.dp))
+            .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
+            .padding(12.dp)
     ) {
         Text(
             if (L.isTr) "Mutfağında ne var?" else "What is in your kitchen?",
@@ -287,56 +289,29 @@ private fun IngredientComposer(
             style = MaterialTheme.typography.subtitle1
         )
         Spacer(Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth()) {
-            ExposedDropdownMenuBox(expanded = expandedAuto, onExpandedChange = { }, modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .background(colors.surface, RoundedCornerShape(12.dp))
-                        .border(1.dp, if (isFocused) colors.primary else colors.divider, RoundedCornerShape(12.dp))
-                        .padding(start = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BasicTextField(
-                        value = input,
-                        onValueChange = onInputChange,
-                        modifier = Modifier.weight(1f).onFocusChanged { isFocused = it.isFocused }.padding(vertical = 13.dp),
-                        textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Sentences,
-                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { onDone() }),
-                        decorationBox = { innerTextField ->
-                            Box {
-                                if (input.isEmpty()) Text(
-                                    if (L.isTr) "Örn: tavuk, pirinç, sarımsak" else "E.g. chicken, rice, garlic",
-                                    color = colors.onSurfaceSub,
-                                    fontSize = 15.sp
-                                )
-                                innerTextField()
-                            }
-                        }
-                    )
-                    IconButton(onClick = onOpenCamera) {
-                        Icon(
-                            Icons.Filled.CameraAlt,
-                            contentDescription = if (L.isTr) "Kamera" else "Camera",
-                            tint = colors.onSurfaceSub
-                        )
-                    }
-                    TextButton(onClick = onDone) {
-                        Text(if (L.isTr) "Ekle" else "Add", color = colors.primary)
-                    }
-                }
-                DropdownMenu(
-                    expanded = expandedAuto,
-                    onDismissRequest = { },
-                    modifier = Modifier.background(colors.surface)
-                ) {
-                    filteredIngredients.forEach { selection ->
-                        DropdownMenuItem(onClick = { onAddSelection(selection) }) {
-                            Text(text = selection, color = colors.onSurface)
-                        }
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .border(1.dp, if (isFocused) colors.primary else colors.divider, RoundedCornerShape(10.dp))
+                .padding(start = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BasicTextField(
+                value = input,
+                onValueChange = onInputChange,
+                modifier = Modifier.weight(1f).onFocusChanged { isFocused = it.isFocused }.padding(vertical = 12.dp),
+                textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onDone() }),
+                decorationBox = { inner -> Box { if (input.isEmpty()) Text(if (L.isTr) "Örn: tavuk, pirinç, sarımsak" else "E.g. chicken, rice, garlic", color = colors.onSurfaceSub, fontSize = 15.sp); inner() } }
+            )
+            IconButton(onClick = onOpenCamera) { Icon(Icons.Filled.CameraAlt, contentDescription = if (L.isTr) "Kamera" else "Camera", tint = colors.onSurfaceSub) }
+            TextButton(onClick = onDone) { Text(if (L.isTr) "Ekle" else "Add", color = colors.primary) }
+        }
+        AnimatedVisibility(visible = expandedAuto) {
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp).border(1.dp, colors.divider, RoundedCornerShape(10.dp))) {
+                filteredIngredients.forEach { selection ->
+                    TextButton(onClick = { onAddSelection(selection) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Text(selection, color = colors.onSurface, modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
                     }
                 }
             }
@@ -523,6 +498,23 @@ private fun InputManifestCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CompactKitchenSummary(pantryIntel: PantryIntelReport) {
+    val colors = LocalAppColors.current
+    val observation = pantryIntel.tactics.firstOrNull()?.let(::pantrySignalText)
+        ?: pantryIntel.warnings.firstOrNull()?.let(::pantrySignalText)
+        ?: return
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+        Divider(color = colors.divider)
+        Spacer(Modifier.height(12.dp))
+        Text(if (L.isTr) "MUTFAK ÖZETİ" else "KITCHEN SUMMARY", color = colors.success, style = MaterialTheme.typography.caption)
+        Spacer(Modifier.height(4.dp))
+        Text(if (L.isTr) "Mutfak özeti" else "Kitchen summary", color = colors.onSurface, style = MaterialTheme.typography.h6)
+        Spacer(Modifier.height(6.dp))
+        Text(observation, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
     }
 }
 
