@@ -113,7 +113,7 @@ fun SetupScreen(
             visible = contentVisible,
             enter = fadeIn(tween(260, delayMillis = 80)) + slideInVertically(tween(260, delayMillis = 80)) { it / 12 }
         ) {
-            EditorialSetupSection(number = "01", title = if (L.isTr) "Pişirme araçların" else "Cooking equipment") {
+            EditorialSetupSection(number = "01", title = if (L.isTr) "Pişirme araçları" else "Cooking equipment") {
                 EquipmentGrid(
                     selectedEquipment = selectedEquipment,
                     onToggle = { id ->
@@ -297,7 +297,7 @@ private fun EditorialEquipmentItem(
     val colors = LocalAppColors.current
     Box(
         modifier = modifier
-            .heightIn(min = 72.dp)
+            .heightIn(min = 64.dp)
             .clickable(onClick = onToggle)
             .semantics {
                 contentDescription = if (L.isTr) {
@@ -310,7 +310,7 @@ private fun EditorialEquipmentItem(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(equipment.icon, fontSize = 22.sp)
+                EquipmentArtwork(equipmentId = equipment.id, selected = selected)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     equipment.label,
@@ -526,5 +526,23 @@ private fun EditingSetupPreview() {
             onBack = {},
             onComplete = { _, _, _, _ -> }
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditorialEquipmentSectionPreview() {
+    AgenticTheme("editorial") {
+        Column(
+            modifier = Modifier
+                .background(LocalAppColors.current.background)
+                .padding(24.dp)
+        ) {
+            Text("01", color = LocalAppColors.current.primary, style = MaterialTheme.typography.h6)
+            Spacer(Modifier.height(8.dp))
+            Text("Pişirme araçları", color = LocalAppColors.current.onSurface, style = MaterialTheme.typography.h6)
+            Spacer(Modifier.height(18.dp))
+            EquipmentGrid(selectedEquipment = setOf("oven", "gas"), onToggle = {})
+        }
     }
 }
