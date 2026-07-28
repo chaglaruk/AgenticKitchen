@@ -34,8 +34,6 @@ import androidx.compose.material.OutlinedButton
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.RadioButton
 import androidx.compose.material.RadioButtonDefaults
-import androidx.compose.material.Slider
-import androidx.compose.material.SliderDefaults
 import androidx.compose.material.Switch
 import androidx.compose.material.SwitchDefaults
 import androidx.compose.material.Text
@@ -78,7 +76,6 @@ fun SettingsScreen(
     theme: String,
     language: String,
     selectedEquipment: Set<String>,
-    mealTime: String,
     onSaveHardware: (HardwareSettings) -> Unit,
     onSaveDiet: (DietSettings) -> Unit,
     onSetLanguage: (String) -> Unit,
@@ -114,7 +111,7 @@ fun SettingsScreen(
             EditorialSettingsSection(number = "01", title = if (L.isTr) "Mutfağın" else "Your kitchen") {
                 EditorialSettingsRow(
                     title = if (L.isTr) "Pişirme araçları" else "Cooking equipment",
-                    subtitle = if (L.isTr) "${selectedEquipment.size} araç seçili · $mealTime" else "${selectedEquipment.size} items selected · $mealTime",
+                    subtitle = if (L.isTr) "${selectedEquipment.size} araç seçili" else "${selectedEquipment.size} items selected",
                     onClick = onEditSetup
                 )
                 EditorialSettingsRow(
@@ -199,10 +196,10 @@ fun SettingsScreen(
     }
 }
 
-private fun buildHardwareSummary(hw: HardwareSettings): String = if (L.isTr) {
-    "${if (hw.stoveType == "gas") "Gaz ocak" else "Elektrikli ocak"} · ${hw.servingSize} kişi"
-} else {
-    "${if (hw.stoveType == "gas") "Gas stove" else "Electric stove"} · serves ${hw.servingSize}"
+private fun buildHardwareSummary(hw: HardwareSettings): String = when (hw.stoveType) {
+    "gas" -> if (L.isTr) "Gazlı ocak" else "Gas stove"
+    "electric" -> if (L.isTr) "Elektrikli ocak" else "Electric stove"
+    else -> if (L.isTr) "Ocak seçilmedi" else "No stove selected"
 }
 
 private fun dietSummary(diet: DietSettings): String = when (diet.dietType) {
@@ -319,7 +316,6 @@ private fun EditorialDialogHeader(title: String, onDismiss: () -> Unit) {
 fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (HardwareSettings) -> Unit, onDismiss: () -> Unit) {
     var stoveType by remember { mutableStateOf(current.stoveType) }
     var ovenAvailable by remember { mutableStateOf(current.ovenAvailable) }
-    var servingSize by remember { mutableStateOf(current.servingSize) }
     var powerLevel by remember { mutableStateOf(current.powerLevel) }
     var geminiKey by remember { mutableStateOf(current.geminiApiKey) }
     var hfKey by remember { mutableStateOf(current.hfApiKey) }
@@ -398,15 +394,6 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
                 colors = SwitchDefaults.colors(checkedThumbColor = colors.primary, checkedTrackColor = colors.primaryLight)
             )
         }
-        Spacer(Modifier.size(12.dp))
-        Text(if (L.isTr) "Porsiyon: $servingSize kişi" else "Servings: $servingSize", color = colors.onSurface, style = MaterialTheme.typography.body1)
-        Slider(
-            value = servingSize.toFloat(),
-            onValueChange = { servingSize = it.toInt() },
-            valueRange = 1f..8f,
-            steps = 6,
-            colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary, inactiveTrackColor = colors.divider)
-        )
         Spacer(Modifier.size(18.dp))
         DialogActions(
             onDismiss = onDismiss,
@@ -415,7 +402,6 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
                     current.copy(
                         stoveType = stoveType,
                         ovenAvailable = ovenAvailable,
-                        servingSize = servingSize,
                         powerLevel = powerLevel,
                         geminiApiKey = geminiKey,
                         hfApiKey = hfKey,
@@ -570,7 +556,6 @@ private fun TurkishEditorialSettingsPreview() {
             theme = "editorial",
             language = "Türkçe",
             selectedEquipment = setOf("oven", "elec"),
-            mealTime = "19:00",
             onSaveHardware = {},
             onSaveDiet = {},
             onSetLanguage = {},
@@ -590,7 +575,6 @@ private fun EnglishEditorialSettingsPreview() {
             theme = "heritage",
             language = "English",
             selectedEquipment = setOf("gas", "oven", "pan", "grill"),
-            mealTime = "20:30",
             onSaveHardware = {},
             onSaveDiet = {},
             onSetLanguage = {},

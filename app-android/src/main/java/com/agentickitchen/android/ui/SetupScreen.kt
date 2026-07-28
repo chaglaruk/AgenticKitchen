@@ -2,14 +2,12 @@ package com.agentickitchen.android.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,7 +35,6 @@ import androidx.compose.material.SliderDefaults
 import androidx.compose.material.Switch
 import androidx.compose.material.SwitchDefaults
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -49,11 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,7 +57,20 @@ import com.agentickitchen.android.HardwareSettings
 import com.agentickitchen.android.L
 
 private val defaultSetupEquipment = setOf("oven", "elec")
-private val mealTimePattern = Regex("(?:[01]\\d|2[0-3]):[0-5]\\d")
+
+internal fun toggledSetupEquipment(selected: Set<String>, id: String): Set<String> = when (id) {
+    "elec" -> if (id in selected) selected - id else (selected - "gas") + id
+    "gas" -> if (id in selected) selected - id else (selected - "elec") + id
+    else -> if (id in selected) selected - id else selected + id
+}
+
+internal enum class SetupStoveGuidance { ElectricScale, GasFlame, None }
+
+internal fun setupStoveGuidance(selected: Set<String>): SetupStoveGuidance = when {
+    "elec" in selected -> SetupStoveGuidance.ElectricScale
+    "gas" in selected -> SetupStoveGuidance.GasFlame
+    else -> SetupStoveGuidance.None
+}
 
 @Composable
 fun SetupScreen(
@@ -78,18 +85,11 @@ fun SetupScreen(
         initialEquipment.filterTo(linkedSetOf()) { id -> ALL_EQUIPMENT.any { it.id == id } }
             .ifEmpty { defaultSetupEquipment }
     }
-    val validMealTime = remember(initialMealTime) { initialMealTime.takeIf { mealTimePattern.matches(it) } ?: "19:00" }
-    val initialTimeParts = remember(validMealTime) { validMealTime.split(":").map(String::toInt) }
-
     var selectedEquipment by remember(validEquipment) { mutableStateOf(validEquipment) }
-    var servings by remember(initialHw) { mutableStateOf(initialHw.servingSize.coerceIn(1, 12)) }
-    var hour by remember(validMealTime) { mutableStateOf(initialTimeParts[0]) }
-    var minute by remember(validMealTime) { mutableStateOf(initialTimeParts[1]) }
     var stovePowerMax by remember(initialHw) { mutableStateOf(initialHw.stovePowerMax.coerceIn(3, 15)) }
     var ovenHasFan by remember(initialHw) { mutableStateOf(initialHw.ovenHasFan) }
     var ovenHasGrill by remember(initialHw) { mutableStateOf(initialHw.ovenHasGrill) }
     var contentVisible by remember { mutableStateOf(false) }
-    val mealTime = "%02d:%02d".format(hour, minute)
     val colors = LocalAppColors.current
 
     LaunchedEffect(Unit) { contentVisible = true }
@@ -117,13 +117,20 @@ fun SetupScreen(
                 EquipmentGrid(
                     selectedEquipment = selectedEquipment,
                     onToggle = { id ->
-                        selectedEquipment = if (id in selectedEquipment) selectedEquipment - id else selectedEquipment + id
+                        selectedEquipment = toggledSetupEquipment(selectedEquipment, id)
                     }
                 )
 
-                if (selectedEquipment.any { it == "elec" || it == "gas" }) {
-                    Spacer(Modifier.height(20.dp))
-                    StovePowerDetails(stovePowerMax) { stovePowerMax = it }
+                when (setupStoveGuidance(selectedEquipment)) {
+                    SetupStoveGuidance.ElectricScale -> {
+                        Spacer(Modifier.height(20.dp))
+                        ElectricStoveDetails(stovePowerMax) { stovePowerMax = it }
+                    }
+                    SetupStoveGuidance.GasFlame -> {
+                        Spacer(Modifier.height(20.dp))
+                        GasStoveDetails()
+                    }
+                    SetupStoveGuidance.None -> Unit
                 }
                 if ("oven" in selectedEquipment) {
                     Spacer(Modifier.height(20.dp))
@@ -137,54 +144,22 @@ fun SetupScreen(
             }
         }
 
-        AnimatedVisibility(
-            visible = contentVisible,
-            enter = fadeIn(tween(260, delayMillis = 140)) + slideInVertically(tween(260, delayMillis = 140)) { it / 12 }
-        ) {
-            EditorialSetupSection(number = "02", title = if (L.isTr) "Kaç kişilik?" else "How many people?") {
-                ServingSelector(servings, onDecrease = { servings = (servings - 1).coerceAtLeast(1) }) {
-                    servings = (servings + 1).coerceAtMost(12)
-                }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = contentVisible,
-            enter = fadeIn(tween(260, delayMillis = 200)) + slideInVertically(tween(260, delayMillis = 200)) { it / 12 }
-        ) {
-            EditorialSetupSection(
-                number = "03",
-                title = if (L.isTr) "Ne zaman hazır olsun?" else "When should it be ready?"
-            ) {
-                Text(
-                    if (L.isTr) "Yemek genellikle ne zaman hazır olsun?" else "When should meals usually be ready?",
-                    color = colors.onSurfaceSub,
-                    style = MaterialTheme.typography.body1
-                )
-                Spacer(Modifier.height(18.dp))
-                MealTimeSelector(
-                    hour = hour,
-                    minute = minute,
-                    onHourDown = { hour = (hour + 23) % 24 },
-                    onHourUp = { hour = (hour + 1) % 24 },
-                    onMinuteDown = { minute = (minute + 45) % 60 },
-                    onMinuteUp = { minute = (minute + 15) % 60 }
-                )
-            }
-        }
-
         Spacer(Modifier.height(32.dp))
         Button(
             onClick = {
                 val updatedHw = initialHw.copy(
-                    stoveType = if ("gas" in selectedEquipment) "gas" else "electric",
+                    stoveType = when {
+                        "gas" in selectedEquipment -> "gas"
+                        "elec" in selectedEquipment -> "electric"
+                        else -> "none"
+                    },
                     ovenAvailable = "oven" in selectedEquipment,
                     stovePowerMax = stovePowerMax,
                     ovenHasFan = ovenHasFan,
                     ovenHasGrill = ovenHasGrill,
-                    servingSize = servings
+                    servingSize = initialHw.servingSize
                 )
-                onComplete(selectedEquipment, servings, mealTime, updatedHw)
+                onComplete(selectedEquipment, initialHw.servingSize, initialMealTime, updatedHw)
             },
             enabled = selectedEquipment.isNotEmpty(),
             modifier = Modifier
@@ -334,15 +309,15 @@ private fun EditorialEquipmentItem(
 }
 
 @Composable
-private fun StovePowerDetails(stovePowerMax: Int, onPowerChange: (Int) -> Unit) {
+private fun ElectricStoveDetails(stovePowerMax: Int, onPowerChange: (Int) -> Unit) {
     val colors = LocalAppColors.current
     Divider(color = colors.divider, thickness = 1.dp)
     Spacer(Modifier.height(16.dp))
     Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(if (L.isTr) "Ocak güç aralığı" else "Stove power range", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
+            Text(if (L.isTr) "Elektrikli ocak ölçeği" else "Electric stove scale", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
             Spacer(Modifier.height(4.dp))
-            Text(if (L.isTr) "Tariflerde kullanılacak en yüksek seviye." else "The highest level recipes may use.", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+            Text(if (L.isTr) "Ocağındaki en yüksek seviye." else "The highest level shown on your stove.", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
         }
         Text("$stovePowerMax / 15", color = colors.primary, style = MaterialTheme.typography.h6)
     }
@@ -356,6 +331,21 @@ private fun StovePowerDetails(stovePowerMax: Int, onPowerChange: (Int) -> Unit) 
             activeTrackColor = colors.primary,
             inactiveTrackColor = colors.divider
         )
+    )
+}
+
+@Composable
+private fun GasStoveDetails() {
+    val colors = LocalAppColors.current
+    Divider(color = colors.divider, thickness = 1.dp)
+    Spacer(Modifier.height(16.dp))
+    Text(if (L.isTr) "Gazlı ocak" else "Gas stove", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        if (L.isTr) "Tariflerde kısık, orta ve yüksek alev ifadeleri kullanılacak."
+        else "Recipes will use low, medium and high flame guidance.",
+        color = colors.onSurfaceSub,
+        style = MaterialTheme.typography.body1
     )
 }
 
@@ -399,105 +389,6 @@ private fun EditorialSwitchRow(title: String, checked: Boolean, onCheckedChange:
     }
 }
 
-@Composable
-private fun ServingSelector(servings: Int, onDecrease: () -> Unit, onIncrease: () -> Unit) {
-    val colors = LocalAppColors.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        SetupAdjustButton(
-            label = "−",
-            enabled = servings > 1,
-            description = if (L.isTr) "Porsiyonu azalt" else "Decrease servings",
-            onClick = onDecrease
-        )
-        Spacer(Modifier.width(34.dp))
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(88.dp)) {
-            Crossfade(targetState = servings, animationSpec = tween(180), label = "servings") { value ->
-                Text("$value", color = colors.onSurface, style = MaterialTheme.typography.h1, textAlign = TextAlign.Center)
-            }
-            Text(if (L.isTr) "kişi" else "people", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
-        }
-        Spacer(Modifier.width(34.dp))
-        SetupAdjustButton(
-            label = "+",
-            enabled = servings < 12,
-            description = if (L.isTr) "Porsiyonu artır" else "Increase servings",
-            onClick = onIncrease
-        )
-    }
-}
-
-@Composable
-private fun MealTimeSelector(
-    hour: Int,
-    minute: Int,
-    onHourDown: () -> Unit,
-    onHourUp: () -> Unit,
-    onMinuteDown: () -> Unit,
-    onMinuteUp: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Text("%02d:%02d".format(hour, minute), color = colors.onSurface, style = MaterialTheme.typography.h1)
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            TimeAdjuster(
-                value = "%02d".format(hour),
-                label = if (L.isTr) "Saat" else "Hour",
-                upDescription = if (L.isTr) "Saati artır" else "Increase hour",
-                downDescription = if (L.isTr) "Saati azalt" else "Decrease hour",
-                onUp = onHourUp,
-                onDown = onHourDown
-            )
-            TimeAdjuster(
-                value = "%02d".format(minute),
-                label = if (L.isTr) "Dakika" else "Minute",
-                upDescription = if (L.isTr) "Dakikayı artır" else "Increase minute",
-                downDescription = if (L.isTr) "Dakikayı azalt" else "Decrease minute",
-                onUp = onMinuteUp,
-                onDown = onMinuteDown
-            )
-        }
-    }
-}
-
-@Composable
-private fun TimeAdjuster(
-    value: String,
-    label: String,
-    upDescription: String,
-    downDescription: String,
-    onUp: () -> Unit,
-    onDown: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        SetupAdjustButton("↑", true, upDescription, onUp)
-        Spacer(Modifier.height(4.dp))
-        Text(value, color = colors.onSurface, style = MaterialTheme.typography.h6)
-        Text(label, color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
-        Spacer(Modifier.height(4.dp))
-        SetupAdjustButton("↓", true, downDescription, onDown)
-    }
-}
-
-@Composable
-private fun SetupAdjustButton(label: String, enabled: Boolean, description: String, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    TextButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier
-            .size(48.dp)
-            .border(1.dp, if (enabled) colors.divider else colors.divider.copy(alpha = .45f), RoundedCornerShape(12.dp))
-            .semantics { contentDescription = description }
-    ) {
-        Text(label, color = if (enabled) colors.primary else colors.onSurfaceSub, fontSize = 22.sp)
-    }
-}
 
 @Preview(showBackground = true)
 @Composable

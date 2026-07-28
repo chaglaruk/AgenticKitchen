@@ -103,7 +103,6 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     chips: List<String>,
-    servings: Int,
     scannedIngredients: List<String>?,
     pantryIntel: PantryIntelReport,
     onScanImage: (android.graphics.Bitmap) -> Unit,
@@ -143,7 +142,7 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 28.dp)
     ) {
-        EditorialHomeHeader(chips = chips, servings = servings)
+        EditorialHomeHeader(chips = chips)
         IngredientComposer(
             input = input,
             onInputChange = { input = it },
@@ -226,7 +225,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun EditorialHomeHeader(chips: List<String>, servings: Int) {
+private fun EditorialHomeHeader(chips: List<String>) {
     val colors = LocalAppColors.current
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
@@ -253,8 +252,8 @@ private fun EditorialHomeHeader(chips: List<String>, servings: Int) {
                     } else {
                         "Start by adding what you have in the kitchen."
                     }
-                    L.isTr -> "${chips.size} malzeme · $servings kişilik"
-                    else -> "${chips.size} ingredients · serves $servings"
+                    L.isTr -> "${chips.size} malzeme"
+                    else -> "${chips.size} ingredients"
                 },
                 color = colors.onSurfaceSub,
                 style = MaterialTheme.typography.body1
@@ -791,7 +790,6 @@ private fun EditorialHomePreview(chips: List<String>) {
     AgenticTheme("editorial") {
         HomeScreen(
             chips = chips,
-            servings = 2,
             scannedIngredients = null,
             pantryIntel = PantryIntelReport(
                 readinessScore = 70,

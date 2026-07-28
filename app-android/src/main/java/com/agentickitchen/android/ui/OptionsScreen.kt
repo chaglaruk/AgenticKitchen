@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.semantics.contentDescription
@@ -66,6 +67,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
+import com.agentickitchen.android.RecipeRequestSelection
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
@@ -80,7 +82,7 @@ fun OptionsScreen(
     pantryIntel: PantryIntelReport,
     onStart: () -> Unit,
     onRefresh: () -> Unit,
-    onSelectOption: (RecipeOption, TargetTimeChoice) -> Unit,
+    onSelectOption: (RecipeOption, RecipeRequestSelection) -> Unit,
     onBackToOptions: () -> Unit
 ) {
     val colors = LocalAppColors.current
@@ -118,8 +120,8 @@ fun OptionsScreen(
         EditorialRecipeDetailOverlay(
             recipe = selectedOptionForTime!!,
             onDismiss = { selectedOptionForTime = null },
-            onConfirm = { choice ->
-                onSelectOption(selectedOptionForTime!!, choice)
+            onConfirm = { selection ->
+                onSelectOption(selectedOptionForTime!!, selection)
                 selectedOptionForTime = null
             }
         )
@@ -144,11 +146,14 @@ internal fun targetTimePresetOptions(isTurkish: Boolean): List<TargetTimeUiOptio
 internal fun exactTargetTimeChoice(value: String): TargetTimeChoice.Exact? =
     runCatching { TargetTimeChoice.Exact(LocalTime.parse(value)) }.getOrNull()
 
+internal fun recipeRequestSelection(servings: Int, targetTime: TargetTimeChoice) =
+    RecipeRequestSelection(servings = servings.coerceIn(1, 12), targetTime = targetTime)
+
 @Composable
 private fun EditorialRecipeDetailOverlay(
     recipe: RecipeOption,
     onDismiss: () -> Unit,
-    onConfirm: (TargetTimeChoice) -> Unit
+    onConfirm: (RecipeRequestSelection) -> Unit
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -162,13 +167,14 @@ private fun EditorialRecipeDetailOverlay(
 private fun EditorialRecipeDetailContent(
     recipe: RecipeOption,
     onDismiss: () -> Unit,
-    onConfirm: (TargetTimeChoice) -> Unit,
+    onConfirm: (RecipeRequestSelection) -> Unit,
     initialTargetId: String = "after_20"
 ) {
     val colors = LocalAppColors.current
     val presets = targetTimePresetOptions(L.isTr)
     var selectedTargetId by remember(recipe.id, initialTargetId) { mutableStateOf(initialTargetId) }
     var exactTime by remember(recipe.id) { mutableStateOf("19:30") }
+    var servings by remember(recipe.id) { mutableStateOf(2) }
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
@@ -208,6 +214,20 @@ private fun EditorialRecipeDetailContent(
                 Divider(color = colors.divider, thickness = 1.dp)
                 Spacer(Modifier.height(24.dp))
                 Text(
+                    if (L.isTr) "Kaç kişilik?" else "How many servings?",
+                    color = colors.onSurface,
+                    style = MaterialTheme.typography.h6
+                )
+                Spacer(Modifier.height(12.dp))
+                RecipeServingsSelector(
+                    servings = servings,
+                    onDecrease = { servings = (servings - 1).coerceAtLeast(1) },
+                    onIncrease = { servings = (servings + 1).coerceAtMost(12) }
+                )
+                Spacer(Modifier.height(24.dp))
+                Divider(color = colors.divider, thickness = 1.dp)
+                Spacer(Modifier.height(24.dp))
+                Text(
                     if (L.isTr) "Ne zaman hazır olsun?" else "When should it be ready?",
                     color = colors.onSurface,
                     style = MaterialTheme.typography.h6
@@ -232,7 +252,7 @@ private fun EditorialRecipeDetailContent(
                 }
                 Spacer(Modifier.height(32.dp))
                 Button(
-                    onClick = { selectedChoice?.let(onConfirm) },
+                    onClick = { selectedChoice?.let { onConfirm(recipeRequestSelection(servings, it)) } },
                     enabled = selectedChoice != null,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary, disabledBackgroundColor = colors.divider),
@@ -242,6 +262,40 @@ private fun EditorialRecipeDetailContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RecipeServingsSelector(servings: Int, onDecrease: () -> Unit, onIncrease: () -> Unit) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(
+            onClick = onDecrease,
+            enabled = servings > 1,
+            modifier = Modifier
+                .size(48.dp)
+                .border(1.dp, colors.divider, RoundedCornerShape(12.dp))
+                .semantics { contentDescription = if (L.isTr) "Porsiyonu azalt" else "Decrease servings" }
+        ) { Text("−", color = colors.primary, fontSize = 22.sp) }
+        Text(
+            if (L.isTr) "$servings kişi" else "$servings servings",
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h6,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center
+        )
+        TextButton(
+            onClick = onIncrease,
+            enabled = servings < 12,
+            modifier = Modifier
+                .size(48.dp)
+                .border(1.dp, colors.divider, RoundedCornerShape(12.dp))
+                .semantics { contentDescription = if (L.isTr) "Porsiyonu artır" else "Increase servings" }
+        ) { Text("+", color = colors.primary, fontSize = 22.sp) }
     }
 }
 

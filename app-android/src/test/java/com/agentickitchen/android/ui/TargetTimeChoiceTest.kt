@@ -22,4 +22,12 @@ class TargetTimeChoiceTest {
         assertEquals(TargetTimeChoice.Exact(LocalTime.of(19, 30)), exactTargetTimeChoice("19:30"))
         assertNull(exactTargetTimeChoice("19.30"))
     }
+
+    @Test fun recipeRequestKeepsTypedTimeAndBoundsServings() {
+        assertEquals(
+            TargetTimeChoice.After(Duration.ofMinutes(45)),
+            recipeRequestSelection(4, TargetTimeChoice.After(Duration.ofMinutes(45))).targetTime
+        )
+        assertEquals(12, recipeRequestSelection(99, TargetTimeChoice.Flexible).servings)
+    }
 }

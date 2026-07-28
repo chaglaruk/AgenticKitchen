@@ -40,6 +40,7 @@ Return ONLY valid JSON in this exact schema:
         ingredients: List<String>,
         equipment: Set<String>,
         servings: Int,
+        stoveType: String,
         stoveMaxLevel: Int,
         ovenAvailable: Boolean,
         ovenHasFan: Boolean,
@@ -49,12 +50,25 @@ Return ONLY valid JSON in this exact schema:
         language: String
     ): String {
         val langInstr = if (language == "Türkçe") "Yanıtını Türkçe ver." else "Respond in English."
+        val stoveGuidance = if (stoveType == "gas") {
+            """Stove type: gas
+Gas flame guidance: use only low, medium-low, medium, medium-high, or high flame descriptions. Do not use numeric electric-style power levels. Set powerLevel to null for gas stove steps."""
+        } else {
+            """Stove type: electric
+Electric stove maximum level: $stoveMaxLevel. Use numeric powerLevel values only from 1 to $stoveMaxLevel."""
+        }
+        val examplePowerLevel = if (stoveType == "gas") "null" else "7"
+        val powerLevelRule = if (stoveType == "gas") {
+            "For this gas stove, use qualitative flame guidance and leave powerLevel null."
+        } else {
+            "For this electric stove, powerLevel must be from 1 to $stoveMaxLevel."
+        }
         return """You are a military-precision chef AI. Create a detailed cooking plan for "$recipeName".
 
 Ingredients: ${ingredients.joinToString(", ")}
 Available equipment: ${equipment.joinToString(", ")}
 Servings: $servings
-Stove max level: $stoveMaxLevel
+$stoveGuidance
 Oven available: $ovenAvailable
 Oven has fan: $ovenHasFan
 Airfryer available: $airfryerAvailable
@@ -72,11 +86,11 @@ Return ONLY valid JSON in this exact schema:
     {
       "id": "step_1",
       "type": "prep|cook|rest|serve",
-      "instruction": "Set burner to level 7 for 4 minutes",
+      "instruction": "Cook with the appropriate heat for 4 minutes",
       "resource": "stove|oven|airfryer|counter|knife|bowl",
       "durationSeconds": 240,
       "targetTemperatureC": null,
-      "powerLevel": 7,
+      "powerLevel": $examplePowerLevel,
       "dependsOn": [],
       "visionCheckpointRecommended": false
     }
@@ -85,10 +99,9 @@ Return ONLY valid JSON in this exact schema:
 }
 
 Rules:
-- Give exact burner/oven temperatures, not vague terms
-- Use military precision: "Set burner to level X for Y minutes"
+- Give exact oven temperatures and practical stove guidance
 - Resource must be one of: stove, oven, airfryer, counter, knife, bowl
-- Power level must not exceed $stoveMaxLevel
+- $powerLevelRule
 - Oven steps only if ovenAvailable is true
 - Airfryer steps only if airfryerAvailable is true
 - Duration must be reasonable (30-3600 seconds)

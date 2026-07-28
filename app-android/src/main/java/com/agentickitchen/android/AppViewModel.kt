@@ -123,6 +123,7 @@ val INGREDIENT_CATEGORIES = listOf(
 
 // ── UI States & Models ─────────────────────────────────────────────────
 data class RecipeOption(val id: String, val type: String, val name: String, val description: String)
+data class RecipeRequestSelection(val servings: Int, val targetTime: TargetTimeChoice)
 
 sealed class PlanState {
     object Idle : PlanState()
@@ -131,6 +132,7 @@ sealed class PlanState {
     data class RecipeActive(
         val recipe: RecipeOption, 
         val events: List<ScheduleEvent>, 
+        val servings: Int = 2,
         val agentChatResponse: String? = null,
         val visionScanResponse: String? = null
     ) : PlanState()
@@ -349,23 +351,23 @@ class AppViewModel(
         startSession(isRefresh = true)
     }
 
-    fun selectRecipeOption(option: RecipeOption, choice: TargetTimeChoice) {
+    fun selectRecipeOption(option: RecipeOption, selection: RecipeRequestSelection) {
         viewModelScope.launch {
             _planState.value = PlanState.Loading
             try {
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
-                    val prompt = calmCookingPlanPrompt(PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, hw.servingSize, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value))
+                    val prompt = calmCookingPlanPrompt(PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, selection.servings, hw.stoveType, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value))
                     val parsed = StructuredRecipeParser.cookingPlan(provider.generateContent(prompt).orEmpty())
                     val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
-                    val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, hw.servingSize).validate(plan)
+                    val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
                     if (!validation.valid) throw IllegalArgumentException(validation.errors.joinToString { it.message })
-                    val target = targetTimeResolver.resolve(choice).getOrElse { throw it }
+                    val target = targetTimeResolver.resolve(selection.targetTime).getOrElse { throw it }
                     val session = RecipeSession(UUID.randomUUID().toString(), target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
                     val result = orchestrator.startSession(session)
                     historyRepo.insertRecipe(session.sessionId, option.name, plan.ingredients.joinToString { "${it.quantity} ${it.unit} ${it.name}" }, ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), "started")
                     loadHistory()
-                    _planState.value = PlanState.RecipeActive(option, result.events)
+                    _planState.value = PlanState.RecipeActive(option, result.events, servings = selection.servings)
                 }
             } catch (e: Exception) {
                 val message = readerSafeAiError(e)

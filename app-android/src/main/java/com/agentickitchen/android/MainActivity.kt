@@ -181,7 +181,6 @@ fun AppNavigation(viewModel: AppViewModel) {
             when (currentScreen) {
                 Screen.Intelligence -> HomeScreen(
                     chips = chips,
-                    servings = hw.servingSize,
                     scannedIngredients = scannedIngredients,
                     pantryIntel = pantryIntel,
                     onScanImage = viewModel::scanIngredients,
@@ -200,7 +199,7 @@ fun AppNavigation(viewModel: AppViewModel) {
                     pantryIntel = pantryIntel,
                     onStart = viewModel::startSession,
                     onRefresh = viewModel::refreshSession,
-                    onSelectOption = { opt, time -> viewModel.selectRecipeOption(opt, time) },
+                    onSelectOption = { option, selection -> viewModel.selectRecipeOption(option, selection) },
                     onBackToOptions = viewModel::backToOptions
                 )
 
@@ -229,7 +228,6 @@ fun AppNavigation(viewModel: AppViewModel) {
                     theme = theme,
                     language = lang,
                     selectedEquipment = selectedEquipment,
-                    mealTime = mealTime,
                     onSaveHardware = viewModel::saveHardwareSettings,
                     onSaveDiet = viewModel::saveDietSettings,
                     onSetLanguage = viewModel::setLanguage,
