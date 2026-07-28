@@ -11,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +60,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.agentickitchen.android.L
 
-private enum class CameraModalPhase { Idle, Scanning, Results }
+private enum class CameraModalPhase { Idle, Scanning, Results, Error }
 
 @Composable
 fun CameraModal(
@@ -126,7 +129,7 @@ fun CameraModal(
     LaunchedEffect(scannedIngredients) {
         if (scannedIngredients != null && scanState == CameraModalPhase.Scanning) {
             if (scannedIngredients.firstOrNull() == "__ERROR__") {
-                onDismiss()
+                scanState = CameraModalPhase.Error
             } else {
                 localScanned = scannedIngredients
                 scanState = CameraModalPhase.Results
@@ -185,9 +188,10 @@ private fun CameraModalContent(
 ) {
     val colors = LocalAppColors.current
     val closeLabel = if (L.isTr) "Kapat" else "Close"
+    val maxDialogHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
 
     Card(
-        modifier = Modifier.fillMaxWidth(0.94f).wrapContentHeight(),
+        modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = maxDialogHeight).wrapContentHeight(),
         shape = RoundedCornerShape(18.dp),
         backgroundColor = colors.surface,
         elevation = 0.dp,
@@ -225,8 +229,10 @@ private fun CameraModalContent(
                     localScanned = localScanned,
                     onDismiss = onDismiss,
                     onRemoveIngredient = onRemoveIngredient,
-                    onAccept = onAccept
+                    onAccept = onAccept,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                CameraModalPhase.Error -> CameraErrorContent(onTakePhoto, onChooseGallery, onDismiss)
             }
         }
     }
@@ -324,14 +330,61 @@ private fun CameraScanningContent() {
 }
 
 @Composable
+private fun CameraErrorContent(onTakePhoto: () -> Unit, onChooseGallery: () -> Unit, onDismiss: () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
+        Text(
+            text = if (L.isTr) "Fotoğraf incelenemedi" else "Could not review the photo",
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h2
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (L.isTr) {
+                "Başka bir fotoğraf çekebilir veya galerinden seçebilirsin."
+            } else {
+                "You can take another photo or choose one from your gallery."
+            },
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(20.dp))
+        EditorialCaptureAction(
+            icon = Icons.Filled.PhotoCamera,
+            title = if (L.isTr) "Fotoğraf çek" else "Take a photo",
+            subtitle = if (L.isTr) "Yeni bir fotoğrafla tekrar dene." else "Try again with a new photo.",
+            onClick = onTakePhoto
+        )
+        Divider(color = colors.divider)
+        EditorialCaptureAction(
+            icon = Icons.Filled.Image,
+            title = if (L.isTr) "Galeriden seç" else "Choose from gallery",
+            subtitle = if (L.isTr) "Başka bir görsel seç." else "Choose a different image.",
+            onClick = onChooseGallery
+        )
+        TextButton(
+            onClick = onDismiss,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = if (L.isTr) "İptal" else "Cancel" }
+        ) {
+            Text(if (L.isTr) "İptal" else "Cancel", color = colors.onSurfaceSub)
+        }
+    }
+}
+
+@Composable
 private fun CameraResultsContent(
     localScanned: List<String>,
     onDismiss: () -> Unit,
     onRemoveIngredient: (String) -> Unit,
-    onAccept: () -> Unit
+    onAccept: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = LocalAppColors.current
-    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
+    val scrollState = rememberScrollState()
+    Column(modifier = modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
         Text(
             text = if (L.isTr) "Bulunan malzemeler" else "Detected ingredients",
             color = colors.onSurface,
@@ -349,45 +402,47 @@ private fun CameraResultsContent(
         )
         Spacer(Modifier.height(16.dp))
 
-        if (localScanned.isEmpty()) {
-            Text(
-                text = if (L.isTr) "Bu listede malzeme kalmadı." else "There are no ingredients left in this list.",
-                color = colors.onSurfaceSub,
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-        } else {
-            localScanned.forEachIndexed { index, ingredient ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .semantics { contentDescription = "${index + 1}. $ingredient" }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "%02d".format(index + 1),
-                        color = colors.success,
-                        style = MaterialTheme.typography.h6,
-                        modifier = Modifier.width(34.dp)
-                    )
-                    Text(
-                        text = ingredient,
-                        color = colors.onSurface,
-                        style = MaterialTheme.typography.body1,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
-                        onClick = { onRemoveIngredient(ingredient) },
-                        modifier = Modifier.size(48.dp).semantics {
-                            contentDescription = if (L.isTr) "$ingredient malzemesini kaldır" else "Remove $ingredient"
-                        }
+        Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(scrollState)) {
+            if (localScanned.isEmpty()) {
+                Text(
+                    text = if (L.isTr) "Bu listede malzeme kalmadı." else "There are no ingredients left in this list.",
+                    color = colors.onSurfaceSub,
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            } else {
+                localScanned.forEachIndexed { index, ingredient ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .semantics { contentDescription = "${index + 1}. $ingredient" }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
+                        Text(
+                            text = "%02d".format(index + 1),
+                            color = colors.success,
+                            style = MaterialTheme.typography.h6,
+                            modifier = Modifier.width(34.dp)
+                        )
+                        Text(
+                            text = ingredient,
+                            color = colors.onSurface,
+                            style = MaterialTheme.typography.body1,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { onRemoveIngredient(ingredient) },
+                            modifier = Modifier.size(48.dp).semantics {
+                                contentDescription = if (L.isTr) "$ingredient malzemesini kaldır" else "Remove $ingredient"
+                            }
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
+                        }
                     }
+                    Divider(color = colors.divider)
                 }
-                Divider(color = colors.divider)
             }
         }
 
@@ -462,6 +517,38 @@ private fun EditorialCameraResultsPreview() {
         CameraModalContent(
             phase = CameraModalPhase.Results,
             localScanned = listOf("Domates", "Soğan", "Tavuk", "Fesleğen"),
+            onDismiss = {},
+            onTakePhoto = {},
+            onChooseGallery = {},
+            onRemoveIngredient = {},
+            onAccept = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditorialCameraErrorPreview() {
+    AgenticTheme("editorial") {
+        CameraModalContent(
+            phase = CameraModalPhase.Error,
+            localScanned = emptyList(),
+            onDismiss = {},
+            onTakePhoto = {},
+            onChooseGallery = {},
+            onRemoveIngredient = {},
+            onAccept = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 760)
+@Composable
+private fun EditorialCameraLongResultsPreview() {
+    AgenticTheme("editorial") {
+        CameraModalContent(
+            phase = CameraModalPhase.Results,
+            localScanned = listOf("Domates", "Soğan", "Tavuk", "Fesleğen", "Makarna", "Krema", "Sarımsak", "Peynir", "Zeytinyağı", "Karabiber", "Limon", "Mantar"),
             onDismiss = {},
             onTakePhoto = {},
             onChooseGallery = {},

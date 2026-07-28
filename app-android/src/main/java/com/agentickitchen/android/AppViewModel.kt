@@ -171,6 +171,10 @@ object CookingProviderSelection {
 }
 data class DietSettings(val dietType: String = "none", val allergies: Set<String> = emptySet())
 
+internal fun imageDerivedIngredientPrompt(caption: String?): String? = caption?.let {
+    "Şu görsel açıklamasındaki yiyecek malzemelerini (sebze, et, baharat vb.) tespit et ve sadece aralarına virgül koyarak Türkçe kelimeler olarak listele: '$it'. Başka hiçbir metin yazma."
+}
+
 // ── ViewModel ─────────────────────────────────────────────────────────────
 class AppViewModel(
     private val prefs: AppPreferences,
@@ -507,6 +511,7 @@ class AppViewModel(
     fun scanIngredients(image: Bitmap) {
         AppLogger.i("Vision", "scanIngredients çağrıldı — bitmap: ${image.width}x${image.height}")
         viewModelScope.launch {
+            _scannedIngredients.value = null
             val hw = _hw.value
             val geminiKey = hw.geminiApiKey
             val aiProvider = hw.aiProvider
@@ -542,22 +547,23 @@ class AppViewModel(
                 AppLogger.w("ScanIngr", "HF Vision başarısız: ${e.message}")
             }
 
-            // Text-based fallback: Eğer HF başarısız olsa bile metin sorgusu yap
+            val textPrompt = imageDerivedIngredientPrompt(caption)
+            if (textPrompt == null) {
+                _aiError.value = "SCAN_FAILED"
+                _scannedIngredients.value = listOf("__ERROR__")
+                return@launch
+            }
+
+            // Convert only an image-derived caption into ingredient names.
             try {
                 val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
-                val textPrompt = if (caption != null) {
-                    "Şu görsel açıklamasındaki yiyecek malzemelerini (sebze, et, baharat vb.) tespit et ve sadece aralarına virgül koyarak Türkçe kelimeler olarak listele: '$caption'. Başka hiçbir metin yazma."
-                } else {
-                    "Tipik yemeklerde kullanılan temel malzemeleri (sebze, et, balık, baharat, krema, un vb.) virgülle ayrılmış 5-10 kelime olarak Türkçe listele. Başka açıklama yazma."
-                }
                 AppLogger.aiRequest("ScanIngr-Text", textPrompt)
                 val responseText = provider.generateContent(textPrompt) ?: ""
                 AppLogger.aiResponse("ScanIngr-Text", responseText)
                 val items = responseText.split(",").map { it.trim().replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() } }.filter { it.isNotBlank() && !it.startsWith("Hata") }
                 if (items.isNotEmpty()) {
                     _scannedIngredients.value = items
-                    val source = if (caption != null) "Hugging Face + ${hw.aiProvider}" else "AI (metin tabanlı)"
-                    emitUiEvent("Görsel analiz $source ile yapıldı.")
+                    emitUiEvent("Görsel analiz Hugging Face + ${hw.aiProvider} ile yapıldı.")
                 } else {
                     throw Exception("Boş malzeme listesi alındı")
                 }

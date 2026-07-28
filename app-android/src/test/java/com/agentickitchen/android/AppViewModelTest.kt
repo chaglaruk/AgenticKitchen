@@ -14,6 +14,7 @@ import com.agentickitchen.shared.models.ScheduleResult
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -93,6 +94,12 @@ class AppViewModelTest {
         assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.Gemini)))
         assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.HuggingFace)))
         assertEquals(CookingProviderSelection.Free, CookingProviderSelection.normalize("LEGACY"))
+    }
+
+    @Test
+    fun missingVisualCaptionDoesNotCreateAGenericIngredientPrompt() {
+        assertNull(imageDerivedIngredientPrompt(null))
+        assertTrue(imageDerivedIngredientPrompt("a bowl of tomatoes")!!.contains("a bowl of tomatoes"))
     }
 
     private fun newViewModel(preferences: FakePreferences, history: FakeHistoryRepository) = AppViewModel(
