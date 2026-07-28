@@ -84,6 +84,7 @@ fun SettingsScreen(
 ) {
     var showHwDialog by remember { mutableStateOf(false) }
     var showLangDialog by remember { mutableStateOf(false) }
+    var showAppearanceDialog by remember { mutableStateOf(false) }
     var showDietDialog by remember { mutableStateOf(false) }
     var contentVisible by remember { mutableStateOf(false) }
     val colors = LocalAppColors.current
@@ -145,9 +146,10 @@ fun SettingsScreen(
                     subtitle = language,
                     onClick = { showLangDialog = true }
                 )
-                EditorialInfoRow(
+                EditorialSettingsRow(
                     title = if (L.isTr) "Görünüm" else "Appearance",
-                    value = if (L.isTr) "Editoryal" else "Editorial"
+                    subtitle = appearanceLabel(theme),
+                    onClick = { showAppearanceDialog = true }
                 )
                 EditorialInfoRow(
                     title = if (L.isTr) "Sürüm" else "Version",
@@ -186,6 +188,13 @@ fun SettingsScreen(
             onDismiss = { showLangDialog = false }
         )
     }
+    if (showAppearanceDialog) {
+        AppearancePickerDialog(
+            current = themeSpec(theme).id,
+            onSelect = { appearance -> onSetTheme(appearance); showAppearanceDialog = false },
+            onDismiss = { showAppearanceDialog = false }
+        )
+    }
     if (showDietDialog) {
         DietDialog(
             current = diet,
@@ -200,6 +209,11 @@ private fun buildHardwareSummary(hw: HardwareSettings): String = when (hw.stoveT
     "gas" -> if (L.isTr) "Gazlı ocak" else "Gas stove"
     "electric" -> if (L.isTr) "Elektrikli ocak" else "Electric stove"
     else -> if (L.isTr) "Ocak seçilmedi" else "No stove selected"
+}
+
+private fun appearanceLabel(theme: String): String = when (themeSpec(theme).id) {
+    "editorial-dark" -> if (L.isTr) "Koyu Editoryal" else "Dark Editorial"
+    else -> if (L.isTr) "Açık Editoryal" else "Light Editorial"
 }
 
 private fun dietSummary(diet: DietSettings): String = when (diet.dietType) {
@@ -512,6 +526,16 @@ fun ListDialog(title: String, current: String, options: List<String>, colors: Ap
 }
 
 @Composable
+private fun AppearancePickerDialog(current: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+    EditorialDialogSurface(onDismiss) {
+        EditorialDialogHeader(if (L.isTr) "Görünüm seç" else "Choose appearance", onDismiss)
+        listOf("editorial-light", "editorial-dark").forEach { appearance ->
+            EditorialSelectionRow(appearanceLabel(appearance), appearance == current) { onSelect(appearance) }
+        }
+    }
+}
+
+@Composable
 private fun EditorialSelectionRow(label: String, selected: Boolean, onSelect: () -> Unit) {
     val colors = LocalAppColors.current
     Row(
@@ -568,11 +592,11 @@ private fun TurkishEditorialSettingsPreview() {
 @Preview(showBackground = true, locale = "en")
 @Composable
 private fun EnglishEditorialSettingsPreview() {
-    AgenticTheme("editorial") {
+    AgenticTheme("editorial-dark") {
         SettingsScreen(
             hw = HardwareSettings(stoveType = "gas", servingSize = 4, ovenAvailable = true),
             diet = DietSettings(dietType = "vegetarian"),
-            theme = "heritage",
+            theme = "editorial-dark",
             language = "English",
             selectedEquipment = setOf("gas", "oven", "pan", "grill"),
             onSaveHardware = {},
