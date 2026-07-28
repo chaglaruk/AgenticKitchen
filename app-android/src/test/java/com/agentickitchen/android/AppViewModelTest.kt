@@ -82,6 +82,19 @@ class AppViewModelTest {
         assertTrue(L.isTr)
     }
 
+    @Test
+    fun providerSelectionUsesTheSelectedSupportedProviderAndKeyRules() {
+        val factory = RecordingProviderFactory()
+
+        CookingProviderSelection.provider(factory, HardwareSettings(aiProvider = CookingProviderSelection.DuckDuckGo))
+
+        assertEquals(CookingProviderSelection.DuckDuckGo, factory.receivedProviderId)
+        assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.DuckDuckGo)))
+        assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.Gemini)))
+        assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.HuggingFace)))
+        assertEquals(CookingProviderSelection.Free, CookingProviderSelection.normalize("LEGACY"))
+    }
+
     private fun newViewModel(preferences: FakePreferences, history: FakeHistoryRepository) = AppViewModel(
         preferences, history, FakeOrchestrator, FakePantryIntelAgent, FakeProviderFactory, TargetTimeResolver()
     )
@@ -141,6 +154,19 @@ class AppViewModelTest {
 
     private object FakeProviderFactory : AiProviderFactory {
         override fun provider(settings: HardwareSettings): LlmProvider? = null
+        override fun gemini(settings: HardwareSettings, model: String) = null
+        override fun vision(settings: HardwareSettings): HuggingFaceVisionService = error("Vision is not used in this JVM test")
+        override fun close() = Unit
+    }
+
+    private class RecordingProviderFactory : AiProviderFactory {
+        var receivedProviderId: String? = null
+
+        override fun provider(settings: HardwareSettings): LlmProvider? {
+            receivedProviderId = settings.aiProvider
+            return null
+        }
+
         override fun gemini(settings: HardwareSettings, model: String) = null
         override fun vision(settings: HardwareSettings): HuggingFaceVisionService = error("Vision is not used in this JVM test")
         override fun close() = Unit

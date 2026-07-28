@@ -81,12 +81,7 @@ fun AppRoot(viewModel: AppViewModel) {
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var apiKeySkipped by remember { mutableStateOf(false) }
 
-    val needsApiKey = when (hw.aiProvider) {
-        "GEMINI" -> hw.geminiApiKey.isBlank()
-        "HUGGINGFACE" -> hw.hfApiKey.isBlank()
-        "DUCKDUCKGO", "FREE" -> false  // No API key needed for free providers
-        else -> false
-    }
+    val needsApiKey = CookingProviderSelection.needsApiKey(hw)
 
     LaunchedEffect(setupDone, hw.aiProvider, hw.geminiApiKey, hw.hfApiKey) {
         if (setupDone && needsApiKey && !apiKeySkipped) {

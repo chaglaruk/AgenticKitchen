@@ -69,6 +69,7 @@ import com.agentickitchen.android.BuildConfig
 import com.agentickitchen.android.DietSettings
 import com.agentickitchen.android.HardwareSettings
 import com.agentickitchen.android.L
+import com.agentickitchen.android.CookingProviderSelection
 
 @Composable
 fun SettingsScreen(
@@ -342,7 +343,9 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
     var powerLevel by remember { mutableStateOf(current.powerLevel) }
     var geminiKey by remember { mutableStateOf(current.geminiApiKey) }
     var hfKey by remember { mutableStateOf(current.hfApiKey) }
-    var aiProvider by remember { mutableStateOf(current.aiProvider) }
+    var aiProvider by remember(current.aiProvider) {
+        mutableStateOf(CookingProviderSelection.normalize(current.aiProvider))
+    }
     val clipboardManager = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
 
@@ -351,10 +354,10 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
         Text(if (L.isTr) "Yapay zekâ sağlayıcısı" else "AI provider", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
         Spacer(Modifier.size(8.dp))
         listOf(
-            "GEMINI" to "Google Gemini",
-            "HUGGINGFACE" to "Hugging Face",
-            "DUCKDUCKGO" to "DuckDuckGo (No-Key)",
-            "FREE" to "Bedava (No-Key)"
+            CookingProviderSelection.Gemini to "Google Gemini",
+            CookingProviderSelection.HuggingFace to "Hugging Face",
+            CookingProviderSelection.DuckDuckGo to "DuckDuckGo (No-Key)",
+            CookingProviderSelection.Free to if (L.isTr) "Ücretsiz (anahtar gerekmez)" else "Free (no key required)"
         ).forEach { (key, label) ->
             EditorialProviderOption(
                 label = label,

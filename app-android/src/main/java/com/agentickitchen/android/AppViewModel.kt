@@ -149,6 +149,26 @@ data class HardwareSettings(
     val hfApiKey: String = "",
     val aiProvider: String = "FREE" // "GEMINI", "HUGGINGFACE", "DUCKDUCKGO", "FREE"
 )
+
+object CookingProviderSelection {
+    const val Gemini = "GEMINI"
+    const val HuggingFace = "HUGGINGFACE"
+    const val DuckDuckGo = "DUCKDUCKGO"
+    const val Free = "FREE"
+
+    private val supportedIds = setOf(Gemini, HuggingFace, DuckDuckGo, Free)
+
+    fun normalize(providerId: String): String = providerId.takeIf { it in supportedIds } ?: Free
+
+    fun needsApiKey(settings: HardwareSettings): Boolean = when (normalize(settings.aiProvider)) {
+        Gemini -> settings.geminiApiKey.isBlank()
+        HuggingFace -> settings.hfApiKey.isBlank()
+        else -> false
+    }
+
+    fun provider(factory: AiProviderFactory, settings: HardwareSettings): LlmProvider? =
+        factory.provider(settings.copy(aiProvider = normalize(settings.aiProvider)))
+}
 data class DietSettings(val dietType: String = "none", val allergies: Set<String> = emptySet())
 
 // ── ViewModel ─────────────────────────────────────────────────────────────
@@ -429,7 +449,7 @@ class AppViewModel(
     }
 
     private fun getActiveProvider(): LlmProvider? {
-        return providerFactory.provider(_hw.value.copy(aiProvider = "GEMINI"))
+        return CookingProviderSelection.provider(providerFactory, _hw.value)
     }
 
     private suspend fun <T> executeAiWithProvider(action: suspend (LlmProvider) -> T): T {
