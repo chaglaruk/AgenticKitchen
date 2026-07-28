@@ -2,6 +2,7 @@ package com.agentickitchen.android
 
 import com.agentickitchen.android.ai.LlmProvider
 import android.graphics.Bitmap
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agentickitchen.shared.agents.Orchestrator
@@ -37,7 +38,23 @@ import java.util.UUID
 
 // ── Dil ───────────────────────────────────────────────────────────────────
 object L {
-    val isTr: Boolean get() = Locale.getDefault().language == "tr"
+    const val Turkish = "Türkçe"
+    const val English = "English"
+
+    private val selectedLanguage = mutableStateOf(deviceLanguage())
+
+    val isTr: Boolean get() = selectedLanguage.value == Turkish
+
+    fun normalize(language: String): String = when (language) {
+        Turkish, English -> language
+        else -> deviceLanguage()
+    }
+
+    fun applyLanguage(language: String) {
+        selectedLanguage.value = normalize(language)
+    }
+
+    private fun deviceLanguage() = if (Locale.getDefault().language == "tr") Turkish else English
     val appTagline get() = if (isTr) "Mutfağının Yapay Zekası" else "The AI of Your Kitchen"
     val addIngredient get() = if (isTr) "Malzeme ekle..." else "Type an ingredient..."
     val clearAll get() = if (isTr) "Temizle" else "Clear"
@@ -184,7 +201,7 @@ class AppViewModel(
     val hardwareSettings: StateFlow<HardwareSettings> = _hw.asStateFlow()
     val dietSettings = MutableStateFlow(prefs.dietSettings())
     val theme = MutableStateFlow(prefs.theme())
-    val language = MutableStateFlow(prefs.language())
+    val language = MutableStateFlow(L.normalize(prefs.language()))
     private var lastOptions: List<RecipeOption> = emptyList()
     private val _pantryIntel = MutableStateFlow(
         pantryIntelAgent.analyze(
@@ -198,7 +215,10 @@ class AppViewModel(
     private val _history = MutableStateFlow<List<RecipeHistory>>(emptyList())
     val history: StateFlow<List<RecipeHistory>> = _history.asStateFlow()
 
-    init { loadHistory() }
+    init {
+        L.applyLanguage(language.value)
+        loadHistory()
+    }
     
     private fun loadHistory() {
         _history.value = historyRepo.getAllHistory()
@@ -613,9 +633,11 @@ class AppViewModel(
         theme.value = t
         prefs.saveTheme(t)
     }
-    fun setLanguage(lang: String) { 
-        language.value = lang
-        prefs.saveLanguage(lang)
+    fun setLanguage(lang: String) {
+        val normalizedLanguage = L.normalize(lang)
+        language.value = normalizedLanguage
+        L.applyLanguage(normalizedLanguage)
+        prefs.saveLanguage(normalizedLanguage)
     }
 
     private fun loadEquipment() = prefs.equipment()

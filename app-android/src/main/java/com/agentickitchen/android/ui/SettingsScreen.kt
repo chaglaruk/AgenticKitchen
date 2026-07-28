@@ -186,7 +186,7 @@ fun SettingsScreen(
         ListDialog(
             title = if (L.isTr) "Dil seç" else "Choose language",
             current = language,
-            options = listOf("Türkçe", "English", "Deutsch", "Français"),
+            options = listOf(L.Turkish, L.English),
             colors = colors,
             onSelect = { onSetLanguage(it); showLangDialog = false },
             onDismiss = { showLangDialog = false }

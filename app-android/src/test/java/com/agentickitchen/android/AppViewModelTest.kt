@@ -13,6 +13,8 @@ import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.ScheduleResult
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -62,6 +64,22 @@ class AppViewModelTest {
         } catch (_: IllegalArgumentException) {
             // Expected: the factory only creates the production ViewModel type.
         }
+    }
+
+    @Test
+    fun languageSelectionUpdatesTheSharedVisibleLanguageState() {
+        val preferences = FakePreferences()
+        val viewModel = newViewModel(preferences, FakeHistoryRepository())
+
+        viewModel.setLanguage(L.English)
+
+        assertEquals(L.English, preferences.languageValue)
+        assertFalse(L.isTr)
+
+        viewModel.setLanguage(L.Turkish)
+
+        assertEquals(L.Turkish, preferences.languageValue)
+        assertTrue(L.isTr)
     }
 
     private fun newViewModel(preferences: FakePreferences, history: FakeHistoryRepository) = AppViewModel(
