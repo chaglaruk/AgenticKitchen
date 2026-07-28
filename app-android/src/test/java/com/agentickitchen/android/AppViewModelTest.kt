@@ -14,6 +14,7 @@ import com.agentickitchen.shared.models.ScheduleResult
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -100,6 +101,24 @@ class AppViewModelTest {
     fun missingVisualCaptionDoesNotCreateAGenericIngredientPrompt() {
         assertNull(imageDerivedIngredientPrompt(null))
         assertTrue(imageDerivedIngredientPrompt("a bowl of tomatoes")!!.contains("a bowl of tomatoes"))
+    }
+
+    @Test
+    fun aiFailuresUseReaderSafeMessages() {
+        L.applyLanguage(L.English)
+        assertEquals("The selected provider is missing its credential. Add it in Settings.", readerSafeAiError(Exception("API_KEY_MISSING")))
+        assertEquals("The provider is busy or has reached its usage limit. Try again shortly.", readerSafeAiError(Exception("429 rate limit")))
+        assertEquals("Could not connect. Check your internet connection and try again.", readerSafeAiError(Exception("network timeout")))
+        assertNotEquals("provider exploded", readerSafeAiError(Exception("provider exploded")))
+        L.applyLanguage(L.Turkish)
+    }
+
+    @Test
+    fun cookingPlanPromptIsCalmAndKeepsItsStructuredContract() {
+        val prompt = calmCookingPlanPrompt("You are a military-precision chef AI. Use military precision: \"Set burner to level X for Y minutes\". type|instruction|durationMinutes")
+
+        assertFalse(prompt.contains("military", ignoreCase = true))
+        assertTrue(prompt.contains("type|instruction|durationMinutes"))
     }
 
     private fun newViewModel(preferences: FakePreferences, history: FakeHistoryRepository) = AppViewModel(

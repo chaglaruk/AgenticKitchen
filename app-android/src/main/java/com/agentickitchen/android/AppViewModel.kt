@@ -175,6 +175,20 @@ internal fun imageDerivedIngredientPrompt(caption: String?): String? = caption?.
     "Şu görsel açıklamasındaki yiyecek malzemelerini (sebze, et, baharat vb.) tespit et ve sadece aralarına virgül koyarak Türkçe kelimeler olarak listele: '$it'. Başka hiçbir metin yazma."
 }
 
+internal fun readerSafeAiError(error: Throwable?): String {
+    val message = error?.message.orEmpty().lowercase()
+    return when {
+        "api_key_missing" in message || "credential" in message || "api key" in message -> if (L.isTr) "Seçili sağlayıcının anahtarı eksik. Ayarlar bölümünden ekleyebilirsin." else "The selected provider is missing its credential. Add it in Settings."
+        "quota" in message || "rate" in message || "429" in message -> if (L.isTr) "Sağlayıcı şu anda yoğun veya kullanım sınırına ulaşıldı. Biraz sonra tekrar dene." else "The provider is busy or has reached its usage limit. Try again shortly."
+        "timeout" in message || "network" in message || "connect" in message || "internet" in message -> if (L.isTr) "İnternet bağlantısı kurulamadı. Bağlantını kontrol edip tekrar dene." else "Could not connect. Check your internet connection and try again."
+        else -> if (L.isTr) "Şu anda yanıt alınamadı. Tekrar deneyebilirsin." else "No response was available just now. You can try again."
+    }
+}
+
+internal fun calmCookingPlanPrompt(prompt: String): String = prompt
+    .replace("You are a military-precision chef AI.", "You are an experienced home-cooking assistant.")
+    .replace("Use military precision: \"Set burner to level X for Y minutes\"", "Give precise, practical heat and timing guidance")
+
 // ── ViewModel ─────────────────────────────────────────────────────────────
 class AppViewModel(
     private val prefs: AppPreferences,
@@ -304,17 +318,9 @@ class AppViewModel(
                 }
             } catch (e: Exception) {
                 AppLogger.aiError("Options", e)
-                val msg = e.message ?: ""
-                if (msg.contains("quota", ignoreCase = true) || msg.contains("rate", ignoreCase = true) || msg.contains("429")) {
-                    _aiError.value = "QUOTA_EXCEEDED"
-                    val errorMsg = "Ajan hata verdi: API Kotası Doldu (High Demand)"
-                    emitUiEvent(errorMsg)
-                    _planState.value = PlanState.Error(errorMsg)
-                } else {
-                    val errorMsg = "Ajan hata verdi: ${e.message}"
-                    emitUiEvent(errorMsg)
-                    _planState.value = PlanState.Error(errorMsg)
-                }
+                val errorMsg = readerSafeAiError(e)
+                emitUiEvent(errorMsg)
+                _planState.value = PlanState.Error(errorMsg)
             }
         }
     }
@@ -349,7 +355,7 @@ class AppViewModel(
             try {
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
-                    val prompt = PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, hw.servingSize, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value)
+                    val prompt = calmCookingPlanPrompt(PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, hw.servingSize, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value))
                     val parsed = StructuredRecipeParser.cookingPlan(provider.generateContent(prompt).orEmpty())
                     val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, hw.servingSize).validate(plan)
@@ -362,7 +368,7 @@ class AppViewModel(
                     _planState.value = PlanState.RecipeActive(option, result.events)
                 }
             } catch (e: Exception) {
-                val message = e.message ?: "Unable to create a valid cooking plan. Please retry."
+                val message = readerSafeAiError(e)
                 emitUiEvent(message)
                 _planState.value = PlanState.Error(message)
             }
@@ -487,20 +493,16 @@ class AppViewModel(
     fun askIngredientAgent(question: String) {
         val currentState = _planState.value
         if (currentState is PlanState.RecipeActive) {
-            _planState.value = currentState.copy(agentChatResponse = "Ajan düşünüyor...")
+            _planState.value = currentState.copy(agentChatResponse = if (L.isTr) "Mutfak asistanı düşünüyor..." else "The kitchen assistant is thinking...")
             viewModelScope.launch {
                 try {
                     executeAiWithProvider { provider ->
-                        val prompt = "Sen askeri disiplinle çalışan katı bir şef asistanısın. Şu anki tarif: ${currentState.recipe.name}. Kullanıcı sorusu: '$question'. Değişiklik lezzeti bozuyorsa 'HAYIR!' diyerek kısa ve net reddet ve alternatif sun. İyiyse onay ver. Askeri ve çok kısa bir dille cevapla."
+                        val prompt = "Sen deneyimli bir mutfak asistanısın. Şu anki tarif: ${currentState.recipe.name}. Kullanıcı sorusu: '$question'. Kısa, sakin ve pratik bir yanıt ver; değişiklik uygun değilse nedenini ve güvenli bir alternatifi açıkla."
                         val responseText = provider.generateContent(prompt)
-                        _planState.value = currentState.copy(agentChatResponse = responseText ?: "Anlaşılamadı.")
+                        _planState.value = currentState.copy(agentChatResponse = responseText ?: readerSafeAiError(null))
                     }
                 } catch (e: Exception) {
-                    if (e.message?.contains("API_KEY_MISSING") == true) {
-                        _planState.value = currentState.copy(agentChatResponse = "Gemini API Key eksik. Gerçek ajan yetenekleri için Settings'ten ekleyin.")
-                    } else {
-                        _planState.value = currentState.copy(agentChatResponse = "Hata: ${e.message}")
-                    }
+                    _planState.value = currentState.copy(agentChatResponse = readerSafeAiError(e))
                 }
             }
         }
@@ -593,12 +595,12 @@ class AppViewModel(
             if (aiProvider == "GEMINI" && geminiKey.isNotBlank()) {
                 try {
                     executeAiWithFallback { model ->
-                        val prompt = "Şu anki tarif: ${currentState.recipe.name}. Askeri bir şef gibi bu fotoğrafı incele. Yemek ne durumda? Ocağı kapatmalı mıyız, devam mı etmeliyiz? Kısaca, net bir emir ver."
+                        val prompt = "Şu anki tarif: ${currentState.recipe.name}. Bu fotoğrafı sakin ve pratik bir mutfak asistanı gibi incele. Yemeğin durumunu ve güvenli sonraki adımı kısa ve açık biçimde anlat."
                         val response = model.generateContent(content {
                             image(image)
                             text(prompt)
                         })
-                        _planState.value = currentState.copy(visionScanResponse = response.text ?: "Görüntü anlaşılamadı.")
+                        _planState.value = currentState.copy(visionScanResponse = response.text ?: readerSafeAiError(null))
                     }
                     return@launch
                 } catch (e: Exception) {
@@ -612,14 +614,14 @@ class AppViewModel(
                 val caption = visionService.analyzeImage(image)
                 if (caption != null) {
                     val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
-                    val prompt = "Şu anki tarif: ${currentState.recipe.name}. Görseldeki durum şu şekilde betimlendi: '$caption'. Askeri bir şef gibi durumu değerlendir ve net bir emir ver."
-                    val responseText = provider.generateContent(prompt) ?: "Analiz başarısız."
+                    val prompt = "Şu anki tarif: ${currentState.recipe.name}. Görseldeki durum şu şekilde betimlendi: '$caption'. Durumu sakin ve pratik bir mutfak asistanı gibi değerlendir; güvenli sonraki adımı kısa ve açık biçimde anlat."
+                    val responseText = provider.generateContent(prompt) ?: readerSafeAiError(null)
                     _planState.value = currentState.copy(visionScanResponse = responseText)
                 } else {
-                    _planState.value = currentState.copy(visionScanResponse = "Görsel analizi yapılamadı (HF).")
+                    _planState.value = currentState.copy(visionScanResponse = readerSafeAiError(null))
                 }
             } catch (e: Exception) {
-                _planState.value = currentState.copy(visionScanResponse = "Görsel analizi hatası: ${e.message}")
+                _planState.value = currentState.copy(visionScanResponse = readerSafeAiError(e))
             }
         }
     }
