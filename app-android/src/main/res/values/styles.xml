@@ -2,8 +2,9 @@
 <resources>
     <!-- NoActionBar theme — prevents Android from showing a title bar on top of our Compose UI -->
     <style name="Theme.AgenticKitchen" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#0A2E1F</item>
-        <item name="android:navigationBarColor">#134D34</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#F4F0E8</item>
+        <item name="android:navigationBarColor">#F4F0E8</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

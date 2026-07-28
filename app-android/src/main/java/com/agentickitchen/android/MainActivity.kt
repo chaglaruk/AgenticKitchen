@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.core.view.WindowInsetsControllerCompat
 import com.agentickitchen.android.app.AgenticKitchenApp
 import com.agentickitchen.android.app.AppViewModelFactory
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         setContent {
             val theme by viewModel.theme.collectAsState()
             AgenticTheme(themeName = theme) {
