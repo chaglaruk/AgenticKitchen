@@ -195,20 +195,8 @@ val ThemeCatalog = listOf(
     ThemeSpec("dark", "Premium Dark", "Legacy dark tactical theme", PaletteDark)
 )
 
-fun themeSpec(themeName: String): ThemeSpec {
-    val key = themeName.lowercase()
-    if (key in setOf("heritage", "zen", "signal", "green", "blue", "orange", "dark")) return ThemeCatalog.first { it.id == "editorial" }
-    return ThemeCatalog.firstOrNull {
-        when (it.id) {
-            "green" -> key == "green" || key == "yeşil" || key == "yesil"
-            "blue" -> key == "blue" || key == "mavi"
-            "orange" -> key == "orange" || key == "turuncu"
-            "dark" -> key == "dark" || key == "koyu"
-            "zen" -> key == "zen" || key == "zen precision"
-            else -> it.id == key
-        }
-    } ?: ThemeCatalog.first { it.id == "editorial" }
-}
+fun themeSpec(@Suppress("UNUSED_PARAMETER") themeName: String): ThemeSpec =
+    ThemeCatalog.first { it.id == "editorial" }
 
 val LocalAppColors = compositionLocalOf { themeSpec("editorial").colors }
 val LocalThemeSpec = compositionLocalOf { themeSpec("editorial") }

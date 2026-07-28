@@ -87,11 +87,9 @@ fun SettingsScreen(
 ) {
     var showHwDialog by remember { mutableStateOf(false) }
     var showLangDialog by remember { mutableStateOf(false) }
-    var showThemeDialog by remember { mutableStateOf(false) }
     var showDietDialog by remember { mutableStateOf(false) }
     var contentVisible by remember { mutableStateOf(false) }
     val colors = LocalAppColors.current
-    val activeThemeSpec = themeSpec(theme)
 
     androidx.compose.runtime.LaunchedEffect(Unit) { contentVisible = true }
 
@@ -150,11 +148,9 @@ fun SettingsScreen(
                     subtitle = language,
                     onClick = { showLangDialog = true }
                 )
-                EditorialSettingsRow(
-                    title = if (L.isTr) "Uygulama teması" else "App theme",
-                    subtitle = activeThemeSpec.title,
-                    onClick = { showThemeDialog = true },
-                    trailing = { ThemeSwatches(activeThemeSpec) }
+                EditorialInfoRow(
+                    title = if (L.isTr) "Görünüm" else "Appearance",
+                    value = if (L.isTr) "Editoryal" else "Editorial"
                 )
                 EditorialInfoRow(
                     title = if (L.isTr) "Sürüm" else "Version",
@@ -191,13 +187,6 @@ fun SettingsScreen(
             colors = colors,
             onSelect = { onSetLanguage(it); showLangDialog = false },
             onDismiss = { showLangDialog = false }
-        )
-    }
-    if (showThemeDialog) {
-        ThemePickerDialog(
-            current = theme,
-            onSelect = { onSetTheme(it); showThemeDialog = false },
-            onDismiss = { showThemeDialog = false }
         )
     }
     if (showDietDialog) {
@@ -292,15 +281,6 @@ private fun EditorialInfoRow(title: String, value: String) {
         Text(value, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
     }
     Divider(color = colors.divider, thickness = 1.dp)
-}
-
-@Composable
-private fun ThemeSwatches(spec: ThemeSpec) {
-    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        listOf(spec.colors.primary, spec.colors.accent, spec.colors.surfaceAlt).forEach { color ->
-            Box(modifier = Modifier.size(12.dp).background(color, RoundedCornerShape(6.dp)).border(1.dp, LocalAppColors.current.divider, RoundedCornerShape(6.dp)))
-        }
-    }
 }
 
 @Composable
@@ -576,34 +556,6 @@ private fun DialogActions(onDismiss: () -> Unit, onSave: () -> Unit) {
             modifier = Modifier.semantics { contentDescription = if (L.isTr) "Kaydet" else "Save" }
         ) {
             Text(if (L.isTr) "Kaydet" else "Save", color = colors.onPrimary)
-        }
-    }
-}
-
-@Composable
-fun ThemePickerDialog(current: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    val colors = LocalAppColors.current
-    EditorialDialogSurface(onDismiss) {
-        EditorialDialogHeader(if (L.isTr) "Uygulama teması" else "App theme", onDismiss)
-        ThemeCatalog.forEach { spec ->
-            val selected = spec.id == current
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 62.dp)
-                    .clickable { onSelect(spec.id) }
-                    .semantics { contentDescription = "${spec.title}, ${if (selected) if (L.isTr) "seçili" else "selected" else if (L.isTr) "seçili değil" else "not selected"}" },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ThemeSwatches(spec)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(spec.title, color = colors.onSurface, style = MaterialTheme.typography.body1, fontWeight = FontWeight.SemiBold)
-                    Text(spec.subtitle, color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
-                }
-                if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = colors.primary)
-            }
-            Divider(color = colors.divider, thickness = 1.dp)
         }
     }
 }
