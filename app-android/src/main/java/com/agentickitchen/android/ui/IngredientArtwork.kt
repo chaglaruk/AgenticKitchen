@@ -51,18 +51,13 @@ import com.agentickitchen.android.L
 import kotlinx.coroutines.delay
 import java.util.Locale
 
-private enum class IngredientVisualKind(val labelTr: String, val labelEn: String) {
-    TOMATO("Sebze", "Vegetable"),
-    LEAFY("Yeşillik", "Greens"),
-    ONION("Aromatik", "Aromatic"),
-    MEAT("Protein", "Protein"),
-    FISH("Balık", "Fish"),
-    EGG_DAIRY("Süt ürünü", "Dairy"),
-    PASTA_GRAINS("Tahıl", "Grain"),
-    RICE("Pirinç", "Rice"),
-    HERBS("Otlar", "Herbs"),
-    CHEESE("Peynir", "Cheese"),
-    BREAD("Ekmek", "Bread"),
+internal enum class IngredientVisualKind(val labelTr: String, val labelEn: String) {
+    TOMATO("Sebze", "Vegetable"), PEPPER("Biber", "Pepper"), CUCUMBER("Salatalık", "Cucumber"), ROOT_VEGETABLE("Kök sebze", "Root vegetable"), POTATO("Patates", "Potato"), MUSHROOM("Mantar", "Mushroom"),
+    LEAFY("Yeşillik", "Greens"), ONION("Soğan", "Onion"), GARLIC("Sarımsak", "Garlic"),
+    CHICKEN("Tavuk", "Chicken"), RED_MEAT("Et", "Red meat"), FISH("Balık", "Fish"), SEAFOOD("Deniz ürünü", "Seafood"),
+    EGG("Yumurta", "Egg"), MILK_CREAM("Süt ürünü", "Milk or cream"), YOGHURT("Yoğurt", "Yoghurt"), CHEESE("Peynir", "Cheese"), BUTTER("Tereyağı", "Butter"),
+    MEAT("Protein", "Protein"), EGG_DAIRY("Süt ürünü", "Dairy"), PASTA_GRAINS("Tahıl", "Grain"),
+    PASTA("Makarna", "Pasta"), RICE("Pirinç", "Rice"), BREAD("Ekmek", "Bread"), LEGUMES("Bakliyat", "Legumes"), FLOUR_BAKING("Unlu mamul", "Flour and baking"), HERBS("Otlar", "Herbs"), SPICES("Baharat", "Spices"), OIL("Yağ", "Oil"), SAUCE("Sos", "Sauce"), FRUIT("Meyve", "Fruit"), CITRUS("Narenciye", "Citrus"), NUTS_SEEDS("Kuruyemiş", "Nuts and seeds"), SUGAR_HONEY("Tatlandırıcı", "Sugar and honey"),
     PANTRY("Kiler", "Pantry")
 }
 
@@ -99,7 +94,7 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
 
         oval(Color(0x1F9A8977), .20f, .78f, .60f, .10f)
         when (kind) {
-            IngredientVisualKind.TOMATO -> {
+            IngredientVisualKind.TOMATO, IngredientVisualKind.PEPPER, IngredientVisualKind.CUCUMBER, IngredientVisualKind.ROOT_VEGETABLE, IngredientVisualKind.POTATO, IngredientVisualKind.MUSHROOM -> {
                 drawCircle(Color(0xFFB7644C), s * .30f, point(.50f, .50f))
                 drawCircle(Color(0xFFD98567), s * .10f, point(.41f, .40f))
                 drawLine(Color(0xFF74806B), point(.50f, .24f), point(.52f, .37f), strokeWidth = s * .06f)
@@ -112,17 +107,17 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                 drawCircle(Color(0xFFC5CCBE), s * .18f, point(.53f, .63f))
                 drawLine(Color(0xFF5E6B58), point(.47f, .72f), point(.54f, .30f), strokeWidth = s * .035f)
             }
-            IngredientVisualKind.ONION -> {
+            IngredientVisualKind.ONION, IngredientVisualKind.GARLIC -> {
                 oval(Color(0xFFE4D2BF), .28f, .28f, .44f, .46f)
                 drawCircle(Color(0xFFF6E8D9), s * .14f, point(.45f, .43f))
                 drawLine(Color(0xFF74806B), point(.50f, .28f), point(.56f, .15f), strokeWidth = s * .04f)
             }
-            IngredientVisualKind.MEAT -> {
+            IngredientVisualKind.MEAT, IngredientVisualKind.CHICKEN, IngredientVisualKind.RED_MEAT -> {
                 drawRoundRect(Color(0xFFD79A82), point(.24f, .30f), Size(s * .52f, s * .40f), CornerRadius(s * .20f, s * .20f))
                 drawCircle(Color(0xFFF0C4A5), s * .08f, point(.57f, .46f))
                 drawCircle(Color(0xFFF0C4A5), s * .05f, point(.39f, .57f))
             }
-            IngredientVisualKind.FISH -> {
+            IngredientVisualKind.FISH, IngredientVisualKind.SEAFOOD -> {
                 oval(Color(0xFF8EA39D), .23f, .35f, .48f, .30f)
                 val tail = Path().apply {
                     moveTo(point(.70f, .50f).x, point(.70f, .50f).y)
@@ -133,12 +128,12 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                 drawPath(tail, Color(0xFF74806B))
                 drawCircle(Color(0xFF191714), s * .025f, point(.37f, .46f))
             }
-            IngredientVisualKind.EGG_DAIRY -> {
+            IngredientVisualKind.EGG_DAIRY, IngredientVisualKind.EGG, IngredientVisualKind.MILK_CREAM, IngredientVisualKind.YOGHURT, IngredientVisualKind.BUTTER -> {
                 oval(Color(0xFFF8F1E5), .30f, .23f, .40f, .52f)
                 drawCircle(Color(0xFFD7A18E), s * .11f, point(.50f, .53f))
                 drawOval(Color(0xFFD8D0C5), topLeft = point(.30f, .23f), size = Size(s * .40f, s * .52f), style = Stroke(s * .015f))
             }
-            IngredientVisualKind.PASTA_GRAINS -> {
+            IngredientVisualKind.PASTA_GRAINS, IngredientVisualKind.PASTA, IngredientVisualKind.LEGUMES, IngredientVisualKind.FLOUR_BAKING -> {
                 repeat(4) { index ->
                     drawRoundRect(Color(0xFFD9B76E), point(.28f + index * .10f, .30f + index % 2 * .08f), Size(s * .25f, s * .13f), CornerRadius(s * .06f, s * .06f))
                 }
@@ -150,7 +145,7 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                     oval(Color(0xFFF0E5CC), x, y, .16f, .08f)
                 }
             }
-            IngredientVisualKind.HERBS -> {
+            IngredientVisualKind.HERBS, IngredientVisualKind.SPICES -> {
                 drawLine(Color(0xFF5E6B58), point(.48f, .73f), point(.55f, .25f), strokeWidth = s * .035f)
                 repeat(4) { index ->
                     val y = .32f + index * .10f
@@ -173,7 +168,7 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                 drawLine(Color(0xFFF0C18B), point(.40f, .43f), point(.36f, .60f), strokeWidth = s * .035f)
                 drawLine(Color(0xFFF0C18B), point(.56f, .43f), point(.52f, .60f), strokeWidth = s * .035f)
             }
-            IngredientVisualKind.PANTRY -> {
+            IngredientVisualKind.PANTRY, IngredientVisualKind.OIL, IngredientVisualKind.SAUCE, IngredientVisualKind.FRUIT, IngredientVisualKind.CITRUS, IngredientVisualKind.NUTS_SEEDS, IngredientVisualKind.SUGAR_HONEY -> {
                 drawRoundRect(Color(0xFFD8D0C5), point(.31f, .28f), Size(s * .38f, s * .46f), CornerRadius(s * .08f, s * .08f))
                 drawRoundRect(Color(0xFFB7644C), point(.34f, .42f), Size(s * .32f, s * .18f), CornerRadius(s * .04f, s * .04f))
                 drawLine(Color(0xFF5F5951), point(.34f, .24f), point(.66f, .24f), strokeWidth = s * .05f)

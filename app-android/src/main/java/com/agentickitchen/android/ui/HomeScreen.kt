@@ -93,6 +93,7 @@ import com.agentickitchen.android.INGREDIENT_CATEGORIES
 import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
+import com.agentickitchen.android.searchIngredientCatalog
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.PantryIntelSignal
 import com.agentickitchen.shared.models.ScheduleEvent
@@ -120,13 +121,9 @@ fun HomeScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val colors = LocalAppColors.current
 
-    val allIngredients = remember { INGREDIENT_CATEGORIES.flatMap { it.items } }
     var expandedAuto by remember { mutableStateOf(false) }
     val filteredIngredients = if (input.length >= 2) {
-        allIngredients.filter {
-            (it.first.contains(input, ignoreCase = true) || it.second.contains(input, ignoreCase = true)) &&
-                !chips.contains(if (L.isTr) it.first else it.second)
-        }.map { if (L.isTr) it.first else it.second }.take(5)
+        searchIngredientCatalog(input, chips, L.isTr).map { it.name(L.isTr) }
     } else {
         emptyList()
     }

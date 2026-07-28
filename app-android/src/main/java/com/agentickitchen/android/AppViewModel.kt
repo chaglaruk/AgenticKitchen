@@ -108,19 +108,6 @@ val ALL_EQUIPMENT = listOf(
     CookingEquipment("pan",       "🍳", "Tava/Tencere",  "Pan/Pot",       "stovetop")
 )
 
-data class IngredientCategory(val icon: String, val labelTr: String, val labelEn: String, val items: List<Pair<String, String>>) {
-    val label get() = if (L.isTr) labelTr else labelEn
-    fun displayItems() = items
-}
-
-val INGREDIENT_CATEGORIES = listOf(
-    IngredientCategory("🥩", "Et & Tavuk", "Meat & Poultry", listOf("Tavuk göğsü" to "Chicken breast", "Kıyma" to "Ground beef", "Dana eti" to "Beef", "Somon" to "Salmon")),
-    IngredientCategory("🥦", "Sebze", "Vegetables", listOf("Patates" to "Potato", "Soğan" to "Onion", "Domates" to "Tomato", "Mantar" to "Mushroom", "Sarımsak" to "Garlic")),
-    IngredientCategory("🧀", "Süt & Yumurta", "Dairy & Eggs", listOf("Yumurta" to "Egg", "Kaşar peyniri" to "Kashar cheese", "Tereyağı" to "Butter", "Krema" to "Cream")),
-    IngredientCategory("🌾", "Tahıl", "Grains", listOf("Pirinç" to "Rice", "Makarna" to "Pasta", "Nohut" to "Chickpeas")),
-    IngredientCategory("🧄", "Baharat", "Spices", listOf("Zeytinyağı" to "Olive oil", "Tuz" to "Salt", "Karabiber" to "Black pepper", "Salça" to "Tomato paste"))
-)
-
 // ── UI States & Models ─────────────────────────────────────────────────
 data class RecipeOption(val id: String, val type: String, val name: String, val description: String)
 data class RecipeRequestSelection(val servings: Int, val targetTime: TargetTimeChoice)
