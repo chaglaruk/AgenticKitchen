@@ -83,6 +83,34 @@ class CookingPlanValidatorTest {
     }
 
     @Test
+    fun `numeric power is rejected for gas stove heating`() {
+        val gasValidator = CookingPlanValidator(
+            availableEquipment = setOf("gas", "pan"), stoveMaxLevel = 9, stoveType = "gas",
+            ovenAvailable = false, airfryerAvailable = false, dietType = "none", allergens = emptySet(), servings = 2
+        )
+
+        val result = gasValidator.validate(validPlan())
+
+        assertFalse(result.valid)
+        assertTrue(result.errors.any { it.type == ErrorType.POWER_EXCEEDS_MAXIMUM })
+    }
+
+    @Test
+    fun `no stove rejects stove resource and numeric power`() {
+        val noStoveValidator = CookingPlanValidator(
+            availableEquipment = setOf("knife", "bowl"), stoveMaxLevel = 9, stoveType = "none",
+            ovenAvailable = false, airfryerAvailable = false, dietType = "none", allergens = emptySet(), servings = 2
+        )
+        val plan = validPlan().copy(steps = listOf(CookingStepDto("step_1", "cook", "Heat", "stove", 60, powerLevel = 3)))
+
+        val result = noStoveValidator.validate(plan)
+
+        assertFalse(result.valid)
+        assertTrue(result.errors.any { it.type == ErrorType.UNAVAILABLE_EQUIPMENT })
+        assertTrue(result.errors.any { it.type == ErrorType.POWER_EXCEEDS_MAXIMUM })
+    }
+
+    @Test
     fun `dependency cycle detected`() {
         val plan = validPlan().copy(
             steps = listOf(

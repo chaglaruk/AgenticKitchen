@@ -28,4 +28,17 @@ class PromptFactoryTest {
         assertContains(prompt, "from 1 to 11")
         assertContains(prompt, "Servings: 4")
     }
+
+    @Test
+    fun noStovePromptProhibitsStoveHeating() {
+        val prompt = PromptFactory.cookingPlanPrompt(
+            "Salad", listOf("tomato"), setOf("knife", "bowl"), 2, "none", 9,
+            false, false, false, "none", emptySet(), "English"
+        )
+
+        assertContains(prompt, "Stove type: none")
+        assertContains(prompt, "Do not include stove-heating steps")
+        assertContains(prompt, "\"powerLevel\": null")
+        assertFalse(prompt.contains("Stove type: electric"))
+    }
 }

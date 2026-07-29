@@ -174,10 +174,6 @@ internal fun readerSafeAiError(error: Throwable?): String {
     }
 }
 
-internal fun calmCookingPlanPrompt(prompt: String): String = prompt
-    .replace("You are a military-precision chef AI.", "You are an experienced home-cooking assistant.")
-    .replace("Use military precision: \"Set burner to level X for Y minutes\"", "Give precise, practical heat and timing guidance")
-
 // ── ViewModel ─────────────────────────────────────────────────────────────
 class AppViewModel(
     private val prefs: AppPreferences,
@@ -289,7 +285,7 @@ class AppViewModel(
 
     fun startSession(isRefresh: Boolean = false) {
         if (_chips.value.isEmpty()) { _planState.value = PlanState.Error(L.noIngredientError); return }
-        AppLogger.i("Session", "startSession çağrıldı — malzemeler: ${_chips.value}")
+        AppLogger.i("Session", "Recipe option request started")
         viewModelScope.launch {
             _planState.value = PlanState.Loading
             try {
@@ -340,10 +336,15 @@ class AppViewModel(
             try {
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
-                    val prompt = calmCookingPlanPrompt(PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, selection.servings, hw.stoveType, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value))
+                    val stoveType = when {
+                        "gas" in _selectedEquipment.value -> "gas"
+                        "elec" in _selectedEquipment.value -> "electric"
+                        else -> "none"
+                    }
+                    val prompt = PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, selection.servings, stoveType, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value)
                     val parsed = StructuredRecipeParser.cookingPlan(provider.generateContent(prompt).orEmpty())
                     val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
-                    val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
+                    val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
                     if (!validation.valid) throw IllegalArgumentException(validation.errors.joinToString { it.message })
                     val target = targetTimeResolver.resolve(selection.targetTime).getOrElse { throw it }
                     val session = RecipeSession(UUID.randomUUID().toString(), target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
@@ -356,85 +357,6 @@ class AppViewModel(
                 val message = readerSafeAiError(e)
                 emitUiEvent(message)
                 _planState.value = PlanState.Error(message)
-            }
-        }
-    }
-
-    @Deprecated("Replaced by structured JSON cooking plans")
-    private fun legacySelectRecipeOption(option: RecipeOption, targetTime: String) {
-        viewModelScope.launch {
-            _planState.value = PlanState.Loading
-            try {
-                executeAiWithProvider { provider ->
-                    val hwInfo = _hw.value
-                    val equipment = _selectedEquipment.value.joinToString(", ")
-                    val hardwareContext = "Donanım: Ocak tipi=${hwInfo.stoveType}, Max Güç=${hwInfo.stovePowerMax}. " +
-                        (if (hwInfo.ovenAvailable) "Fırın: Mevcut (Fan=${hwInfo.ovenHasFan}, Izgara=${hwInfo.ovenHasGrill}). " else "") +
-                        (if (_selectedEquipment.value.contains("airfryer")) "ÖNEMLİ: Airfryer mevcut, kızartma adımlarında Airfryer'ı tercih et." else "")
-                    
-                    val prompt = "Seçilen yemek: ${option.name}. Malzemeler: ${_chips.value.joinToString(", ")}. $hardwareContext. Bu yemeği yapmak için askeri düzeyde kesin komutlarla bir tarif oluştur. Süreleri dakika cinsinden tam sayı olarak yaz. Komutlar 'ceviz büyüklüğünde' gibi insan dostu ama 'ocağı 9. seviyeye al' gibi katı askeri dilde olsun. Format:\n" +
-                            "prep|Soğanları serçe parmağı kalınlığında doğra.|3\n" +
-                            "cook|Ocağı ${hwInfo.stovePowerMax}. seviyeye al ve ısıt.|2\n" +
-                            "rest|Ocağı kapat ve bekle.|5\n" +
-                            "Açıklama vb. yazma, sadece her adım için yeni bir satır."
-                    
-                    val responseText = provider.generateContent(prompt) ?: ""
-                    val steps = responseText.split("\n").filter { it.contains("|") }.mapIndexed { idx, line ->
-                        val p = line.split("|")
-                        RecipeStep("step_$idx", p[0].trim(), "stovetop", durationSec = (p.getOrNull(2)?.trim()?.toIntOrNull() ?: 5) * 60, instruction = p[1].trim())
-                    }
-                    if (steps.isNotEmpty()) {
-                        val session = RecipeSession(
-                            sessionId = UUID.randomUUID().toString(), targetTimeIso = buildTargetIso(targetTime),
-                            ingredients = _chips.value.map { IngredientAmount(id = slugify(it), massG = 200) },
-                            hardwareProfileId = "stovetop", steps = steps
-                        )
-                        val result = orchestrator.startSession(session)
-                        historyRepo.insertRecipe(
-                            id = session.sessionId,
-                            name = option.name,
-                            ingredients = _chips.value.joinToString(", "),
-                            timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                            status = "started"
-                        )
-                        loadHistory()
-                        _planState.value = PlanState.RecipeActive(option, result.events)
-                    } else {
-                        throw Exception("Adım oluşturulamadı")
-                    }
-                }
-            } catch(e:Exception) {
-                if (e.message?.contains("API_KEY_MISSING") == true) {
-                    val hwInfo = _hw.value
-                    val steps = mutableListOf<RecipeStep>()
-                    steps += RecipeStep("prep1", "prep", "stovetop", durationSec = 300, instruction = "Tüm malzemeleri tezgaha diz. Soğanları serçe parmağının ucu büyüklüğünde (brunoise) doğra.")
-                    steps += RecipeStep("heat1", "preheat", "stovetop", durationSec = 60, dependsOn = listOf("prep1"), instruction = "Tavayı ocağa koy. Güç seviyesini ${hwInfo.stovePowerMax} (Maks) konumuna al. 60 saniye ısınmasını bekle.")
-                    steps += RecipeStep("cook1", "cook", "stovetop", durationSec = 300, dependsOn = listOf("heat1"), instruction = "Etleri tavaya diz, birbirine değmesin. Güç seviyesini ${(hwInfo.stovePowerMax * 0.75).toInt()}'a düşür. 5 dakika mühürle.")
-                    val session = RecipeSession(
-                        sessionId = UUID.randomUUID().toString(), targetTimeIso = buildTargetIso(targetTime),
-                        ingredients = _chips.value.map { IngredientAmount(id = slugify(it), massG = 200) },
-                        hardwareProfileId = "stovetop", steps = steps
-                    )
-                    val result = orchestrator.startSession(session)
-                    historyRepo.insertRecipe(
-                        id = session.sessionId,
-                        name = option.name,
-                        ingredients = _chips.value.joinToString(", "),
-                        timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                        status = "started"
-                    )
-                    loadHistory()
-                    _planState.value = PlanState.RecipeActive(option, result.events)
-                } else if (e.message?.contains("quota", ignoreCase = true) == true || e.message?.contains("rate", ignoreCase = true) == true || e.message?.contains("429") == true) {
-                    _aiError.value = "QUOTA_EXCEEDED"
-                    val errorMsg = "Tarif oluşturulamadı: API Kotası Doldu (High Demand)"
-                    emitUiEvent(errorMsg)
-                    _planState.value = PlanState.Error(errorMsg)
-                } else {
-                    val errorMsg = "Tarif oluşturulamadı: ${e.message}"
-                    emitUiEvent(errorMsg)
-                    _planState.value = PlanState.Error(errorMsg)
-                }
             }
         }
     }
@@ -676,10 +598,4 @@ class AppViewModel(
 
 
     private fun slugify(name: String) = name.lowercase().replace("ğ", "g").replace("ü", "u").replace("ş", "s").replace("ı", "i").replace("ö", "o").replace("ç", "c").replace(Regex("[^a-z0-9]"), "_")
-    private fun buildTargetIso(timeText: String): String {
-        val parts = timeText.split(":"); val now = ZonedDateTime.now()
-        var target = now.withHour(parts.getOrNull(0)?.toIntOrNull() ?: 19).withMinute(parts.getOrNull(1)?.toIntOrNull() ?: 0).withSecond(0).withNano(0)
-        if (target.isBefore(now)) target = target.plusDays(1)
-        return target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-    }
 }

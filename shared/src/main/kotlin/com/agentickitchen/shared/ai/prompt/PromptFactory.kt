@@ -50,20 +50,22 @@ Return ONLY valid JSON in this exact schema:
         language: String
     ): String {
         val langInstr = if (language == "Türkçe") "Yanıtını Türkçe ver." else "Respond in English."
-        val stoveGuidance = if (stoveType == "gas") {
-            """Stove type: gas
+        val normalizedStoveType = stoveType.lowercase()
+        val stoveGuidance = when (normalizedStoveType) {
+            "gas" -> """Stove type: gas
 Gas flame guidance: use only low, medium-low, medium, medium-high, or high flame descriptions. Do not use numeric electric-style power levels. Set powerLevel to null for gas stove steps."""
-        } else {
-            """Stove type: electric
+            "electric" -> """Stove type: electric
 Electric stove maximum level: $stoveMaxLevel. Use numeric powerLevel values only from 1 to $stoveMaxLevel."""
+            else -> """Stove type: none
+No stove is available. Do not include stove-heating steps or numeric powerLevel values. Use only the available oven, airfryer, and preparation resources."""
         }
-        val examplePowerLevel = if (stoveType == "gas") "null" else "7"
-        val powerLevelRule = if (stoveType == "gas") {
-            "For this gas stove, use qualitative flame guidance and leave powerLevel null."
-        } else {
-            "For this electric stove, powerLevel must be from 1 to $stoveMaxLevel."
+        val examplePowerLevel = if (normalizedStoveType == "electric") "7" else "null"
+        val powerLevelRule = when (normalizedStoveType) {
+            "gas" -> "For this gas stove, use qualitative flame guidance and leave powerLevel null."
+            "electric" -> "For this electric stove, powerLevel must be from 1 to $stoveMaxLevel."
+            else -> "No stove is available: do not use the stove resource and leave powerLevel null."
         }
-        return """You are a military-precision chef AI. Create a detailed cooking plan for "$recipeName".
+        return """You are an experienced home-cooking assistant. Create a detailed cooking plan for "$recipeName".
 
 Ingredients: ${ingredients.joinToString(", ")}
 Available equipment: ${equipment.joinToString(", ")}
@@ -132,7 +134,7 @@ Keep your response concise and authoritative."""
         language: String
     ): String {
         val langInstr = if (language == "Türkçe") "Yanıtını Türkçe ver." else "Respond in English."
-        return """You are a military chef inspecting a cooking photo. The current step is: "$stepDescription".
+        return """You are a helpful home-cooking assistant inspecting a cooking photo. The current step is: "$stepDescription".
 
 $langInstr
 

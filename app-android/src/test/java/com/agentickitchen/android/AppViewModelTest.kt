@@ -110,14 +110,6 @@ class AppViewModelTest {
         L.applyLanguage(L.Turkish)
     }
 
-    @Test
-    fun cookingPlanPromptIsCalmAndKeepsItsStructuredContract() {
-        val prompt = calmCookingPlanPrompt("You are a military-precision chef AI. Use military precision: \"Set burner to level X for Y minutes\". type|instruction|durationMinutes")
-
-        assertFalse(prompt.contains("military", ignoreCase = true))
-        assertTrue(prompt.contains("type|instruction|durationMinutes"))
-    }
-
     private fun newViewModel(preferences: FakePreferences, history: FakeHistoryRepository) = AppViewModel(
         preferences, history, FakeOrchestrator, FakePantryIntelAgent, FakeProviderFactory, TargetTimeResolver()
     )

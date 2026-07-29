@@ -6,6 +6,7 @@ import com.agentickitchen.shared.ai.dto.CookingStepDto
 class CookingPlanValidator(
     private val availableEquipment: Set<String>,
     private val stoveMaxLevel: Int,
+    private val stoveType: String = "electric",
     private val ovenAvailable: Boolean,
     private val airfryerAvailable: Boolean,
     private val dietType: String,
@@ -138,6 +139,9 @@ class CookingPlanValidator(
                 )
             )
         }
+        if (stoveType.lowercase() == "none" && step.resource == "stove") {
+            errors.add(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[$index].resource", "Step '${step.id}' requires a stove but none is available"))
+        }
         if (step.resource in setOf("stove", "pan", "pot") && availableEquipment.none { it in setOf("stove", "elec", "gas", "camping", "pan") }) {
             errors.add(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[$index].resource", "Step '${step.id}' requires stove equipment"))
         }
@@ -145,6 +149,16 @@ class CookingPlanValidator(
 
     private fun validatePowerLevel(step: CookingStepDto, index: Int, errors: MutableList<ValidationError>) {
         val power = step.powerLevel ?: return
+        when (stoveType.lowercase()) {
+            "gas" -> if (step.resource == "stove") {
+                errors.add(ValidationError(ErrorType.POWER_EXCEEDS_MAXIMUM, "steps[$index].powerLevel", "Gas stove step '${step.id}' must use qualitative flame guidance without a numeric power level"))
+                return
+            }
+            "none" -> {
+                errors.add(ValidationError(ErrorType.POWER_EXCEEDS_MAXIMUM, "steps[$index].powerLevel", "Step '${step.id}' has a numeric power level but no stove is available"))
+                return
+            }
+        }
         if (power > stoveMaxLevel) {
             errors.add(
                 ValidationError(
