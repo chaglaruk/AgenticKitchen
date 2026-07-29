@@ -139,23 +139,26 @@ class CookingPlanValidator(
                 )
             )
         }
-        if (stoveType.lowercase() == "none" && step.resource == "stove") {
-            errors.add(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[$index].resource", "Step '${step.id}' requires a stove but none is available"))
-        }
-        if (step.resource in setOf("stove", "pan", "pot") && availableEquipment.none { it in setOf("stove", "elec", "gas", "camping", "pan") }) {
-            errors.add(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[$index].resource", "Step '${step.id}' requires stove equipment"))
+        if (step.resource in stoveHeatingResources) {
+            if (stoveType.lowercase() == "none") {
+                errors.add(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[$index].resource", "Step '${step.id}' requires a stove heat source but none is available"))
+            } else if (availableEquipment.none { it in stoveEquipmentIds }) {
+                errors.add(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[$index].resource", "Step '${step.id}' requires stove equipment"))
+            }
         }
     }
 
     private fun validatePowerLevel(step: CookingStepDto, index: Int, errors: MutableList<ValidationError>) {
         val power = step.powerLevel ?: return
         when (stoveType.lowercase()) {
-            "gas" -> if (step.resource == "stove") {
+            "gas" -> if (step.resource in stoveHeatingResources) {
                 errors.add(ValidationError(ErrorType.POWER_EXCEEDS_MAXIMUM, "steps[$index].powerLevel", "Gas stove step '${step.id}' must use qualitative flame guidance without a numeric power level"))
                 return
             }
             "none" -> {
-                errors.add(ValidationError(ErrorType.POWER_EXCEEDS_MAXIMUM, "steps[$index].powerLevel", "Step '${step.id}' has a numeric power level but no stove is available"))
+                if (step.resource !in stoveHeatingResources) {
+                    errors.add(ValidationError(ErrorType.POWER_EXCEEDS_MAXIMUM, "steps[$index].powerLevel", "Step '${step.id}' has a numeric power level but no stove is available"))
+                }
                 return
             }
         }
@@ -351,6 +354,8 @@ class CookingPlanValidator(
     }
 
     companion object {
+        private val stoveHeatingResources = setOf("stove", "pan", "pot")
+        private val stoveEquipmentIds = setOf("stove", "elec", "gas", "camping")
         private val knownAllergenMap = mapOf(
             "gluten" to setOf("un", "flour", "bread", "pasta", "noodle", "wheat", "bulgur"),
             "süt" to setOf("süt", "milk", "cheese", "peynir", "cream", "krema", "butter", "tereyağı", "yogurt", "yoğurt"),

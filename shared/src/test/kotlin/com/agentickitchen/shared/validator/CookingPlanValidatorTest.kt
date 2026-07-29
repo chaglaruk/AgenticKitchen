@@ -96,7 +96,22 @@ class CookingPlanValidatorTest {
     }
 
     @Test
-    fun `no stove rejects stove resource and numeric power`() {
+    fun `gas rejects numeric power for every stove-heating resource`() {
+        val gasValidator = CookingPlanValidator(
+            availableEquipment = setOf("gas", "pan", "pot"), stoveMaxLevel = 9, stoveType = "gas",
+            ovenAvailable = false, airfryerAvailable = false, dietType = "none", allergens = emptySet(), servings = 2
+        )
+
+        listOf("stove", "pan", "pot").forEach { resource ->
+            val result = gasValidator.validate(validPlan().copy(steps = listOf(CookingStepDto("step_$resource", "cook", "Heat", resource, 60, powerLevel = 3))))
+
+            assertFalse(result.valid, "$resource must reject numeric gas power")
+            assertTrue(result.errors.any { it.type == ErrorType.POWER_EXCEEDS_MAXIMUM })
+        }
+    }
+
+    @Test
+    fun `no stove rejects stove heating without duplicate numeric power error`() {
         val noStoveValidator = CookingPlanValidator(
             availableEquipment = setOf("knife", "bowl"), stoveMaxLevel = 9, stoveType = "none",
             ovenAvailable = false, airfryerAvailable = false, dietType = "none", allergens = emptySet(), servings = 2
@@ -107,7 +122,33 @@ class CookingPlanValidatorTest {
 
         assertFalse(result.valid)
         assertTrue(result.errors.any { it.type == ErrorType.UNAVAILABLE_EQUIPMENT })
-        assertTrue(result.errors.any { it.type == ErrorType.POWER_EXCEEDS_MAXIMUM })
+        assertFalse(result.errors.any { it.type == ErrorType.POWER_EXCEEDS_MAXIMUM })
+    }
+
+    @Test
+    fun `no stove rejects pan and pot heat even when pan is owned`() {
+        val noStoveValidator = CookingPlanValidator(
+            availableEquipment = setOf("pan", "pot", "knife"), stoveMaxLevel = 9, stoveType = "none",
+            ovenAvailable = false, airfryerAvailable = false, dietType = "none", allergens = emptySet(), servings = 2
+        )
+
+        listOf("pan", "pot").forEach { resource ->
+            val result = noStoveValidator.validate(validPlan().copy(steps = listOf(CookingStepDto("step_$resource", "cook", "Heat", resource, 60, powerLevel = 3))))
+
+            assertFalse(result.valid, "$resource must require a stove heat source")
+            assertEquals(1, result.errors.count { it.type == ErrorType.UNAVAILABLE_EQUIPMENT })
+            assertFalse(result.errors.any { it.type == ErrorType.POWER_EXCEEDS_MAXIMUM })
+        }
+    }
+
+    @Test
+    fun `electric accepts inclusive power limits and rejects zero or above maximum`() {
+        listOf(1, 9).forEach { power ->
+            assertTrue(validator.validate(validPlan().copy(steps = listOf(CookingStepDto("step_$power", "cook", "Heat", "stove", 60, powerLevel = power)))).valid)
+        }
+        listOf(0, 10).forEach { power ->
+            assertFalse(validator.validate(validPlan().copy(steps = listOf(CookingStepDto("step_$power", "cook", "Heat", "stove", 60, powerLevel = power)))).valid)
+        }
     }
 
     @Test

@@ -38,10 +38,7 @@ import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
 import androidx.compose.material.Divider
-import androidx.compose.material.DropdownMenu
-import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.ExposedDropdownMenuBox
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -63,7 +60,6 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestaurantMenu
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
@@ -359,171 +355,6 @@ private fun IngredientComposer(
                 color = colors.onPrimary,
                 style = MaterialTheme.typography.button
             )
-        }
-    }
-}
-
-@Composable
-private fun IntelligenceHero(themeId: String) {
-    val colors = LocalAppColors.current
-
-    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 28.dp)) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = if (themeId == "signal") Alignment.Start else Alignment.CenterHorizontally
-        ) {
-            when (themeId) {
-                "heritage" -> {
-                    Text("VOLUME I", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (L.isTr) "Mutfak Arşivi" else "The Culinary Archives",
-                        color = colors.onBackground,
-                        style = MaterialTheme.typography.h1,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                "zen" -> {
-                    Text(
-                        "The Intelligence Input",
-                        color = colors.onBackground,
-                        style = MaterialTheme.typography.h1,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        if (L.isTr) "Envanteri gir, sistem optimum planı sentezlesin." else "Provide current inventory constraints for optimal synthesis.",
-                        color = colors.onSurfaceSub,
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                else -> {
-                    Text("SIGNAL DECK", color = colors.primary, style = MaterialTheme.typography.caption)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (L.isTr) "Canlı Pantry Akışı" else "Live Pantry Signal",
-                        color = colors.onBackground,
-                        style = MaterialTheme.typography.h1
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (L.isTr) "Malzemeyi kilitle, riskleri gör, sonra görev paketini üret." else "Lock the pantry, surface the risks, then generate the mission package.",
-                        color = colors.onSurfaceSub,
-                        style = MaterialTheme.typography.body1
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterialApi::class)
-@Composable
-private fun InputManifestCard(
-    input: String,
-    onInputChange: (String) -> Unit,
-    expandedAuto: Boolean,
-    filteredIngredients: List<String>,
-    onAddSelection: (String) -> Unit,
-    onDone: () -> Unit,
-    onStart: () -> Unit,
-    onOpenCamera: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    val themeSpec = LocalThemeSpec.current
-
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-        backgroundColor = if (themeSpec.id == "heritage") colors.surfaceAlt else colors.surface,
-        shape = RoundedCornerShape(if (themeSpec.id == "heritage") 0.dp else 24.dp),
-        elevation = 0.dp,
-        border = BorderStroke(1.dp, colors.divider.copy(alpha = 0.65f))
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
-            Text(
-                when (themeSpec.id) {
-                    "heritage" -> if (L.isTr) "MANUEL GİRİŞ" else "MANUAL INPUT"
-                    "zen" -> if (L.isTr) "AKILLI GİRİŞ" else "INTELLIGENCE INPUT"
-                    else -> if (L.isTr) "PANTRY MANIFEST" else "PANTRY MANIFEST"
-                },
-                color = if (themeSpec.id == "signal") colors.primary else colors.onSurfaceSub,
-                style = MaterialTheme.typography.caption
-            )
-            Spacer(Modifier.height(10.dp))
-
-            Box(modifier = Modifier.fillMaxWidth()) {
-                ExposedDropdownMenuBox(expanded = expandedAuto, onExpandedChange = { }, modifier = Modifier.fillMaxWidth()) {
-                    BasicTextField(
-                        value = input,
-                        onValueChange = onInputChange,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                        textStyle = TextStyle(color = colors.onSurface, fontSize = 18.sp),
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Sentences,
-                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { onDone() }),
-                        decorationBox = { innerTextField ->
-                            Box(Modifier.fillMaxWidth()) {
-                                if (input.isEmpty()) {
-                                    Text(
-                                        when (themeSpec.id) {
-                                            "heritage" -> if (L.isTr) "Mevcut malzemeleri arşive işle..." else "Inscribe available provisions..."
-                                            "zen" -> if (L.isTr) "Malzemeleri virgülle ayırarak yaz..." else "Enter specific ingredients separated by commas..."
-                                            else -> if (L.isTr) "Örn: tavuk, pirinç, sarımsak" else "E.g. chicken, rice, garlic"
-                                        },
-                                        color = colors.onSurfaceSub,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                                innerTextField()
-                                Icon(
-                                    Icons.Filled.Search,
-                                    contentDescription = null,
-                                    tint = colors.onSurfaceSub,
-                                    modifier = Modifier.align(Alignment.CenterEnd)
-                                )
-                            }
-                        }
-                    )
-                    DropdownMenu(
-                        expanded = expandedAuto,
-                        onDismissRequest = { },
-                        modifier = Modifier.background(colors.surface)
-                    ) {
-                        filteredIngredients.forEach { selection ->
-                            DropdownMenuItem(onClick = { onAddSelection(selection) }) {
-                                Text(text = selection, color = colors.onSurface)
-                            }
-                        }
-                    }
-                }
-                Divider(color = colors.divider, modifier = Modifier.align(Alignment.BottomCenter))
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = onStart,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
-                    shape = RoundedCornerShape(if (themeSpec.id == "heritage") 0.dp else 999.dp)
-                ) {
-                    Text("Analyze & Generate Plans", color = colors.onPrimary, style = MaterialTheme.typography.button)
-                    Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = colors.onPrimary)
-                }
-                OutlinedButton(
-                    onClick = onOpenCamera,
-                    modifier = Modifier.height(50.dp),
-                    border = BorderStroke(1.dp, colors.divider),
-                    colors = ButtonDefaults.outlinedButtonColors(backgroundColor = colors.surfaceAlt),
-                    shape = RoundedCornerShape(if (themeSpec.id == "heritage") 0.dp else 16.dp)
-                ) {
-                    Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = colors.onSurface)
-                }
-            }
         }
     }
 }
