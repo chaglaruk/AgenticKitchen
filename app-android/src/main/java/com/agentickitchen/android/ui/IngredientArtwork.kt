@@ -48,20 +48,22 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agentickitchen.android.L
+import com.agentickitchen.android.catalogIngredientForName
 import kotlinx.coroutines.delay
 import java.util.Locale
 
 internal enum class IngredientVisualKind(val labelTr: String, val labelEn: String) {
-    TOMATO("Sebze", "Vegetable"), PEPPER("Biber", "Pepper"), CUCUMBER("Salatalık", "Cucumber"), ROOT_VEGETABLE("Kök sebze", "Root vegetable"), POTATO("Patates", "Potato"), MUSHROOM("Mantar", "Mushroom"),
+    TOMATO("Sebze", "Vegetable"), PEPPER("Biber", "Pepper"), CUCUMBER("Salatalık", "Cucumber"), SQUASH("Kabak", "Squash"), ROOT_VEGETABLE("Kök sebze", "Root vegetable"), POTATO("Patates", "Potato"), MUSHROOM("Mantar", "Mushroom"),
     LEAFY("Yeşillik", "Greens"), ONION("Soğan", "Onion"), GARLIC("Sarımsak", "Garlic"),
-    CHICKEN("Tavuk", "Chicken"), RED_MEAT("Et", "Red meat"), FISH("Balık", "Fish"), SEAFOOD("Deniz ürünü", "Seafood"),
+    CHICKEN("Tavuk", "Chicken"), TURKEY("Hindi", "Turkey"), RED_MEAT("Et", "Red meat"), FISH("Balık", "Fish"), SEAFOOD("Deniz ürünü", "Seafood"),
     EGG("Yumurta", "Egg"), MILK_CREAM("Süt ürünü", "Milk or cream"), YOGHURT("Yoğurt", "Yoghurt"), CHEESE("Peynir", "Cheese"), BUTTER("Tereyağı", "Butter"),
     MEAT("Protein", "Protein"), EGG_DAIRY("Süt ürünü", "Dairy"), PASTA_GRAINS("Tahıl", "Grain"),
     PASTA("Makarna", "Pasta"), RICE("Pirinç", "Rice"), BREAD("Ekmek", "Bread"), LEGUMES("Bakliyat", "Legumes"), FLOUR_BAKING("Unlu mamul", "Flour and baking"), HERBS("Otlar", "Herbs"), SPICES("Baharat", "Spices"), OIL("Yağ", "Oil"), SAUCE("Sos", "Sauce"), FRUIT("Meyve", "Fruit"), CITRUS("Narenciye", "Citrus"), NUTS_SEEDS("Kuruyemiş", "Nuts and seeds"), SUGAR_HONEY("Tatlandırıcı", "Sugar and honey"),
     PANTRY("Kiler", "Pantry")
 }
 
-private fun ingredientVisualFor(name: String): IngredientVisualKind {
+internal fun ingredientVisualFor(name: String): IngredientVisualKind {
+    catalogIngredientForName(name)?.let { return it.visualKind }
     val value = name.lowercase(Locale.ROOT)
         .replace('ı', 'i').replace('ş', 's').replace('ğ', 'g').replace('ü', 'u').replace('ö', 'o').replace('ç', 'c')
     fun matches(vararg terms: String) = terms.any(value::contains)
@@ -94,12 +96,28 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
 
         oval(Color(0x1F9A8977), .20f, .78f, .60f, .10f)
         when (kind) {
-            IngredientVisualKind.TOMATO, IngredientVisualKind.PEPPER, IngredientVisualKind.CUCUMBER, IngredientVisualKind.ROOT_VEGETABLE, IngredientVisualKind.POTATO, IngredientVisualKind.MUSHROOM -> {
+            IngredientVisualKind.TOMATO -> {
                 drawCircle(Color(0xFFB7644C), s * .30f, point(.50f, .50f))
                 drawCircle(Color(0xFFD98567), s * .10f, point(.41f, .40f))
                 drawLine(Color(0xFF74806B), point(.50f, .24f), point(.52f, .37f), strokeWidth = s * .06f)
                 drawLine(Color(0xFF74806B), point(.50f, .33f), point(.34f, .28f), strokeWidth = s * .05f)
                 drawLine(Color(0xFF74806B), point(.50f, .33f), point(.66f, .28f), strokeWidth = s * .05f)
+            }
+            IngredientVisualKind.PEPPER -> {
+                drawRoundRect(Color(0xFFB7644C), point(.34f, .28f), Size(s * .32f, s * .45f), CornerRadius(s * .18f, s * .18f))
+                drawLine(Color(0xFF74806B), point(.50f, .28f), point(.61f, .17f), strokeWidth = s * .05f)
+            }
+            IngredientVisualKind.CUCUMBER -> drawRoundRect(Color(0xFF74806B), point(.20f, .40f), Size(s * .60f, s * .20f), CornerRadius(s * .10f, s * .10f))
+            IngredientVisualKind.SQUASH -> oval(Color(0xFF7D6A7A), .25f, .34f, .50f, .32f)
+            IngredientVisualKind.ROOT_VEGETABLE -> {
+                val carrot = Path().apply { moveTo(point(.50f, .24f).x, point(.50f, .24f).y); lineTo(point(.29f, .71f).x, point(.29f, .71f).y); lineTo(point(.71f, .71f).x, point(.71f, .71f).y); close() }
+                drawPath(carrot, Color(0xFFD98567))
+                drawLine(Color(0xFF74806B), point(.50f, .28f), point(.40f, .16f), strokeWidth = s * .04f)
+            }
+            IngredientVisualKind.POTATO -> oval(Color(0xFFD6B27A), .24f, .32f, .52f, .38f)
+            IngredientVisualKind.MUSHROOM -> {
+                oval(Color(0xFFD7C1A6), .24f, .30f, .52f, .28f)
+                drawRoundRect(Color(0xFFE9DAC8), point(.43f, .48f), Size(s * .14f, s * .24f), CornerRadius(s * .05f, s * .05f))
             }
             IngredientVisualKind.LEAFY -> {
                 drawCircle(Color(0xFF74806B), s * .22f, point(.40f, .52f))
@@ -107,17 +125,30 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                 drawCircle(Color(0xFFC5CCBE), s * .18f, point(.53f, .63f))
                 drawLine(Color(0xFF5E6B58), point(.47f, .72f), point(.54f, .30f), strokeWidth = s * .035f)
             }
-            IngredientVisualKind.ONION, IngredientVisualKind.GARLIC -> {
+            IngredientVisualKind.ONION -> {
                 oval(Color(0xFFE4D2BF), .28f, .28f, .44f, .46f)
                 drawCircle(Color(0xFFF6E8D9), s * .14f, point(.45f, .43f))
                 drawLine(Color(0xFF74806B), point(.50f, .28f), point(.56f, .15f), strokeWidth = s * .04f)
             }
-            IngredientVisualKind.MEAT, IngredientVisualKind.CHICKEN, IngredientVisualKind.RED_MEAT -> {
+            IngredientVisualKind.GARLIC -> repeat(3) { index -> oval(Color(0xFFF4E7D5), .30f + index * .12f, .37f - (index % 2) * .05f, .22f, .30f) }
+            IngredientVisualKind.MEAT -> {
                 drawRoundRect(Color(0xFFD79A82), point(.24f, .30f), Size(s * .52f, s * .40f), CornerRadius(s * .20f, s * .20f))
                 drawCircle(Color(0xFFF0C4A5), s * .08f, point(.57f, .46f))
                 drawCircle(Color(0xFFF0C4A5), s * .05f, point(.39f, .57f))
             }
-            IngredientVisualKind.FISH, IngredientVisualKind.SEAFOOD -> {
+            IngredientVisualKind.CHICKEN -> {
+                drawCircle(Color(0xFFE8B7A0), s * .20f, point(.43f, .48f))
+                drawRoundRect(Color(0xFFF3E5D5), point(.53f, .43f), Size(s * .22f, s * .10f), CornerRadius(s * .05f, s * .05f))
+            }
+            IngredientVisualKind.TURKEY -> {
+                oval(Color(0xFFC58D67), .27f, .33f, .46f, .38f)
+                drawCircle(Color(0xFF74806B), s * .07f, point(.63f, .34f))
+            }
+            IngredientVisualKind.RED_MEAT -> {
+                oval(Color(0xFFC35E50), .24f, .31f, .52f, .38f)
+                drawCircle(Color(0xFFF0C4A5), s * .06f, point(.57f, .47f))
+            }
+            IngredientVisualKind.FISH -> {
                 oval(Color(0xFF8EA39D), .23f, .35f, .48f, .30f)
                 val tail = Path().apply {
                     moveTo(point(.70f, .50f).x, point(.70f, .50f).y)
@@ -128,15 +159,33 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                 drawPath(tail, Color(0xFF74806B))
                 drawCircle(Color(0xFF191714), s * .025f, point(.37f, .46f))
             }
-            IngredientVisualKind.EGG_DAIRY, IngredientVisualKind.EGG, IngredientVisualKind.MILK_CREAM, IngredientVisualKind.YOGHURT, IngredientVisualKind.BUTTER -> {
+            IngredientVisualKind.SEAFOOD -> {
+                repeat(4) { index -> drawCircle(Color(0xFFE29878), s * .10f, point(.34f + index * .10f, .48f + (index % 2) * .08f)) }
+                drawLine(Color(0xFFE29878), point(.29f, .48f), point(.24f, .37f), strokeWidth = s * .04f)
+            }
+            IngredientVisualKind.EGG_DAIRY, IngredientVisualKind.EGG -> {
                 oval(Color(0xFFF8F1E5), .30f, .23f, .40f, .52f)
                 drawCircle(Color(0xFFD7A18E), s * .11f, point(.50f, .53f))
                 drawOval(Color(0xFFD8D0C5), topLeft = point(.30f, .23f), size = Size(s * .40f, s * .52f), style = Stroke(s * .015f))
             }
-            IngredientVisualKind.PASTA_GRAINS, IngredientVisualKind.PASTA, IngredientVisualKind.LEGUMES, IngredientVisualKind.FLOUR_BAKING -> {
+            IngredientVisualKind.MILK_CREAM -> {
+                drawRoundRect(Color(0xFFF5EBDD), point(.36f, .25f), Size(s * .28f, s * .48f), CornerRadius(s * .04f, s * .04f))
+                drawRoundRect(Color(0xFF74806B), point(.41f, .18f), Size(s * .18f, s * .10f), CornerRadius(s * .02f, s * .02f))
+            }
+            IngredientVisualKind.YOGHURT -> {
+                drawRoundRect(Color(0xFFF5EBDD), point(.28f, .42f), Size(s * .44f, s * .26f), CornerRadius(s * .08f, s * .08f))
+                drawLine(Color(0xFF74806B), point(.30f, .40f), point(.70f, .40f), strokeWidth = s * .04f)
+            }
+            IngredientVisualKind.BUTTER -> drawRoundRect(Color(0xFFE5C76D), point(.25f, .39f), Size(s * .50f, s * .24f), CornerRadius(s * .04f, s * .04f))
+            IngredientVisualKind.PASTA_GRAINS, IngredientVisualKind.PASTA -> {
                 repeat(4) { index ->
                     drawRoundRect(Color(0xFFD9B76E), point(.28f + index * .10f, .30f + index % 2 * .08f), Size(s * .25f, s * .13f), CornerRadius(s * .06f, s * .06f))
                 }
+            }
+            IngredientVisualKind.LEGUMES -> repeat(7) { index -> oval(Color(0xFFC98A55), .28f + (index % 3) * .15f, .32f + (index / 3) * .14f, .16f, .11f) }
+            IngredientVisualKind.FLOUR_BAKING -> {
+                drawRoundRect(Color(0xFFF0E5CC), point(.31f, .28f), Size(s * .38f, s * .46f), CornerRadius(s * .05f, s * .05f))
+                drawLine(Color(0xFF5F5951), point(.39f, .48f), point(.61f, .48f), strokeWidth = s * .03f)
             }
             IngredientVisualKind.RICE -> {
                 repeat(9) { index ->
@@ -145,12 +194,16 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                     oval(Color(0xFFF0E5CC), x, y, .16f, .08f)
                 }
             }
-            IngredientVisualKind.HERBS, IngredientVisualKind.SPICES -> {
+            IngredientVisualKind.HERBS -> {
                 drawLine(Color(0xFF5E6B58), point(.48f, .73f), point(.55f, .25f), strokeWidth = s * .035f)
                 repeat(4) { index ->
                     val y = .32f + index * .10f
                     oval(Color(0xFF74806B), .34f + (index % 2) * .12f, y, .20f, .12f)
                 }
+            }
+            IngredientVisualKind.SPICES -> {
+                drawRoundRect(Color(0xFFD9B76E), point(.34f, .32f), Size(s * .32f, s * .38f), CornerRadius(s * .06f, s * .06f))
+                drawLine(Color(0xFF5F5951), point(.36f, .29f), point(.64f, .29f), strokeWidth = s * .05f)
             }
             IngredientVisualKind.CHEESE -> {
                 val wedge = Path().apply {
@@ -168,10 +221,31 @@ internal fun IngredientArtwork(name: String, modifier: Modifier = Modifier) {
                 drawLine(Color(0xFFF0C18B), point(.40f, .43f), point(.36f, .60f), strokeWidth = s * .035f)
                 drawLine(Color(0xFFF0C18B), point(.56f, .43f), point(.52f, .60f), strokeWidth = s * .035f)
             }
-            IngredientVisualKind.PANTRY, IngredientVisualKind.OIL, IngredientVisualKind.SAUCE, IngredientVisualKind.FRUIT, IngredientVisualKind.CITRUS, IngredientVisualKind.NUTS_SEEDS, IngredientVisualKind.SUGAR_HONEY -> {
+            IngredientVisualKind.OIL -> {
+                drawRoundRect(Color(0xFFC5CCBE), point(.39f, .23f), Size(s * .22f, s * .52f), CornerRadius(s * .04f, s * .04f))
+                drawLine(Color(0xFF5F5951), point(.43f, .20f), point(.57f, .20f), strokeWidth = s * .04f)
+            }
+            IngredientVisualKind.SAUCE -> {
                 drawRoundRect(Color(0xFFD8D0C5), point(.31f, .28f), Size(s * .38f, s * .46f), CornerRadius(s * .08f, s * .08f))
                 drawRoundRect(Color(0xFFB7644C), point(.34f, .42f), Size(s * .32f, s * .18f), CornerRadius(s * .04f, s * .04f))
                 drawLine(Color(0xFF5F5951), point(.34f, .24f), point(.66f, .24f), strokeWidth = s * .05f)
+            }
+            IngredientVisualKind.FRUIT -> {
+                drawCircle(Color(0xFFD98567), s * .25f, point(.50f, .50f))
+                drawLine(Color(0xFF74806B), point(.50f, .27f), point(.56f, .18f), strokeWidth = s * .04f)
+            }
+            IngredientVisualKind.CITRUS -> {
+                drawCircle(Color(0xFFE4BE62), s * .25f, point(.50f, .50f))
+                drawCircle(Color(0xFFF4EEDC), s * .17f, point(.50f, .50f))
+            }
+            IngredientVisualKind.NUTS_SEEDS -> repeat(5) { index -> oval(Color(0xFFC98A55), .28f + (index % 3) * .16f, .36f + (index / 3) * .16f, .16f, .12f) }
+            IngredientVisualKind.SUGAR_HONEY -> {
+                drawRoundRect(Color(0xFFE4BE62), point(.32f, .34f), Size(s * .36f, s * .34f), CornerRadius(s * .06f, s * .06f))
+                drawLine(Color(0xFF5F5951), point(.34f, .31f), point(.66f, .31f), strokeWidth = s * .04f)
+            }
+            IngredientVisualKind.PANTRY -> {
+                drawRoundRect(Color(0xFFD8D0C5), point(.31f, .28f), Size(s * .38f, s * .46f), CornerRadius(s * .08f, s * .08f))
+                drawRoundRect(Color(0xFFB7644C), point(.34f, .42f), Size(s * .32f, s * .18f), CornerRadius(s * .04f, s * .04f))
             }
         }
     }

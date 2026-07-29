@@ -45,10 +45,38 @@ private fun catalogCategory(
                 else -> emptyList()
             },
             categoryId = id,
-            visualKind = visual
+            visualKind = visualKindFor(ingredientId, visual)
         )
     }
     return IngredientCategory(id, tr, en, definitions.map { it.nameTr to it.nameEn }) to definitions
+}
+
+private fun visualKindFor(id: String, fallback: IngredientVisualKind): IngredientVisualKind = when (id) {
+    "turkey" -> IngredientVisualKind.TURKEY
+    "minced-beef", "beef", "lamb", "steak" -> IngredientVisualKind.RED_MEAT
+    "meatballs", "sausage", "bacon", "liver", "deli-meat" -> IngredientVisualKind.MEAT
+    "shrimp", "mussels", "squid", "octopus", "crab" -> IngredientVisualKind.SEAFOOD
+    "milk", "double-cream", "sour-cream" -> IngredientVisualKind.MILK_CREAM
+    "yoghurt", "greek-yoghurt" -> IngredientVisualKind.YOGHURT
+    "feta", "kasar", "mozzarella", "cheddar", "parmesan", "cream-cheese" -> IngredientVisualKind.CHEESE
+    "butter" -> IngredientVisualKind.BUTTER
+    "red-pepper", "green-pepper" -> IngredientVisualKind.PEPPER
+    "cucumber" -> IngredientVisualKind.CUCUMBER
+    "aubergine", "courgette" -> IngredientVisualKind.SQUASH
+    "leek", "celery", "carrot", "beetroot", "ginger" -> IngredientVisualKind.ROOT_VEGETABLE
+    "cauliflower", "broccoli", "green-beans", "spinach", "lettuce", "rocket", "kale", "chard" -> IngredientVisualKind.LEAFY
+    "onion", "spring-onion" -> IngredientVisualKind.ONION
+    "garlic" -> IngredientVisualKind.GARLIC
+    "parsley", "dill", "mint", "basil", "coriander", "thyme", "rosemary", "oregano", "bay-leaf" -> IngredientVisualKind.HERBS
+    "lemon", "lime", "orange" -> IngredientVisualKind.CITRUS
+    "rice" -> IngredientVisualKind.RICE
+    "pasta", "spaghetti", "noodles" -> IngredientVisualKind.PASTA
+    "bread", "pita", "tortilla", "breadcrumbs" -> IngredientVisualKind.BREAD
+    "olive-oil", "sunflower-oil", "vegetable-oil" -> IngredientVisualKind.OIL
+    "tahini", "molasses", "tomato-paste", "pepper-paste", "soy-sauce", "vinegar", "balsamic", "mustard", "mayonnaise", "ketchup" -> IngredientVisualKind.SAUCE
+    "flour", "wholemeal-flour", "cornflour", "cocoa", "baking-powder", "bicarbonate-soda", "vanilla", "yeast", "chocolate", "stock" -> IngredientVisualKind.FLOUR_BAKING
+    "sugar", "brown-sugar", "honey" -> IngredientVisualKind.SUGAR_HONEY
+    else -> fallback
 }
 
 private val catalogGroups = listOf(
@@ -241,6 +269,14 @@ private fun normalizedIngredientText(value: String): String = value.lowercase(Lo
     .replace('ı', 'i').replace('İ', 'i').replace('ş', 's').replace('Ş', 's')
     .replace('ğ', 'g').replace('Ğ', 'g').replace('ü', 'u').replace('Ü', 'u')
     .replace('ö', 'o').replace('Ö', 'o').replace('ç', 'c').replace('Ç', 'c')
+
+internal fun catalogIngredientForName(name: String): IngredientDefinition? {
+    val normalizedName = normalizedIngredientText(name)
+    return INGREDIENT_CATALOG.firstOrNull { ingredient ->
+        ingredient.id == name || listOf(ingredient.nameTr, ingredient.nameEn).plus(ingredient.aliasesTr).plus(ingredient.aliasesEn)
+            .any { normalizedIngredientText(it) == normalizedName }
+    }
+}
 
 internal fun searchIngredientCatalog(query: String, alreadyAdded: Collection<String>, isTurkish: Boolean, limit: Int = 5): List<IngredientDefinition> {
     val normalizedQuery = normalizedIngredientText(query.trim())
