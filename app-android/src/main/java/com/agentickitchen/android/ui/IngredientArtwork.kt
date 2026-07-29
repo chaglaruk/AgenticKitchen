@@ -309,9 +309,9 @@ private fun IngredientCollectionItem(
         enter = fadeIn(tween(260, entranceDelay)) + scaleIn(tween(260, entranceDelay), initialScale = .94f) + slideInVertically(tween(260, entranceDelay)) { -it / 8 },
         exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = .94f)
     ) {
-        Column(modifier = modifier.animateContentSize(tween(220)).height(88.dp)) {
-            Box(modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                IngredientArtwork(item.name, Modifier.fillMaxWidth().height(46.dp).align(Alignment.Center))
+        Column(modifier = modifier.animateContentSize(tween(220)).height(108.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                IngredientArtwork(item.name, Modifier.fillMaxWidth().height(54.dp).align(Alignment.Center))
                 IconButton(
                     onClick = onRemove,
                     modifier = Modifier.align(Alignment.TopEnd).size(48.dp)

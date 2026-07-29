@@ -204,7 +204,7 @@ private fun EditorialSetupHeader(canGoBack: Boolean, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(12.dp))
         }
-        Text("Agentic Kitchen", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        EditorialBrandLockup()
         Spacer(Modifier.height(10.dp))
         Text(
             if (L.isTr) "Mutfağını tanıyalım" else "Let’s get to know your kitchen",

@@ -373,7 +373,7 @@ private fun EditorialRecipeDetailExactPreview() {
 private fun EditorialOptionsHeader() {
     val colors = LocalAppColors.current
     Column {
-        Text("Agentic Kitchen", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        EditorialBrandLockup()
         Spacer(Modifier.height(10.dp))
         Text(
             if (L.isTr) "Bu malzemelerle" else "With what you have",

@@ -75,6 +75,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -276,6 +278,8 @@ private fun IngredientComposer(
 ) {
     val colors = LocalAppColors.current
     var isFocused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
@@ -298,7 +302,7 @@ private fun IngredientComposer(
             BasicTextField(
                 value = input,
                 onValueChange = onInputChange,
-                modifier = Modifier.weight(1f).onFocusChanged { isFocused = it.isFocused }.padding(vertical = 12.dp),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester).onFocusChanged { isFocused = it.isFocused }.padding(vertical = 12.dp),
                 textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onDone() }),
@@ -310,7 +314,11 @@ private fun IngredientComposer(
         AnimatedVisibility(visible = expandedAuto) {
             Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp).border(1.dp, colors.divider, RoundedCornerShape(10.dp))) {
                 filteredIngredients.forEach { selection ->
-                    TextButton(onClick = { onAddSelection(selection) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    TextButton(onClick = {
+                        onAddSelection(selection)
+                        focusRequester.requestFocus()
+                        keyboard?.show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Text(selection, color = colors.onSurface, modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
                     }
                 }
