@@ -32,8 +32,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
@@ -281,16 +279,10 @@ private fun IngredientComposer(
     val colors = LocalAppColors.current
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-
-    LaunchedEffect(isFocused, expandedAuto) {
-        if (isFocused) bringIntoViewRequester.bringIntoView()
-    }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-            .bringIntoViewRequester(bringIntoViewRequester)
             .background(colors.surfaceAlt, RoundedCornerShape(14.dp))
             .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
             .padding(12.dp)
