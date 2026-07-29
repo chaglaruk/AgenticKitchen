@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,6 +32,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
@@ -138,6 +141,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(bottom = 28.dp)
     ) {
@@ -187,13 +191,15 @@ fun HomeScreen(
                 icon = Icons.Filled.Tune,
                 onClick = onEditSetup
             )
-            EditorialTextAction(
-                modifier = Modifier.weight(1f),
-                title = if (L.isTr) "Temizle" else "Clear",
-                icon = Icons.Filled.DeleteSweep,
-                destructive = true,
-                onClick = onClearAll
-            )
+            if (chips.isNotEmpty()) {
+                EditorialTextAction(
+                    modifier = Modifier.weight(1f),
+                    title = if (L.isTr) "Temizle" else "Clear",
+                    icon = Icons.Filled.DeleteSweep,
+                    destructive = true,
+                    onClick = onClearAll
+                )
+            }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -279,10 +285,16 @@ private fun IngredientComposer(
     val colors = LocalAppColors.current
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(isFocused, expandedAuto) {
+        if (isFocused) bringIntoViewRequester.bringIntoView()
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+            .bringIntoViewRequester(bringIntoViewRequester)
             .background(colors.surfaceAlt, RoundedCornerShape(14.dp))
             .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
             .padding(12.dp)
@@ -312,7 +324,14 @@ private fun IngredientComposer(
             TextButton(onClick = onDone) { Text(if (L.isTr) "Ekle" else "Add", color = colors.primary) }
         }
         AnimatedVisibility(visible = expandedAuto) {
-            Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp).border(1.dp, colors.divider, RoundedCornerShape(10.dp))) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 244.dp)
+                    .padding(top = 4.dp)
+                    .border(1.dp, colors.divider, RoundedCornerShape(10.dp))
+                    .verticalScroll(rememberScrollState())
+            ) {
                 filteredIngredients.forEach { selection ->
                     TextButton(onClick = {
                         onAddSelection(selection)
