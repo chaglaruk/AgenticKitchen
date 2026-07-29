@@ -323,7 +323,7 @@ private fun IngredientComposer(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 244.dp)
+                    .heightIn(max = 144.dp)
                     .padding(top = 4.dp)
                     .border(1.dp, colors.divider, RoundedCornerShape(10.dp))
                     .verticalScroll(rememberScrollState())
