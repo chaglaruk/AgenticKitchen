@@ -133,7 +133,7 @@ sealed class UiEvent {
 data class HardwareSettings(
     val stoveType: String = "electric", val stovePowerMax: Int = 9,
     val ovenAvailable: Boolean = true, val ovenHasFan: Boolean = true, val ovenHasGrill: Boolean = false,
-    val servingSize: Int = 2, val powerLevel: Int = 7,
+    val powerLevel: Int = 7,
     val geminiApiKey: String = "",
     val hfApiKey: String = "",
     val aiProvider: String = "FREE" // "GEMINI", "HUGGINGFACE", "DUCKDUCKGO", "FREE"
@@ -197,9 +197,6 @@ class AppViewModel(
     private val _selectedEquipment = MutableStateFlow<Set<String>>(loadEquipment())
     val selectedEquipment: StateFlow<Set<String>> = _selectedEquipment.asStateFlow()
 
-    private val _mealTime = MutableStateFlow(prefs.mealTime())
-    val mealTime: StateFlow<String> = _mealTime.asStateFlow()
-
     private val _chips = MutableStateFlow<List<String>>(emptyList())
     val chips: StateFlow<List<String>> = _chips.asStateFlow()
 
@@ -251,14 +248,13 @@ class AppViewModel(
         _history.value = historyRepo.getAllHistory()
     }
 
-    fun completeSetup(equipment: Set<String>, servings: Int, mealTime: String, hw: HardwareSettings) {
-        AppLogger.i("Setup", "Kurulum tamamlandı — ekipman: $equipment, porsiyon: $servings, saat: $mealTime, apiKey uzunluk: ${hw.geminiApiKey.length}")
+    fun completeSetup(equipment: Set<String>, hw: HardwareSettings) {
+        AppLogger.i("Setup", "Kurulum tamamlandı")
         _selectedEquipment.value = equipment
-        _mealTime.value = mealTime
         _hw.value = hw
         _setupDone.value = true
         _isEditingSetup.value = false
-        prefs.saveSetup(true, equipment, servings, mealTime)
+        prefs.saveSetup(true, equipment)
         saveHardwareSettings(hw)
         refreshPantryIntel()
     }

@@ -76,10 +76,9 @@ internal fun setupStoveGuidance(selected: Set<String>): SetupStoveGuidance = whe
 fun SetupScreen(
     initialHw: HardwareSettings,
     initialEquipment: Set<String>,
-    initialMealTime: String,
     canGoBack: Boolean,
     onBack: () -> Unit,
-    onComplete: (equipment: Set<String>, servings: Int, mealTime: String, hw: HardwareSettings) -> Unit
+    onComplete: (equipment: Set<String>, hw: HardwareSettings) -> Unit
 ) {
     val validEquipment = remember(initialEquipment) {
         initialEquipment.filterTo(linkedSetOf()) { id -> ALL_EQUIPMENT.any { it.id == id } }
@@ -156,10 +155,9 @@ fun SetupScreen(
                     ovenAvailable = "oven" in selectedEquipment,
                     stovePowerMax = stovePowerMax,
                     ovenHasFan = ovenHasFan,
-                    ovenHasGrill = ovenHasGrill,
-                    servingSize = initialHw.servingSize
+                    ovenHasGrill = ovenHasGrill
                 )
-                onComplete(selectedEquipment, initialHw.servingSize, initialMealTime, updatedHw)
+                onComplete(selectedEquipment, updatedHw)
             },
             enabled = selectedEquipment.isNotEmpty(),
             modifier = Modifier
@@ -397,10 +395,9 @@ private fun FirstRunSetupPreview() {
         SetupScreen(
             initialHw = HardwareSettings(),
             initialEquipment = emptySet(),
-            initialMealTime = "",
             canGoBack = false,
             onBack = {},
-            onComplete = { _, _, _, _ -> }
+            onComplete = { _, _ -> }
         )
     }
 }
@@ -410,12 +407,11 @@ private fun FirstRunSetupPreview() {
 private fun EditingSetupPreview() {
     AgenticTheme("editorial") {
         SetupScreen(
-            initialHw = HardwareSettings(stoveType = "gas", servingSize = 4, ovenAvailable = true, ovenHasFan = true),
+            initialHw = HardwareSettings(stoveType = "gas", ovenAvailable = true, ovenHasFan = true),
             initialEquipment = setOf("gas", "oven", "pan"),
-            initialMealTime = "20:30",
             canGoBack = true,
             onBack = {},
-            onComplete = { _, _, _, _ -> }
+            onComplete = { _, _ -> }
         )
     }
 }

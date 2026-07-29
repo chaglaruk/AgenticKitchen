@@ -594,7 +594,7 @@ private fun TurkishEditorialSettingsPreview() {
 private fun EnglishEditorialSettingsPreview() {
     AgenticTheme("editorial-dark") {
         SettingsScreen(
-            hw = HardwareSettings(stoveType = "gas", servingSize = 4, ovenAvailable = true),
+            hw = HardwareSettings(stoveType = "gas", ovenAvailable = true),
             diet = DietSettings(dietType = "vegetarian"),
             theme = "editorial-dark",
             language = "English",

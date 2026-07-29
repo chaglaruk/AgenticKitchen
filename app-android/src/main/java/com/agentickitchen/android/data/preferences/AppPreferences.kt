@@ -5,9 +5,8 @@ import com.agentickitchen.android.HardwareSettings
 
 interface AppPreferences {
     fun setupDone(): Boolean
-    fun saveSetup(done: Boolean, equipment: Set<String>, servings: Int, mealTime: String)
+    fun saveSetup(done: Boolean, equipment: Set<String>)
     fun equipment(): Set<String>
-    fun mealTime(): String
     fun hardwareSettings(): HardwareSettings
     fun saveHardwareSettings(settings: HardwareSettings)
     fun dietSettings(): DietSettings

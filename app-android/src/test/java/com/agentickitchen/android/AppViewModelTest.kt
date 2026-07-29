@@ -29,20 +29,17 @@ class AppViewModelTest {
 
         assertEquals(true, viewModel.setupDone.value)
         assertEquals(setOf("oven", "pan"), viewModel.selectedEquipment.value)
-        assertEquals("18:30", viewModel.mealTime.value)
         assertEquals("dark", viewModel.theme.value)
         assertEquals("English", viewModel.language.value)
         assertEquals("vegetarian", viewModel.dietSettings.value.dietType)
         assertEquals(1, viewModel.history.value.size)
 
-        viewModel.completeSetup(setOf("gas"), 4, "20:00", HardwareSettings(stoveType = "gas"))
+        viewModel.completeSetup(setOf("gas"), HardwareSettings(stoveType = "gas"))
         viewModel.saveDietSettings(DietSettings("vegan", setOf("nuts")))
         viewModel.setTheme("heritage")
         viewModel.setLanguage("Türkçe")
 
         assertEquals(setOf("gas"), preferences.savedEquipment)
-        assertEquals(4, preferences.savedServings)
-        assertEquals("20:00", preferences.savedMealTime)
         assertEquals("gas", preferences.hardware.stoveType)
         assertEquals("vegan", preferences.diet.dietType)
         assertEquals("heritage", preferences.themeValue)
@@ -128,26 +125,19 @@ class AppViewModelTest {
     private class FakePreferences : AppPreferences {
         var setup = true
         var equipmentValue = setOf("oven", "pan")
-        var mealTimeValue = "18:30"
         var hardware = HardwareSettings(stoveType = "electric")
         var diet = DietSettings("vegetarian", setOf("dairy"))
         var themeValue = "dark"
         var languageValue = "English"
         var savedEquipment = emptySet<String>()
-        var savedServings = 0
-        var savedMealTime = ""
 
         override fun setupDone() = setup
-        override fun saveSetup(done: Boolean, equipment: Set<String>, servings: Int, mealTime: String) {
+        override fun saveSetup(done: Boolean, equipment: Set<String>) {
             setup = done
             equipmentValue = equipment
             savedEquipment = equipment
-            savedServings = servings
-            savedMealTime = mealTime
-            mealTimeValue = mealTime
         }
         override fun equipment() = equipmentValue
-        override fun mealTime() = mealTimeValue
         override fun hardwareSettings() = hardware
         override fun saveHardwareSettings(settings: HardwareSettings) { hardware = settings }
         override fun dietSettings() = diet
