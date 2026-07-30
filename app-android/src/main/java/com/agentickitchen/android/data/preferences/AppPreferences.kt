@@ -15,4 +15,6 @@ interface AppPreferences {
     fun saveTheme(theme: String)
     fun language(): String
     fun saveLanguage(language: String)
+    fun ingredientDraft(): List<String>
+    fun saveIngredientDraft(ingredients: List<String>)
 }

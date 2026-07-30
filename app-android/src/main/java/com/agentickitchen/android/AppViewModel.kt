@@ -193,7 +193,7 @@ class AppViewModel(
     private val _selectedEquipment = MutableStateFlow<Set<String>>(loadEquipment())
     val selectedEquipment: StateFlow<Set<String>> = _selectedEquipment.asStateFlow()
 
-    private val _chips = MutableStateFlow<List<String>>(emptyList())
+    private val _chips = MutableStateFlow(loadIngredientDraft())
     val chips: StateFlow<List<String>> = _chips.asStateFlow()
 
     private val _planState = MutableStateFlow<PlanState>(PlanState.Idle)
@@ -260,26 +260,34 @@ class AppViewModel(
     fun addChip(name: String) {
         val trimmed = name.trim()
         if (trimmed.isNotEmpty() && !_chips.value.any { it.equals(trimmed, ignoreCase = true) }) {
-            _chips.value = _chips.value + trimmed
-            refreshPantryIntel()
+            saveIngredientDraft(_chips.value + trimmed)
         }
     }
     fun addMultipleChips(names: List<String>) {
-        val existing = _chips.value.map { it.lowercase() }.toSet()
-        val newChips = names
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && !existing.contains(it.lowercase()) }
-        _chips.value = _chips.value + newChips
-        refreshPantryIntel()
+        val updated = _chips.value.toMutableList()
+        names.map(String::trim).filter(String::isNotEmpty).forEach { ingredient ->
+            if (updated.none { it.equals(ingredient, ignoreCase = true) }) updated += ingredient
+        }
+        if (updated != _chips.value) saveIngredientDraft(updated)
     }
     fun removeChip(name: String) {
-        _chips.value = _chips.value.filter { it != name }
-        refreshPantryIntel()
+        saveIngredientDraft(_chips.value.filterNot { it == name })
     }
     fun clearAll() {
-        _chips.value = emptyList()
+        saveIngredientDraft(emptyList())
         _planState.value = PlanState.Idle
         lastOptions = emptyList()
+    }
+
+    private fun loadIngredientDraft(): List<String> = buildList {
+        prefs.ingredientDraft().map(String::trim).filter(String::isNotEmpty).forEach { ingredient ->
+            if (none { it.equals(ingredient, ignoreCase = true) }) add(ingredient)
+        }
+    }
+
+    private fun saveIngredientDraft(ingredients: List<String>) {
+        _chips.value = ingredients
+        prefs.saveIngredientDraft(ingredients)
         refreshPantryIntel()
     }
 

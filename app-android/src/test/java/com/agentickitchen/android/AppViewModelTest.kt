@@ -110,8 +110,44 @@ class AppViewModelTest {
         L.applyLanguage(L.Turkish)
     }
 
-    private fun newViewModel(preferences: FakePreferences, history: FakeHistoryRepository) = AppViewModel(
-        preferences, history, FakeOrchestrator, FakePantryIntelAgent, FakeProviderFactory, TargetTimeResolver()
+    @Test
+    fun ingredientDraftRestoresInOrderWithoutDuplicatesAndRefreshesPantryIntel() {
+        val preferences = FakePreferences().apply {
+            ingredientDraftValue = listOf("Domates", "Pirinç", "domates", "Kaşar peyniri")
+        }
+        val pantry = RecordingPantryIntelAgent()
+
+        val viewModel = newViewModel(preferences, FakeHistoryRepository(), pantry)
+
+        assertEquals(listOf("Domates", "Pirinç", "Kaşar peyniri"), viewModel.chips.value)
+        assertEquals(viewModel.chips.value, pantry.lastIngredients)
+        assertTrue(newViewModel(FakePreferences(), FakeHistoryRepository()).chips.value.isEmpty())
+    }
+
+    @Test
+    fun ingredientDraftMutationsPersistTheirOrderedResult() {
+        val preferences = FakePreferences()
+        val viewModel = newViewModel(preferences, FakeHistoryRepository())
+
+        viewModel.addChip("Domates")
+        assertEquals(listOf("Domates"), preferences.ingredientDraftValue)
+
+        viewModel.addMultipleChips(listOf("Pirinç", "domates", "Kaşar peyniri", "pirinç"))
+        assertEquals(listOf("Domates", "Pirinç", "Kaşar peyniri"), preferences.ingredientDraftValue)
+
+        viewModel.removeChip("Pirinç")
+        assertEquals(listOf("Domates", "Kaşar peyniri"), preferences.ingredientDraftValue)
+
+        viewModel.clearAll()
+        assertTrue(preferences.ingredientDraftValue.isEmpty())
+    }
+
+    private fun newViewModel(
+        preferences: FakePreferences,
+        history: FakeHistoryRepository,
+        pantryIntelAgent: PantryIntelAgent = FakePantryIntelAgent
+    ) = AppViewModel(
+        preferences, history, FakeOrchestrator, pantryIntelAgent, FakeProviderFactory, TargetTimeResolver()
     )
 
     private class FakePreferences : AppPreferences {
@@ -122,6 +158,7 @@ class AppViewModelTest {
         var themeValue = "dark"
         var languageValue = "English"
         var savedEquipment = emptySet<String>()
+        var ingredientDraftValue = emptyList<String>()
 
         override fun setupDone() = setup
         override fun saveSetup(done: Boolean, equipment: Set<String>) {
@@ -138,6 +175,8 @@ class AppViewModelTest {
         override fun saveTheme(theme: String) { themeValue = theme }
         override fun language() = languageValue
         override fun saveLanguage(language: String) { languageValue = language }
+        override fun ingredientDraft() = ingredientDraftValue
+        override fun saveIngredientDraft(ingredients: List<String>) { ingredientDraftValue = ingredients }
     }
 
     private class FakeHistoryRepository : RecipeHistoryRepository {
@@ -158,6 +197,18 @@ class AppViewModelTest {
             readinessScore = 0, focusCategoryId = "none", focusCategoryLabel = "None",
             categoryBreakdown = emptyList(), warnings = emptyList(), tactics = emptyList(), equipmentLane = "none"
         )
+    }
+
+    private class RecordingPantryIntelAgent : PantryIntelAgent {
+        var lastIngredients = emptyList<String>()
+
+        override fun analyze(ingredients: List<String>, equipment: Set<String>, dietType: String): PantryIntelReport {
+            lastIngredients = ingredients
+            return PantryIntelReport(
+                readinessScore = 0, focusCategoryId = "none", focusCategoryLabel = "None",
+                categoryBreakdown = emptyList(), warnings = emptyList(), tactics = emptyList(), equipmentLane = "none"
+            )
+        }
     }
 
     private object FakeProviderFactory : AiProviderFactory {

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.agentickitchen.android.DietSettings
 import com.agentickitchen.android.HardwareSettings
+import org.json.JSONArray
 
 class PreferencesManager(context: Context) : AppPreferences {
 
@@ -33,4 +34,14 @@ class PreferencesManager(context: Context) : AppPreferences {
     override fun saveTheme(theme: String) { prefs.edit().putString("theme", theme).apply() }
     override fun language() = prefs.getString("lang", "Türkçe") ?: "Türkçe"
     override fun saveLanguage(language: String) { prefs.edit().putString("lang", language).apply() }
+    override fun ingredientDraft(): List<String> {
+        val stored = prefs.getString("ingredient_draft", null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(stored)
+            List(array.length()) { index -> array.getString(index) }
+        }.getOrDefault(emptyList())
+    }
+    override fun saveIngredientDraft(ingredients: List<String>) {
+        prefs.edit().putString("ingredient_draft", JSONArray(ingredients).toString()).apply()
+    }
 }
