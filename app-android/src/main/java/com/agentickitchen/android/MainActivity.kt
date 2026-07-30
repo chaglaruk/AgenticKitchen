@@ -9,6 +9,7 @@ import com.agentickitchen.android.app.AppViewModelFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Scaffold
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
@@ -181,7 +182,12 @@ fun AppNavigation(viewModel: AppViewModel) {
             })
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(padding)
+        ) {
             when (currentScreen) {
                 Screen.Intelligence -> HomeScreen(
                     chips = chips,
