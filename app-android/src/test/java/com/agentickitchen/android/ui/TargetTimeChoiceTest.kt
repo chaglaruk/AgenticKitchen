@@ -19,8 +19,21 @@ class TargetTimeChoiceTest {
     }
 
     @Test fun mapsOnlyValidExactTimeInput() {
-        assertEquals(TargetTimeChoice.Exact(LocalTime.of(19, 30)), exactTargetTimeChoice("19:30"))
-        assertNull(exactTargetTimeChoice("19.30"))
+        assertEquals(TargetTimeChoice.Exact(LocalTime.MIDNIGHT), exactTargetTimeChoice("00:00"))
+        assertEquals(TargetTimeChoice.Exact(LocalTime.of(9, 5)), exactTargetTimeChoice("09:05"))
+        assertEquals(TargetTimeChoice.Exact(LocalTime.of(23, 59)), exactTargetTimeChoice("23:59"))
+        assertNull(exactTargetTimeChoice("24:00"))
+        assertNull(exactTargetTimeChoice("12:60"))
+        assertNull(exactTargetTimeChoice("99:99"))
+        assertNull(exactTargetTimeChoice("1930"))
+        assertNull(exactTargetTimeChoice("19:3"))
+    }
+
+    @Test fun formatsExactTimeDigitsWithAColon() {
+        assertEquals("09:05", formatExactTimeInput("0905"))
+        assertEquals("23:59", formatExactTimeInput("23:59"))
+        assertEquals("12", formatExactTimeInput("12"))
+        assertEquals("12:3", formatExactTimeInput("12x3"))
     }
 
     @Test fun recipeRequestKeepsTypedTimeAndBoundsServings() {

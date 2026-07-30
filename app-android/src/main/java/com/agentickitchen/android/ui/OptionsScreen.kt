@@ -23,20 +23,27 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -51,15 +58,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -74,6 +84,8 @@ import com.agentickitchen.android.RecipeRequestSelection
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalTime
 
@@ -146,8 +158,16 @@ internal fun targetTimePresetOptions(isTurkish: Boolean): List<TargetTimeUiOptio
     TargetTimeUiOption("exact", if (isTurkish) "Saat seç" else "Choose time", TargetTimeChoice.Exact(LocalTime.of(19, 30)))
 )
 
-internal fun exactTargetTimeChoice(value: String): TargetTimeChoice.Exact? =
-    runCatching { TargetTimeChoice.Exact(LocalTime.parse(value)) }.getOrNull()
+internal fun formatExactTimeInput(value: String): String {
+    val digits = value.filter(Char::isDigit).take(4)
+    return if (digits.length <= 2) digits else "${digits.take(2)}:${digits.drop(2)}"
+}
+
+internal fun exactTargetTimeChoice(value: String): TargetTimeChoice.Exact? {
+    if (!value.matches(Regex("""\d{2}:\d{2}"""))) return null
+    val (hour, minute) = value.split(':').map(String::toInt)
+    return runCatching { TargetTimeChoice.Exact(LocalTime.of(hour, minute)) }.getOrNull()
+}
 
 internal fun recipeRequestSelection(servings: Int, targetTime: TargetTimeChoice) =
     RecipeRequestSelection(servings = servings.coerceIn(1, 12), targetTime = targetTime)
@@ -179,23 +199,33 @@ private fun EditorialRecipeDetailContent(
     var exactTime by remember(recipe.id) { mutableStateOf("19:30") }
     var servings by remember(recipe.id) { mutableStateOf(2) }
     var visible by remember { mutableStateOf(false) }
+    val exactSectionRequester = remember { BringIntoViewRequester() }
+    val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(Unit) { visible = true }
 
     val selected = presets.firstOrNull { it.id == selectedTargetId } ?: presets.first()
     val selectedChoice = if (selected.id == "exact") exactTargetTimeChoice(exactTime) else selected.choice
 
-    Box(
+    LaunchedEffect(selectedTargetId, exactTime) {
+        if (selectedTargetId == "exact") {
+            delay(200)
+            exactSectionRequester.bringIntoView()
+        }
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .clipToBounds()
     ) {
-        AnimatedVisibility(
+        Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
+        RecipeDetailViewport(
             visible = visible,
-            modifier = Modifier.fillMaxSize().clipToBounds(),
-            enter = fadeIn(tween(320)) + slideInVertically(tween(320)) { it / 12 } + scaleIn(tween(320), initialScale = .96f)
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .imePadding()
+                .clipToBounds()
         ) {
             Column(
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp)
@@ -253,25 +283,53 @@ private fun EditorialRecipeDetailContent(
                         )
                     }
                 }
-                if (selected.id == "exact") {
-                    Spacer(Modifier.height(16.dp))
-                    ExactTimeEditor(
-                        value = exactTime,
-                        onValueChange = { exactTime = it },
-                        valid = selectedChoice != null
-                    )
-                }
-                Spacer(Modifier.height(32.dp))
-                Button(
-                    onClick = { selectedChoice?.let { onConfirm(recipeRequestSelection(servings, it)) } },
-                    enabled = selectedChoice != null,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary, disabledBackgroundColor = colors.divider),
-                    shape = RoundedCornerShape(999.dp)
-                ) {
-                    Text(if (L.isTr) "Tarifi Hazırla" else "Prepare Recipe", color = colors.onPrimary)
+                Column(modifier = Modifier.bringIntoViewRequester(exactSectionRequester)) {
+                    if (selected.id == "exact") {
+                        Spacer(Modifier.height(16.dp))
+                        ExactTimeEditor(
+                            value = exactTime,
+                            onValueChange = { exactTime = formatExactTimeInput(it) },
+                            valid = selectedChoice != null,
+                            onFocus = {
+                                coroutineScope.launch {
+                                    delay(200)
+                                    exactSectionRequester.bringIntoView()
+                                }
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(32.dp))
+                    Button(
+                        onClick = { selectedChoice?.let { onConfirm(recipeRequestSelection(servings, it)) } },
+                        enabled = selectedChoice != null,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary, disabledBackgroundColor = colors.divider),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text(if (L.isTr) "Tarifi Hazırla" else "Prepare Recipe", color = colors.onPrimary)
+                    }
                 }
             }
+        }
+        Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars))
+    }
+}
+
+@Composable
+private fun RecipeDetailViewport(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(modifier = modifier) {
+        AnimatedVisibility(
+            visible = visible,
+            modifier = Modifier.fillMaxSize().clipToBounds(),
+            enter = fadeIn(tween(320)) +
+                slideInVertically(tween(320)) { it / 12 } +
+                scaleIn(tween(320), initialScale = .96f)
+        ) {
+            content()
         }
     }
 }
@@ -334,7 +392,12 @@ private fun TargetTimeChoicePill(option: TargetTimeUiOption, selected: Boolean, 
 }
 
 @Composable
-private fun ExactTimeEditor(value: String, onValueChange: (String) -> Unit, valid: Boolean) {
+private fun ExactTimeEditor(
+    value: String,
+    onValueChange: (String) -> Unit,
+    valid: Boolean,
+    onFocus: () -> Unit
+) {
     val colors = LocalAppColors.current
     Column {
         Text(if (L.isTr) "Hazır olma saati" else "Ready time", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
@@ -342,13 +405,18 @@ private fun ExactTimeEditor(value: String, onValueChange: (String) -> Unit, vali
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().semantics {
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { if (it.isFocused) onFocus() }
+                .semantics {
                 contentDescription = if (L.isTr) "Hazır olma saatini gir" else "Enter ready time"
-            }.background(colors.surfaceAlt, RoundedCornerShape(12.dp))
+            }
+                .background(colors.surfaceAlt, RoundedCornerShape(12.dp))
                 .border(1.dp, if (valid) colors.divider else Color(0xFF9B3F32), RoundedCornerShape(12.dp))
                 .padding(horizontal = 14.dp, vertical = 13.dp),
             textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onFocus() }),
             singleLine = true
         )
         if (!valid) {
