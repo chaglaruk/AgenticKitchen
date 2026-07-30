@@ -1,7 +1,8 @@
 package com.agentickitchen.shared.cooking
 
 import com.agentickitchen.shared.models.ScheduleEvent
-import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 fun interface MonotonicClock { fun nowMillis(): Long }
 enum class CookingSessionStatus { READY, RUNNING, PAUSED, COMPLETED, ENDED, ERROR }
@@ -21,7 +22,16 @@ class CookingSessionController(private val clock: MonotonicClock = MonotonicCloc
     fun start(recipe: String, schedule: List<ScheduleEvent>): CookingSessionState {
         if (state.status == CookingSessionStatus.RUNNING || state.status == CookingSessionStatus.PAUSED) return state.copy(error = "Cooking is already running")
         if (schedule.isEmpty()) return CookingSessionState(recipeName = recipe, status = CookingSessionStatus.ERROR, error = "Cooking plan has no scheduled steps")
-        val parsed = try { schedule.associate { it.id to (Instant.parse(it.startIso).toEpochMilli() to Instant.parse(it.endIso).toEpochMilli()) } } catch (_: Exception) { return CookingSessionState(recipeName = recipe, status = CookingSessionStatus.ERROR, error = "Cooking plan has invalid step times") }
+        val parsed = try {
+            schedule.associate {
+                it.id to (
+                    ZonedDateTime.parse(it.startIso, DateTimeFormatter.ISO_ZONED_DATE_TIME).toInstant().toEpochMilli() to
+                        ZonedDateTime.parse(it.endIso, DateTimeFormatter.ISO_ZONED_DATE_TIME).toInstant().toEpochMilli()
+                    )
+            }
+        } catch (_: Exception) {
+            return CookingSessionState(recipeName = recipe, status = CookingSessionStatus.ERROR, error = "Cooking plan has invalid step times")
+        }
         if (parsed.values.any { it.second <= it.first }) return CookingSessionState(recipeName = recipe, status = CookingSessionStatus.ERROR, error = "Cooking plan has invalid step duration")
         val first = parsed.values.minOf { it.first }; events = schedule; starts = parsed.mapValues { it.value.first - first }; ends = parsed.mapValues { it.value.second - first }; startedAt = clock.nowMillis(); pausedAt = null; pausedMillis = 0; state = CookingSessionState(recipeName = recipe, status = CookingSessionStatus.RUNNING); return refresh()
     }
