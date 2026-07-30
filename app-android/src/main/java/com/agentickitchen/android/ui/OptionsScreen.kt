@@ -194,6 +194,7 @@ private fun EditorialRecipeDetailContent(
     ) {
         AnimatedVisibility(
             visible = visible,
+            modifier = Modifier.fillMaxSize().clipToBounds(),
             enter = fadeIn(tween(320)) + slideInVertically(tween(320)) { it / 12 } + scaleIn(tween(320), initialScale = .96f)
         ) {
             Column(
