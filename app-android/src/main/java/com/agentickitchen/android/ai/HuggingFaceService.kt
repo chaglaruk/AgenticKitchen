@@ -28,21 +28,15 @@ class HuggingFaceService(private val apiKey: String, private val modelId: String
     }
 
     override suspend fun generateContent(prompt: String): String? {
-        return try {
-            val response: List<HFResponse> = client.post("https://api-inference.huggingface.co/models/$modelId") {
-                header(HttpHeaders.Authorization, "Bearer $apiKey")
-                contentType(ContentType.Application.Json)
-                setBody(HFRequest(inputs = "<s>[INST] $prompt [/INST]"))
-            }.body()
-            
-            val text = response.firstOrNull()?.generated_text
-            // Mistral repeats the prompt, we need to strip it if possible, or just use the generated part.
-            // For HF Inference API, it usually returns the full text including prompt if not configured.
-            text?.substringAfter("[/INST]")?.trim() ?: text
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+        val response: List<HFResponse> = client.post("https://api-inference.huggingface.co/models/$modelId") {
+            header(HttpHeaders.Authorization, "Bearer $apiKey")
+            contentType(ContentType.Application.Json)
+            setBody(HFRequest(inputs = "<s>[INST] $prompt [/INST]"))
+        }.body()
+
+        val text = response.firstOrNull()?.generated_text
+        // Mistral repeats the prompt, so return only the generated suffix when present.
+        return text?.substringAfter("[/INST]")?.trim() ?: text
     }
 
     fun close() = client.close()

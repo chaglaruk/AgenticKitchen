@@ -15,6 +15,8 @@ import com.agentickitchen.shared.db.RecipeHistoryRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
+import com.agentickitchen.android.ai.ProviderFailure
+import com.agentickitchen.android.ai.ProviderFailureCategory
 import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.StructuredRecipeParser
 import com.agentickitchen.shared.ai.prompt.PromptFactory
@@ -22,6 +24,7 @@ import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import com.agentickitchen.shared.validator.CookingPlanValidator
 import com.agentickitchen.shared.cooking.CookingSessionController
 import com.agentickitchen.shared.cooking.CookingSessionState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -145,7 +148,7 @@ object CookingProviderSelection {
     const val DuckDuckGo = "DUCKDUCKGO"
     const val Free = "FREE"
 
-    private val supportedIds = setOf(Gemini, HuggingFace, DuckDuckGo, Free)
+    private val supportedIds = setOf(Gemini, HuggingFace, Free)
 
     fun normalize(providerId: String): String = providerId.takeIf { it in supportedIds } ?: Free
 
@@ -165,6 +168,16 @@ internal fun imageDerivedIngredientPrompt(caption: String?): String? = caption?.
 }
 
 internal fun readerSafeAiError(error: Throwable?): String {
+    if (error is ProviderFailure) {
+        return when {
+            error.statusCode == 429 || error.statusCode == 402 ->
+                if (L.isTr) "Sağlayıcı şu anda yoğun veya kullanım sınırına ulaşıldı. Biraz sonra tekrar dene." else "The provider is busy or has reached its usage limit. Try again shortly."
+            error.category == ProviderFailureCategory.TIMEOUT || error.category == ProviderFailureCategory.NETWORK ->
+                if (L.isTr) "İnternet bağlantısı kurulamadı. Bağlantını kontrol edip tekrar dene." else "Could not connect. Check your internet connection and try again."
+            else ->
+                if (L.isTr) "Şu anda yanıt alınamadı. Tekrar deneyebilirsin." else "No response was available just now. You can try again."
+        }
+    }
     val message = error?.message.orEmpty().lowercase()
     return when {
         "api_key_missing" in message || "credential" in message || "api key" in message -> if (L.isTr) "Seçili sağlayıcının anahtarı eksik. Ayarlar bölümünden ekleyebilirsin." else "The selected provider is missing its credential. Add it in Settings."
@@ -299,14 +312,16 @@ class AppViewModel(
             try {
                 executeAiWithProvider { provider ->
                     val prompt = PromptFactory.recipeOptionsPrompt(_chips.value, _selectedEquipment.value, dietSettings.value.dietType, dietSettings.value.allergies, language.value)
-                    val parsed = StructuredRecipeParser.recipeOptions(provider.generateContent(prompt).orEmpty())
+                    val parsed = StructuredRecipeParser.recipeOptions(requireProviderText(provider.generateContent(prompt)))
                     val response = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
                     if (response.options.size != 3 || response.options.map { it.id }.toSet().size != 3 || response.options.any { it.id.isBlank() || it.name.isBlank() || it.estimatedMinutes <= 0 }) throw IllegalArgumentException("Invalid recipe options")
                     lastOptions = response.options.map { RecipeOption(it.id, it.difficulty, it.name, it.summary) }
                     _planState.value = PlanState.OptionsReady(lastOptions)
                 }
+            } catch (error: CancellationException) {
+                throw error
             } catch (e: Exception) {
-                AppLogger.aiError("Options", e)
+                logAiFailure("Options", e)
                 val errorMsg = readerSafeAiError(e)
                 emitUiEvent(errorMsg)
                 _planState.value = PlanState.Error(errorMsg)
@@ -350,7 +365,7 @@ class AppViewModel(
                         else -> "none"
                     }
                     val prompt = PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, selection.servings, stoveType, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value)
-                    val parsed = StructuredRecipeParser.cookingPlan(provider.generateContent(prompt).orEmpty())
+                    val parsed = StructuredRecipeParser.cookingPlan(requireProviderText(provider.generateContent(prompt)))
                     val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
                     if (!validation.valid) throw IllegalArgumentException(validation.errors.joinToString { it.message })
@@ -361,6 +376,8 @@ class AppViewModel(
                     loadHistory()
                     _planState.value = PlanState.RecipeActive(option, result.events, servings = selection.servings)
                 }
+            } catch (error: CancellationException) {
+                throw error
             } catch (e: Exception) {
                 val message = readerSafeAiError(e)
                 emitUiEvent(message)
@@ -379,12 +396,24 @@ class AppViewModel(
 
     private suspend fun <T> executeAiWithProvider(action: suspend (LlmProvider) -> T): T {
         val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
-        return try {
-            action(provider)
-        } catch (e: Exception) {
-            AppLogger.e("AiProvider", "Provider hatası: ${e.message}")
-            throw e
+        return action(provider)
+    }
+
+    private fun requireProviderText(response: String?): String {
+        return response?.takeIf(String::isNotBlank)
+            ?: throw ProviderFailure(
+                providerId = CookingProviderSelection.normalize(_hw.value.aiProvider),
+                category = ProviderFailureCategory.EMPTY_RESPONSE
+            )
+    }
+
+    private fun logAiFailure(feature: String, error: Throwable) {
+        val message = if (error is ProviderFailure) {
+            "provider=${error.providerId} status=${error.statusCode ?: "none"} category=${error.category} responseLength=${error.responseLength}"
+        } else {
+            "category=${error::class.simpleName ?: "UNKNOWN"}"
         }
+        AppLogger.w("AI-$feature", message)
     }
 
     private suspend fun <T> executeAiWithFallback(action: suspend (GenerativeModel) -> T): T {
@@ -396,7 +425,7 @@ class AppViewModel(
         } catch (e: Exception) {
             val msg = e.message ?: ""
             if (msg.contains("quota", ignoreCase = true) || msg.contains("rate", ignoreCase = true) || msg.contains("429") || msg.contains("unexpected", ignoreCase = true)) {
-                AppLogger.w("GeminiFallback", "1.5-flash hata verdi ($msg), 2.0-flash deneniyor...")
+                AppLogger.w("GeminiFallback", "Primary model unavailable; retrying alternate model")
                 val fallbackModel = getGeminiModel("gemini-2.0-flash") ?: throw e
                 action(fallbackModel)
             } else {
@@ -438,19 +467,17 @@ class AppViewModel(
                 try {
                     executeAiWithFallback { model ->
                         val prompt = "Resimdeki yiyecek malzemelerini (sebze, et, baharat vb.) tespit et ve sadece aralarına virgül koyarak Türkçe kelimeler olarak listele. Başka hiçbir açıklama yazma."
-                        AppLogger.aiRequest("ScanIngr-Gemini", prompt)
                         val response = model.generateContent(content {
                             image(image)
                             text(prompt)
                         })
                         val text = response.text ?: ""
-                        AppLogger.aiResponse("ScanIngr-Gemini", text)
                         val items = text.split(",").map { it.trim().replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() } }.filter { it.isNotBlank() && !it.startsWith("Hata") }
                         _scannedIngredients.value = items
                     }
                     return@launch
                 } catch (e: Exception) {
-                    AppLogger.w("Vision", "Gemini vision failed, falling back to HF: ${e.message}")
+                    AppLogger.w("Vision", "Gemini vision failed; trying image caption service")
                 }
             }
 
@@ -461,7 +488,7 @@ class AppViewModel(
                 val visionService = providerFactory.vision(hw)
                 caption = visionService.analyzeImage(image)
             } catch (e: Exception) {
-                AppLogger.w("ScanIngr", "HF Vision başarısız: ${e.message}")
+                AppLogger.w("ScanIngr", "Image caption service failed")
             }
 
             val textPrompt = imageDerivedIngredientPrompt(caption)
@@ -474,9 +501,7 @@ class AppViewModel(
             // Convert only an image-derived caption into ingredient names.
             try {
                 val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
-                AppLogger.aiRequest("ScanIngr-Text", textPrompt)
                 val responseText = provider.generateContent(textPrompt) ?: ""
-                AppLogger.aiResponse("ScanIngr-Text", responseText)
                 val items = responseText.split(",").map { it.trim().replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() } }.filter { it.isNotBlank() && !it.startsWith("Hata") }
                 if (items.isNotEmpty()) {
                     _scannedIngredients.value = items
@@ -485,7 +510,7 @@ class AppViewModel(
                     throw Exception("Boş malzeme listesi alındı")
                 }
             } catch (e: Exception) {
-                AppLogger.aiError("ScanIngr", e)
+                logAiFailure("ScanIngr", e)
                 val msg = e.message ?: ""
                 if (msg.contains("API_KEY_MISSING")) {
                     _aiError.value = "API_KEY_MISSING"
@@ -519,7 +544,7 @@ class AppViewModel(
                     }
                     return@launch
                 } catch (e: Exception) {
-                    AppLogger.w("Vision", "Gemini check vision failed: ${e.message}")
+                    AppLogger.w("Vision", "Gemini vision check failed; trying image caption service")
                 }
             }
 

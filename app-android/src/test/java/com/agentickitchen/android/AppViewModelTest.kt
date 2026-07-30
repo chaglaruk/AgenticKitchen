@@ -3,6 +3,8 @@ package com.agentickitchen.android
 import com.agentickitchen.android.ai.AiProviderFactory
 import com.agentickitchen.android.ai.HuggingFaceVisionService
 import com.agentickitchen.android.ai.LlmProvider
+import com.agentickitchen.android.ai.ProviderFailure
+import com.agentickitchen.android.ai.ProviderFailureCategory
 import com.agentickitchen.android.app.AppViewModelFactory
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.shared.agents.Orchestrator
@@ -87,7 +89,7 @@ class AppViewModelTest {
 
         CookingProviderSelection.provider(factory, HardwareSettings(aiProvider = CookingProviderSelection.DuckDuckGo))
 
-        assertEquals(CookingProviderSelection.DuckDuckGo, factory.receivedProviderId)
+        assertEquals(CookingProviderSelection.Free, factory.receivedProviderId)
         assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.DuckDuckGo)))
         assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.Gemini)))
         assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.HuggingFace)))
@@ -106,6 +108,10 @@ class AppViewModelTest {
         assertEquals("The selected provider is missing its credential. Add it in Settings.", readerSafeAiError(Exception("API_KEY_MISSING")))
         assertEquals("The provider is busy or has reached its usage limit. Try again shortly.", readerSafeAiError(Exception("429 rate limit")))
         assertEquals("Could not connect. Check your internet connection and try again.", readerSafeAiError(Exception("network timeout")))
+        assertEquals(
+            "Could not connect. Check your internet connection and try again.",
+            readerSafeAiError(ProviderFailure("FREE_LOCAL", ProviderFailureCategory.NETWORK))
+        )
         assertNotEquals("provider exploded", readerSafeAiError(Exception("provider exploded")))
         L.applyLanguage(L.Turkish)
     }

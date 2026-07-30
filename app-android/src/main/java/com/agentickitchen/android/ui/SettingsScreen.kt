@@ -346,7 +346,6 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
         listOf(
             CookingProviderSelection.Gemini to "Google Gemini",
             CookingProviderSelection.HuggingFace to "Hugging Face",
-            CookingProviderSelection.DuckDuckGo to "DuckDuckGo (No-Key)",
             CookingProviderSelection.Free to if (L.isTr) "Ücretsiz (anahtar gerekmez)" else "Free (no key required)"
         ).forEach { (key, label) ->
             EditorialProviderOption(

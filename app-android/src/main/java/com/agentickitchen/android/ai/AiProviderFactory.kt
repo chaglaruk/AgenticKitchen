@@ -24,8 +24,7 @@ class DefaultAiProviderFactory : AiProviderFactory {
         cachedProvider = when (settings.aiProvider) {
             "GEMINI" -> settings.geminiApiKey.takeIf { it.isNotBlank() }?.let { GeminiProvider(GenerativeModel("gemini-1.5-flash", it)) }
             "HUGGINGFACE" -> settings.hfApiKey.takeIf { it.isNotBlank() }?.let(::HuggingFaceService)
-            "DUCKDUCKGO" -> DuckDuckGoProvider()
-            "FREE" -> PollinationsProvider()
+            "FREE" -> LocalRecipeProvider()
             else -> null
         }
         return cachedProvider
@@ -51,8 +50,6 @@ class DefaultAiProviderFactory : AiProviderFactory {
 
     private fun closeProvider(provider: LlmProvider?) = when (provider) {
         is HuggingFaceService -> provider.close()
-        is DuckDuckGoProvider -> provider.close()
-        is PollinationsProvider -> provider.close()
         else -> Unit
     }
 }
