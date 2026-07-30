@@ -59,11 +59,13 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.agentickitchen.android.BuildConfig
+import com.agentickitchen.android.AiConnectionStatus
 import com.agentickitchen.android.AllergyCatalog
 import com.agentickitchen.android.DietSettings
 import com.agentickitchen.android.HardwareSettings
@@ -77,7 +79,9 @@ fun SettingsScreen(
     theme: String,
     language: String,
     selectedEquipment: Set<String>,
+    aiConnectionStatus: AiConnectionStatus,
     onSaveHardware: (HardwareSettings) -> Unit,
+    onTestAiConnection: (HardwareSettings) -> Unit,
     onSaveDiet: (DietSettings) -> Unit,
     onSetLanguage: (String) -> Unit,
     onSetTheme: (String) -> Unit,
@@ -175,6 +179,8 @@ fun SettingsScreen(
         HardwareDialog(
             current = hw,
             colors = colors,
+            connectionStatus = aiConnectionStatus,
+            onTestConnection = onTestAiConnection,
             onSave = { updated -> onSaveHardware(updated); showHwDialog = false },
             onDismiss = { showHwDialog = false }
         )
@@ -335,12 +341,18 @@ private fun EditorialDialogHeader(title: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (HardwareSettings) -> Unit, onDismiss: () -> Unit) {
+fun HardwareDialog(
+    current: HardwareSettings,
+    colors: AppColors,
+    connectionStatus: AiConnectionStatus,
+    onTestConnection: (HardwareSettings) -> Unit,
+    onSave: (HardwareSettings) -> Unit,
+    onDismiss: () -> Unit
+) {
     var stoveType by remember { mutableStateOf(current.stoveType) }
     var ovenAvailable by remember { mutableStateOf(current.ovenAvailable) }
     var powerLevel by remember { mutableStateOf(current.powerLevel) }
     var geminiKey by remember { mutableStateOf(current.geminiApiKey) }
-    var hfKey by remember { mutableStateOf(current.hfApiKey) }
     var aiProvider by remember(current.aiProvider) {
         mutableStateOf(CookingProviderSelection.normalize(current.aiProvider))
     }
@@ -353,8 +365,7 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
         Spacer(Modifier.size(8.dp))
         listOf(
             CookingProviderSelection.Gemini to "Google Gemini",
-            CookingProviderSelection.HuggingFace to "Hugging Face",
-            CookingProviderSelection.Free to if (L.isTr) "Ücretsiz (anahtar gerekmez)" else "Free (no key required)"
+            CookingProviderSelection.Free to if (L.isTr) "Çevrimdışı" else "Offline"
         ).forEach { (key, label) ->
             EditorialProviderOption(
                 label = label,
@@ -370,22 +381,39 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
                 onValueChange = { geminiKey = it },
                 label = "Gemini API Key",
                 onPaste = { clipboardManager.getText()?.text?.takeIf(String::isNotBlank)?.let { geminiKey = it } },
+                onClear = { geminiKey = "" },
                 helpText = if (L.isTr) "Anahtarı aistudio.google.com adresinden alabilirsin." else "Get a key from aistudio.google.com.",
                 onHelp = { uriHandler.openUri("https://aistudio.google.com/app/apikey") }
             )
-            "HUGGINGFACE" -> CredentialField(
-                value = hfKey,
-                onValueChange = { hfKey = it },
-                label = "Hugging Face Token",
-                onPaste = { clipboardManager.getText()?.text?.takeIf(String::isNotBlank)?.let { hfKey = it } },
-                helpText = if (L.isTr) "Token'ı huggingface.co adresinden alabilirsin." else "Get a token from huggingface.co.",
-                onHelp = { uriHandler.openUri("https://huggingface.co/settings/tokens") }
-            )
             else -> Text(
-                if (L.isTr) "Bu sağlayıcı için anahtar gerekmez. Görsel analiz sınırlı olabilir." else "This provider does not need a key. Vision analysis may be limited.",
+                if (L.isTr) "Çevrimdışı tarifler ve yardım açıkça çevrimdışı olarak çalışır. Fotoğraf analizi kullanılamaz." else "Offline recipes and guidance are clearly local. Photo analysis is unavailable.",
                 color = colors.success,
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+        if (aiProvider == CookingProviderSelection.Gemini) {
+            Spacer(Modifier.height(10.dp))
+            TextButton(
+                onClick = {
+                    onTestConnection(
+                        current.copy(
+                            aiProvider = CookingProviderSelection.Gemini,
+                            geminiApiKey = geminiKey
+                        )
+                    )
+                },
+                enabled = connectionStatus != AiConnectionStatus.TESTING
+            ) {
+                Text(
+                    if (L.isTr) "Bağlantıyı test et" else "Test connection",
+                    color = colors.primary
+                )
+            }
+            Text(
+                connectionStatusLabel(connectionStatus),
+                color = if (connectionStatus == AiConnectionStatus.CONNECTED) colors.success else colors.onSurfaceSub,
+                style = MaterialTheme.typography.caption
             )
         }
 
@@ -425,7 +453,6 @@ fun HardwareDialog(current: HardwareSettings, colors: AppColors, onSave: (Hardwa
                         ovenAvailable = ovenAvailable,
                         powerLevel = powerLevel,
                         geminiApiKey = geminiKey,
-                        hfApiKey = hfKey,
                         aiProvider = aiProvider
                     )
                 )
@@ -458,6 +485,7 @@ private fun CredentialField(
     onValueChange: (String) -> Unit,
     label: String,
     onPaste: () -> Unit,
+    onClear: () -> Unit,
     helpText: String,
     onHelp: () -> Unit
 ) {
@@ -468,6 +496,7 @@ private fun CredentialField(
         modifier = Modifier.fillMaxWidth(),
         label = { Text(label) },
         singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
         colors = TextFieldDefaults.outlinedTextFieldColors(
             textColor = colors.onSurface,
             focusedBorderColor = colors.primary,
@@ -483,12 +512,26 @@ private fun CredentialField(
             }
         }
     )
-    Text(
-        helpText,
-        color = colors.primary,
-        style = MaterialTheme.typography.caption,
-        modifier = Modifier.padding(top = 6.dp).clickable(onClick = onHelp)
-    )
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            helpText,
+            color = colors.primary,
+            style = MaterialTheme.typography.caption,
+            modifier = Modifier.padding(top = 6.dp).clickable(onClick = onHelp).weight(1f)
+        )
+        TextButton(onClick = onClear, enabled = value.isNotEmpty()) {
+            Text(if (L.isTr) "Anahtarı temizle" else "Clear key", color = colors.onSurfaceSub)
+        }
+    }
+}
+
+private fun connectionStatusLabel(status: AiConnectionStatus): String = when (status) {
+    AiConnectionStatus.NOT_CONFIGURED -> if (L.isTr) "Yapılandırılmadı" else "Not configured"
+    AiConnectionStatus.TESTING -> if (L.isTr) "Bağlantı sınanıyor…" else "Testing…"
+    AiConnectionStatus.CONNECTED -> if (L.isTr) "Bağlandı" else "Connected"
+    AiConnectionStatus.INVALID_KEY -> if (L.isTr) "Anahtar geçersiz" else "Invalid key"
+    AiConnectionStatus.QUOTA_UNAVAILABLE -> if (L.isTr) "Kullanım sınırı uygun değil" else "Quota unavailable"
+    AiConnectionStatus.NETWORK_FAILURE -> if (L.isTr) "Ağ bağlantısı kurulamadı" else "Network failure"
 }
 
 @Composable
@@ -651,7 +694,9 @@ private fun TurkishEditorialSettingsPreview() {
             theme = "editorial",
             language = "Türkçe",
             selectedEquipment = setOf("oven", "elec"),
+            aiConnectionStatus = AiConnectionStatus.NOT_CONFIGURED,
             onSaveHardware = {},
+            onTestAiConnection = {},
             onSaveDiet = {},
             onSetLanguage = {},
             onSetTheme = {},
@@ -670,7 +715,9 @@ private fun EnglishEditorialSettingsPreview() {
             theme = "editorial-dark",
             language = "English",
             selectedEquipment = setOf("gas", "oven", "pan", "grill"),
+            aiConnectionStatus = AiConnectionStatus.CONNECTED,
             onSaveHardware = {},
+            onTestAiConnection = {},
             onSaveDiet = {},
             onSetLanguage = {},
             onSetTheme = {},

@@ -12,7 +12,7 @@ object StructuredRecipeParser {
     fun cookingPlan(text: String): AiResult<CookingPlanResponse> = parse(text) { json.decodeFromString(it) }
 
     private fun <T> parse(text: String, decode: (String) -> T): AiResult<T> = try {
-        AiResult.Success(decode(text.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()), AiProviderId.GEMINI, "gemini-1.5-flash")
+        AiResult.Success(decode(text.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()), AiProviderId.GEMINI, "gemini-3.6-flash")
     } catch (error: Exception) {
         AiResult.Failure(AiFailureType.InvalidResponse, true, "AI returned invalid JSON. Please retry.", error.message)
     }

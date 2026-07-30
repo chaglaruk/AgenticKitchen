@@ -149,6 +149,7 @@ fun AppNavigation(viewModel: AppViewModel) {
     val inventoryAdjustments by viewModel.inventoryAdjustments.collectAsState()
     val planState by viewModel.planState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
+    val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsState()
 
     val theme by viewModel.theme.collectAsState()
     val diet by viewModel.dietSettings.collectAsState()
@@ -225,6 +226,7 @@ fun AppNavigation(viewModel: AppViewModel) {
                     pantryIntel = pantryIntel,
                     onStart = viewModel::startSession,
                     onRefresh = viewModel::refreshSession,
+                    onUseOffline = viewModel::useOfflineMode,
                     onSelectOption = { option, selection -> viewModel.selectRecipeOption(option, selection) },
                     onBackToOptions = viewModel::backToOptions
                 )
@@ -254,7 +256,9 @@ fun AppNavigation(viewModel: AppViewModel) {
                     theme = theme,
                     language = lang,
                     selectedEquipment = selectedEquipment,
+                    aiConnectionStatus = aiConnectionStatus,
                     onSaveHardware = viewModel::saveHardwareSettings,
+                    onTestAiConnection = viewModel::testAiConnection,
                     onSaveDiet = viewModel::saveDietSettings,
                     onSetLanguage = viewModel::setLanguage,
                     onSetTheme = viewModel::setTheme,

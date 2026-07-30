@@ -1,8 +1,6 @@
 package com.agentickitchen.android
 
 import com.agentickitchen.android.ai.AiProviderFactory
-import com.agentickitchen.android.ai.HuggingFaceVisionService
-import com.agentickitchen.android.ai.LlmProvider
 import com.agentickitchen.android.ai.ProviderFailure
 import com.agentickitchen.android.ai.ProviderFailureCategory
 import com.agentickitchen.android.app.AppViewModelFactory
@@ -18,6 +16,7 @@ import com.agentickitchen.shared.inventory.PendingRecipeUsageRecord
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
+import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.ScheduleEvent
 import com.agentickitchen.shared.models.ScheduleResult
@@ -25,7 +24,6 @@ import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -102,19 +100,13 @@ class AppViewModelTest {
     fun providerSelectionUsesTheSelectedSupportedProviderAndKeyRules() {
         val factory = RecordingProviderFactory()
 
-        CookingProviderSelection.provider(factory, HardwareSettings(aiProvider = CookingProviderSelection.DuckDuckGo))
+        CookingProviderSelection.provider(factory, HardwareSettings(aiProvider = "DUCKDUCKGO"))
 
         assertEquals(CookingProviderSelection.Free, factory.receivedProviderId)
-        assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.DuckDuckGo)))
+        assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = "DUCKDUCKGO")))
         assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.Gemini)))
-        assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.HuggingFace)))
+        assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = "HUGGINGFACE")))
         assertEquals(CookingProviderSelection.Free, CookingProviderSelection.normalize("LEGACY"))
-    }
-
-    @Test
-    fun missingVisualCaptionDoesNotCreateAGenericIngredientPrompt() {
-        assertNull(imageDerivedIngredientPrompt(null))
-        assertTrue(imageDerivedIngredientPrompt("a bowl of tomatoes")!!.contains("a bowl of tomatoes"))
     }
 
     @Test
@@ -367,22 +359,18 @@ class AppViewModelTest {
     }
 
     private object FakeProviderFactory : AiProviderFactory {
-        override fun provider(settings: HardwareSettings): LlmProvider? = null
-        override fun gemini(settings: HardwareSettings, model: String) = null
-        override fun vision(settings: HardwareSettings): HuggingFaceVisionService = error("Vision is not used in this JVM test")
+        override fun provider(settings: HardwareSettings): KitchenAiProvider? = null
         override fun close() = Unit
     }
 
     private class RecordingProviderFactory : AiProviderFactory {
         var receivedProviderId: String? = null
 
-        override fun provider(settings: HardwareSettings): LlmProvider? {
+        override fun provider(settings: HardwareSettings): KitchenAiProvider? {
             receivedProviderId = settings.aiProvider
             return null
         }
 
-        override fun gemini(settings: HardwareSettings, model: String) = null
-        override fun vision(settings: HardwareSettings): HuggingFaceVisionService = error("Vision is not used in this JVM test")
         override fun close() = Unit
     }
 }

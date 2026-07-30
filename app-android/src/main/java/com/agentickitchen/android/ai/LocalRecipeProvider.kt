@@ -2,13 +2,29 @@ package com.agentickitchen.android.ai
 
 import com.agentickitchen.android.AppLogger
 import com.agentickitchen.android.catalogIngredientForName
+import com.agentickitchen.shared.ai.AiFailureType
+import com.agentickitchen.shared.ai.AiProviderId
+import com.agentickitchen.shared.ai.AiResult
+import com.agentickitchen.shared.ai.CookingChatRequest
+import com.agentickitchen.shared.ai.CookingChatResponse
+import com.agentickitchen.shared.ai.CookingPhotoRequest
+import com.agentickitchen.shared.ai.CookingPhotoResponse
+import com.agentickitchen.shared.ai.KitchenAiProvider
+import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.ShoppingImportResponse
+import com.agentickitchen.shared.ai.ShoppingPhotoRequest
+import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.ai.dto.RecipeOptionDto
 import com.agentickitchen.shared.ai.dto.RecipeOptionsResponse
+import com.agentickitchen.shared.ai.prompt.PromptFactory
 import com.agentickitchen.shared.validator.IngredientSafety
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.text.Normalizer
 import java.util.Locale
@@ -45,13 +61,13 @@ internal data class ProviderDiagnostic(
 
 class LocalRecipeProvider internal constructor(
     private val diagnosticSink: (ProviderDiagnostic) -> Unit
-) : LlmProvider {
+) : KitchenAiProvider {
 
     constructor() : this(
         diagnosticSink = { AppLogger.i("AiProvider", it.asLogMessage()) }
     )
 
-    override suspend fun generateContent(prompt: String): String {
+    suspend fun generateContent(prompt: String): String {
         val response = when {
             OPTIONS_MARKER in prompt -> recipeOptions(prompt)
             PLAN_MARKER in prompt -> cookingPlan(prompt)
@@ -61,6 +77,91 @@ class LocalRecipeProvider internal constructor(
         diagnosticSink(ProviderDiagnostic(PROVIDER_ID, null, "SUCCESS", response.length))
         return response
     }
+
+    override suspend fun generateRecipeOptions(request: RecipeOptionsRequest): AiResult<RecipeOptionsResponse> =
+        offlineResult {
+            json.decodeFromString<RecipeOptionsResponse>(
+                generateContent(
+                    PromptFactory.recipeOptionsPrompt(
+                        request.ingredients,
+                        request.equipment,
+                        request.dietType,
+                        request.allergies,
+                        request.language
+                    )
+                )
+            )
+        }
+
+    override suspend fun generateCookingPlan(request: CookingPlanRequest): AiResult<CookingPlanResponse> =
+        offlineResult {
+            json.decodeFromString<CookingPlanResponse>(
+                generateContent(
+                    PromptFactory.cookingPlanPrompt(
+                        request.recipeName,
+                        request.ingredients,
+                        request.equipment,
+                        request.servings,
+                        request.stoveType,
+                        request.stoveMaxLevel,
+                        request.ovenAvailable,
+                        request.ovenHasFan,
+                        request.airfryerAvailable,
+                        request.dietType,
+                        request.allergies,
+                        request.language
+                    )
+                )
+            )
+        }
+
+    override suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse> =
+        unavailable()
+
+    override suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse> =
+        unavailable()
+
+    override suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse> =
+        unavailable()
+
+    override suspend fun askCookingAssistant(request: CookingChatRequest): AiResult<CookingChatResponse> {
+        val prompt = """
+            Kitchen guidance request
+            Recipe: ${request.recipeName}
+            Current step: ${request.currentStep}
+            Stove type: ${request.resource.orEmpty()}
+            Language: ${request.language}
+            Question: ${request.question}
+        """.trimIndent()
+        return offlineResult { CookingChatResponse(generateContent(prompt)) }
+    }
+
+    override suspend fun testConnection(): AiResult<Unit> =
+        AiResult.Success(Unit, AiProviderId.FREE, MODEL)
+
+    private suspend fun <T> offlineResult(block: suspend () -> T): AiResult<T> = try {
+        AiResult.Success(block(), AiProviderId.FREE, MODEL)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Throwable) {
+        offlineFailure(error)
+    }
+
+    private fun offlineFailure(error: Throwable): AiResult.Failure {
+        val type = if (error is ProviderFailure && error.category == ProviderFailureCategory.CONSTRAINT_CONFLICT) {
+            AiFailureType.InvalidPlan
+        } else {
+            AiFailureType.InvalidResponse
+        }
+        return AiResult.Failure(type, false, type.userMessageRes)
+    }
+
+    private fun unavailable(): AiResult.Failure =
+        AiResult.Failure(
+            AiFailureType.ProviderUnavailable,
+            false,
+            AiFailureType.ProviderUnavailable.userMessageRes
+        )
 
     private fun recipeOptions(prompt: String): String {
         val ingredients = prompt.lineValue("Ingredients:").csv().map(::classifyIngredient)
@@ -625,6 +726,7 @@ class LocalRecipeProvider internal constructor(
 
     private companion object {
         const val PROVIDER_ID = "FREE_LOCAL"
+        const val MODEL = "offline-local"
         const val OPTIONS_MARKER = "Generate exactly 3 different recipe options"
         const val PLAN_MARKER = "Create a detailed cooking plan for \""
         const val SCAN_MARKER = "görsel açıklamasındaki yiyecek malzemelerini"

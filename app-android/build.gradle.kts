@@ -57,7 +57,6 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("com.google.ai.client.generativeai:generativeai:0.6.0")
     implementation("app.cash.sqldelight:android-driver:2.0.0")
 
     val ktorVersion = "2.3.5"
@@ -71,4 +70,5 @@ dependencies {
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("io.ktor:ktor-client-mock:$ktorVersion")
 }

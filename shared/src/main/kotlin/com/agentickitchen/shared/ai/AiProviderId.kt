@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 enum class AiProviderId(val label: String) {
     GEMINI("Google Gemini"),
     HUGGINGFACE("Hugging Face"),
-    FREE("Free (Pollinations.ai)"),
+    FREE("Offline"),
     DUCKDUCKGO("DuckDuckGo AI");
 
     companion object {

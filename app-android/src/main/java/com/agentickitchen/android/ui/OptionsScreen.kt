@@ -97,6 +97,7 @@ fun OptionsScreen(
     pantryIntel: PantryIntelReport,
     onStart: () -> Unit,
     onRefresh: () -> Unit,
+    onUseOffline: () -> Unit,
     onSelectOption: (RecipeOption, RecipeRequestSelection) -> Unit,
     onBackToOptions: () -> Unit
 ) {
@@ -127,7 +128,12 @@ fun OptionsScreen(
 
             is PlanState.RecipeActive -> EditorialRecipeActive(planState.recipe, onBackToOptions)
 
-            is PlanState.Error -> EditorialOptionsError(planState.message, onStart)
+            is PlanState.Error -> EditorialOptionsError(
+                message = planState.message,
+                canUseOffline = planState.canUseOffline,
+                onRetry = onStart,
+                onUseOffline = onUseOffline
+            )
         }
     }
 
@@ -541,7 +547,7 @@ private fun EditorialRecipeRow(
                 Text(option.name, color = colors.onSurface, style = MaterialTheme.typography.h6)
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    option.type.uppercase(),
+                    listOfNotNull(option.type.uppercase(), option.sourceLabel).joinToString(" · "),
                     color = colors.primary,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
@@ -605,7 +611,12 @@ private fun EditorialOptionsLoading() {
 }
 
 @Composable
-private fun EditorialOptionsError(message: String, onRetry: () -> Unit) {
+private fun EditorialOptionsError(
+    message: String,
+    canUseOffline: Boolean,
+    onRetry: () -> Unit,
+    onUseOffline: () -> Unit
+) {
     val colors = LocalAppColors.current
     Column(modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
         Text(if (L.isTr) "Tarifler hazırlanamadı." else "Recipes could not be prepared.", color = Color(0xFF9B3F32), style = MaterialTheme.typography.h6)
@@ -614,6 +625,11 @@ private fun EditorialOptionsError(message: String, onRetry: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onRetry) {
             Text(if (L.isTr) "Tekrar dene" else "Try again", color = colors.primary)
+        }
+        if (canUseOffline) {
+            TextButton(onClick = onUseOffline) {
+                Text(if (L.isTr) "Çevrimdışı modu kullan" else "Use Offline mode", color = colors.onSurface)
+            }
         }
     }
 }
@@ -652,6 +668,7 @@ private fun EditorialRecipeOptionsPreview() {
             pantryIntel = PantryIntelReport(70, "vegetables", "Vegetables", emptyList(), emptyList(), emptyList(), "stovetop"),
             onStart = {},
             onRefresh = {},
+            onUseOffline = {},
             onSelectOption = { _, _ -> },
             onBackToOptions = {}
         )

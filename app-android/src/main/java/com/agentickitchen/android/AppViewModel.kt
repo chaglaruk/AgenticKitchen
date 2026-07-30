@@ -1,6 +1,5 @@
 package com.agentickitchen.android
 
-import com.agentickitchen.android.ai.LlmProvider
 import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -8,8 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.agentickitchen.shared.agents.Orchestrator
 import com.agentickitchen.shared.agents.PantryIntelAgent
 import com.agentickitchen.shared.models.*
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import com.agentickitchen.shared.db.RecipeHistory
 import com.agentickitchen.shared.db.RecipeHistoryRepository
 import com.agentickitchen.shared.inventory.AdjustmentMode
@@ -24,9 +21,17 @@ import com.agentickitchen.android.ai.AiProviderFactory
 import com.agentickitchen.android.ai.ProviderFailure
 import com.agentickitchen.android.ai.ProviderFailureCategory
 import com.agentickitchen.shared.ai.AiResult
-import com.agentickitchen.shared.ai.StructuredRecipeParser
+import com.agentickitchen.shared.ai.AiFailureType
+import com.agentickitchen.shared.ai.CookingChatRequest
+import com.agentickitchen.shared.ai.CookingChatResponse
+import com.agentickitchen.shared.ai.CookingChatTurn
+import com.agentickitchen.shared.ai.CookingPhotoRequest
+import com.agentickitchen.shared.ai.KitchenAiProvider
+import com.agentickitchen.shared.ai.KitchenImage
+import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.ShoppingPhotoRequest
+import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
-import com.agentickitchen.shared.ai.prompt.PromptFactory
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import com.agentickitchen.shared.validator.CookingPlanValidator
 import com.agentickitchen.shared.cooking.CookingSessionController
@@ -119,7 +124,13 @@ val ALL_EQUIPMENT = listOf(
 )
 
 // ── UI States & Models ─────────────────────────────────────────────────
-data class RecipeOption(val id: String, val type: String, val name: String, val description: String)
+data class RecipeOption(
+    val id: String,
+    val type: String,
+    val name: String,
+    val description: String,
+    val sourceLabel: String? = null
+)
 data class RecipeRequestSelection(val servings: Int, val targetTime: TargetTimeChoice)
 
 sealed class PlanState {
@@ -135,7 +146,7 @@ sealed class PlanState {
         val agentChatResponse: String? = null,
         val visionScanResponse: String? = null
     ) : PlanState()
-    data class Error(val message: String) : PlanState()
+    data class Error(val message: String, val canUseOffline: Boolean = false) : PlanState()
 }
 
 sealed class UiEvent {
@@ -154,27 +165,43 @@ data class HardwareSettings(
     val powerLevel: Int = 7,
     val geminiApiKey: String = "",
     val hfApiKey: String = "",
-    val aiProvider: String = "FREE" // "GEMINI", "HUGGINGFACE", "DUCKDUCKGO", "FREE"
+    val aiProvider: String = "FREE"
 )
 
 object CookingProviderSelection {
     const val Gemini = "GEMINI"
-    const val HuggingFace = "HUGGINGFACE"
-    const val DuckDuckGo = "DUCKDUCKGO"
     const val Free = "FREE"
 
-    private val supportedIds = setOf(Gemini, HuggingFace, Free)
+    private val supportedIds = setOf(Gemini, Free)
 
     fun normalize(providerId: String): String = providerId.takeIf { it in supportedIds } ?: Free
 
     fun needsApiKey(settings: HardwareSettings): Boolean = when (normalize(settings.aiProvider)) {
         Gemini -> settings.geminiApiKey.isBlank()
-        HuggingFace -> settings.hfApiKey.isBlank()
         else -> false
     }
 
-    fun provider(factory: AiProviderFactory, settings: HardwareSettings): LlmProvider? =
+    fun provider(factory: AiProviderFactory, settings: HardwareSettings): KitchenAiProvider? =
         factory.provider(settings.copy(aiProvider = normalize(settings.aiProvider)))
+}
+
+enum class AiConnectionStatus {
+    NOT_CONFIGURED,
+    TESTING,
+    CONNECTED,
+    INVALID_KEY,
+    QUOTA_UNAVAILABLE,
+    NETWORK_FAILURE
+}
+
+internal fun aiConnectionStatusFor(result: AiResult<*>): AiConnectionStatus = when (result) {
+    is AiResult.Success -> AiConnectionStatus.CONNECTED
+    is AiResult.Failure -> when (result.type) {
+        AiFailureType.MissingCredential -> AiConnectionStatus.NOT_CONFIGURED
+        AiFailureType.Unauthorized -> AiConnectionStatus.INVALID_KEY
+        AiFailureType.QuotaExceeded, AiFailureType.RateLimited -> AiConnectionStatus.QUOTA_UNAVAILABLE
+        else -> AiConnectionStatus.NETWORK_FAILURE
+    }
 }
 data class DietSettings(val dietType: String = "none", val allergies: Set<String> = emptySet())
 
@@ -192,11 +219,26 @@ internal fun activeRecipeState(
     cookingPlan = plan
 )
 
-internal fun imageDerivedIngredientPrompt(caption: String?): String? = caption?.let {
-    "Şu görsel açıklamasındaki yiyecek malzemelerini (sebze, et, baharat vb.) tespit et ve sadece aralarına virgül koyarak Türkçe kelimeler olarak listele: '$it'. Başka hiçbir metin yazma."
-}
-
 internal fun readerSafeAiError(error: Throwable?): String {
+    if (error is AiRequestException) {
+        if (error.failure.technicalMessage == "request_too_large") {
+            return if (L.isTr) "Fotoğraf gönderilemeyecek kadar büyük. Daha küçük bir fotoğraf seç." else "The photo is too large to send. Choose a smaller photo."
+        }
+        return when (error.failure.type) {
+            AiFailureType.MissingCredential ->
+                if (L.isTr) "Gemini anahtarı eksik. Ayarlar bölümünden ekleyebilirsin." else "The Gemini key is missing. Add it in Settings."
+            AiFailureType.Unauthorized ->
+                if (L.isTr) "Gemini anahtarı geçerli değil. Ayarlar bölümünden kontrol et." else "The Gemini key is not valid. Check it in Settings."
+            AiFailureType.QuotaExceeded, AiFailureType.RateLimited ->
+                if (L.isTr) "Gemini kullanım sınırına ulaştı. Daha sonra tekrar dene veya çevrimdışı modu seç." else "Gemini has reached its usage limit. Try later or choose Offline mode."
+            AiFailureType.NetworkUnavailable, AiFailureType.Timeout ->
+                if (L.isTr) "Gemini'ye bağlanılamadı. Bağlantını kontrol et veya çevrimdışı modu seç." else "Could not reach Gemini. Check your connection or choose Offline mode."
+            AiFailureType.SafetyBlocked ->
+                if (L.isTr) "Gemini bu isteğe yanıt veremedi." else "Gemini could not answer this request."
+            else ->
+                if (L.isTr) "Gemini yanıtı kullanılamadı. Tekrar dene veya çevrimdışı modu seç." else "The Gemini response could not be used. Retry or choose Offline mode."
+        }
+    }
     if (error is ProviderFailure) {
         return when {
             error.statusCode == 429 || error.statusCode == 402 ->
@@ -217,6 +259,8 @@ internal fun readerSafeAiError(error: Throwable?): String {
         else -> if (L.isTr) "Şu anda yanıt alınamadı. Tekrar deneyebilirsin." else "No response was available just now. You can try again."
     }
 }
+
+private class AiRequestException(val failure: AiResult.Failure) : Exception(failure.type.name)
 
 // ── ViewModel ─────────────────────────────────────────────────────────────
 class AppViewModel(
@@ -269,6 +313,9 @@ class AppViewModel(
     private val _aiError = MutableStateFlow<String?>(null)
     val aiError: StateFlow<String?> = _aiError.asStateFlow()
     fun clearAiError() { _aiError.value = null }
+    private val _aiConnectionStatus = MutableStateFlow(AiConnectionStatus.NOT_CONFIGURED)
+    val aiConnectionStatus: StateFlow<AiConnectionStatus> = _aiConnectionStatus.asStateFlow()
+    private val recentCookingTurns = ArrayDeque<CookingChatTurn>()
 
     private val _hw = MutableStateFlow(loadHardwareSettings())
     val hardwareSettings: StateFlow<HardwareSettings> = _hw.asStateFlow()
@@ -459,11 +506,22 @@ class AppViewModel(
             _planState.value = PlanState.Loading
             try {
                 executeAiWithProvider { provider ->
-                    val prompt = PromptFactory.recipeOptionsPrompt(_chips.value, _selectedEquipment.value, dietSettings.value.dietType, dietSettings.value.allergies, language.value)
-                    val parsed = StructuredRecipeParser.recipeOptions(requireProviderText(provider.generateContent(prompt)))
-                    val response = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
-                    if (response.options.size != 3 || response.options.map { it.id }.toSet().size != 3 || response.options.any { it.id.isBlank() || it.name.isBlank() || it.estimatedMinutes <= 0 }) throw IllegalArgumentException("Invalid recipe options")
-                    lastOptions = response.options.map { RecipeOption(it.id, it.difficulty, it.name, it.summary) }
+                    val result = provider.generateRecipeOptions(
+                        RecipeOptionsRequest(
+                            ingredients = _chips.value,
+                            equipment = _selectedEquipment.value,
+                            dietType = dietSettings.value.dietType,
+                            allergies = dietSettings.value.allergies,
+                            language = language.value
+                        )
+                    )
+                    val response = result.requireValue()
+                    val sourceLabel = (result as? AiResult.Success)?.provider
+                        ?.takeIf { it == com.agentickitchen.shared.ai.AiProviderId.FREE }
+                        ?.label
+                    lastOptions = response.options.map {
+                        RecipeOption(it.id, it.difficulty, it.name, it.summary, sourceLabel)
+                    }
                     _planState.value = PlanState.OptionsReady(lastOptions)
                 }
             } catch (error: CancellationException) {
@@ -472,7 +530,10 @@ class AppViewModel(
                 logAiFailure("Options", e)
                 val errorMsg = readerSafeAiError(e)
                 emitUiEvent(errorMsg)
-                _planState.value = PlanState.Error(errorMsg)
+                _planState.value = PlanState.Error(
+                    errorMsg,
+                    canUseOffline = CookingProviderSelection.normalize(_hw.value.aiProvider) == CookingProviderSelection.Gemini
+                )
             }
         }
     }
@@ -508,9 +569,22 @@ class AppViewModel(
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
                     val stoveType = selectedStoveType()
-                    val prompt = PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, selection.servings, stoveType, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value)
-                    val parsed = StructuredRecipeParser.cookingPlan(requireProviderText(provider.generateContent(prompt)))
-                    val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
+                    val plan = provider.generateCookingPlan(
+                        CookingPlanRequest(
+                            recipeName = option.name,
+                            ingredients = _chips.value,
+                            equipment = _selectedEquipment.value,
+                            servings = selection.servings,
+                            stoveType = stoveType,
+                            stoveMaxLevel = hw.stovePowerMax,
+                            ovenAvailable = hw.ovenAvailable,
+                            ovenHasFan = hw.ovenHasFan,
+                            airfryerAvailable = "airfryer" in _selectedEquipment.value,
+                            dietType = dietSettings.value.dietType,
+                            allergies = dietSettings.value.allergies,
+                            language = language.value
+                        )
+                    ).requireValue()
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
                     if (!validation.valid) {
                         throw ProviderFailure("VALIDATOR", ProviderFailureCategory.CONSTRAINT_CONFLICT)
@@ -528,16 +602,15 @@ class AppViewModel(
             } catch (e: Exception) {
                 val message = readerSafeAiError(e)
                 emitUiEvent(message)
-                _planState.value = PlanState.Error(message)
+                _planState.value = PlanState.Error(
+                    message,
+                    canUseOffline = CookingProviderSelection.normalize(_hw.value.aiProvider) == CookingProviderSelection.Gemini
+                )
             }
         }
     }
 
-    private fun getGeminiModel(modelName: String = "gemini-1.5-flash"): GenerativeModel? {
-        return providerFactory.gemini(_hw.value, modelName)
-    }
-
-    private fun getActiveProvider(): LlmProvider? {
+    private fun getActiveProvider(): KitchenAiProvider? {
         return CookingProviderSelection.provider(providerFactory, _hw.value)
     }
 
@@ -548,21 +621,26 @@ class AppViewModel(
         else -> "none"
     }
 
-    private suspend fun <T> executeAiWithProvider(action: suspend (LlmProvider) -> T): T {
-        val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
+    private suspend fun <T> executeAiWithProvider(action: suspend (KitchenAiProvider) -> T): T {
+        val provider = getActiveProvider() ?: throw AiRequestException(
+            AiResult.Failure(
+                AiFailureType.MissingCredential,
+                false,
+                AiFailureType.MissingCredential.userMessageRes
+            )
+        )
         return action(provider)
     }
 
-    private fun requireProviderText(response: String?): String {
-        return response?.takeIf(String::isNotBlank)
-            ?: throw ProviderFailure(
-                providerId = CookingProviderSelection.normalize(_hw.value.aiProvider),
-                category = ProviderFailureCategory.EMPTY_RESPONSE
-            )
+    private fun <T> AiResult<T>.requireValue(): T = when (this) {
+        is AiResult.Success -> value
+        is AiResult.Failure -> throw AiRequestException(this)
     }
 
     private fun logAiFailure(feature: String, error: Throwable) {
-        val message = if (error is ProviderFailure) {
+        val message = if (error is AiRequestException) {
+            "provider=${CookingProviderSelection.normalize(_hw.value.aiProvider)} category=${error.failure.type}"
+        } else if (error is ProviderFailure) {
             "provider=${error.providerId} status=${error.statusCode ?: "none"} category=${error.category} responseLength=${error.responseLength}"
         } else {
             "category=${error::class.simpleName ?: "UNKNOWN"}"
@@ -570,22 +648,10 @@ class AppViewModel(
         AppLogger.w("AI-$feature", message)
     }
 
-    private suspend fun <T> executeAiWithFallback(action: suspend (GenerativeModel) -> T): T {
-        // This is legacy for Gemini-specific stuff like Vision. 
-        // For text-only, we should use executeAiWithProvider.
-        val primaryModel = getGeminiModel("gemini-1.5-flash") ?: throw Exception("API_KEY_MISSING")
-        return try {
-            action(primaryModel)
-        } catch (e: Exception) {
-            val msg = e.message ?: ""
-            if (msg.contains("quota", ignoreCase = true) || msg.contains("rate", ignoreCase = true) || msg.contains("429") || msg.contains("unexpected", ignoreCase = true)) {
-                AppLogger.w("GeminiFallback", "Primary model unavailable; retrying alternate model")
-                val fallbackModel = getGeminiModel("gemini-2.0-flash") ?: throw e
-                action(fallbackModel)
-            } else {
-                throw e
-            }
-        }
+    fun useOfflineMode() {
+        saveHardwareSettings(_hw.value.copy(aiProvider = CookingProviderSelection.Free))
+        emitUiEvent(if (L.isTr) "Çevrimdışı mod seçildi." else "Offline mode selected.")
+        if (_chips.value.isNotEmpty()) startSession()
     }
 
     fun askIngredientAgent(question: String) {
@@ -595,20 +661,37 @@ class AppViewModel(
             viewModelScope.launch {
                 try {
                     executeAiWithProvider { provider ->
-                        val currentStep = _cookingState.value.active.firstOrNull()?.event?.instruction
+                        val activeOperation = _cookingState.value.active.firstOrNull()
+                        val currentStep = activeOperation?.event?.instruction
                             ?: currentState.events.firstOrNull()?.instruction
                             ?: if (L.isTr) "Henüz etkin adım yok." else "No active step yet."
-                        val prompt = """
-                            Kitchen guidance request
-                            Recipe: ${currentState.recipe.name}
-                            Current step: $currentStep
-                            Stove type: ${selectedStoveType()}
-                            Language: ${language.value}
-                            Question: $question
-                        """.trimIndent()
-                        val responseText = provider.generateContent(prompt)
-                        _planState.value = currentState.copy(agentChatResponse = responseText ?: readerSafeAiError(null))
+                        val plan = currentState.cookingPlan ?: throw IllegalStateException("Validated plan missing")
+                        val result = provider.askCookingAssistant(
+                            CookingChatRequest(
+                                recipeName = currentState.recipe.name,
+                                plan = plan,
+                                currentStep = currentStep,
+                                elapsedSeconds = _cookingState.value.elapsedSeconds,
+                                resource = activeOperation?.event?.resource,
+                                recentTurns = recentCookingTurns.toList(),
+                                question = question,
+                                language = language.value
+                            )
+                        )
+                        val response = result.requireValue()
+                        val visibleAnswer = if (
+                            (result as? AiResult.Success)?.provider == com.agentickitchen.shared.ai.AiProviderId.FREE
+                        ) {
+                            "${if (L.isTr) "Çevrimdışı" else "Offline"} · ${response.answer}"
+                        } else {
+                            response.answer
+                        }
+                        rememberCookingTurn("user", question)
+                        rememberCookingTurn("assistant", response.answer)
+                        _planState.value = currentState.copy(agentChatResponse = visibleAnswer)
                     }
+                } catch (error: CancellationException) {
+                    throw error
                 } catch (e: Exception) {
                     _planState.value = currentState.copy(agentChatResponse = readerSafeAiError(e))
                 }
@@ -616,69 +699,46 @@ class AppViewModel(
         }
     }
 
+    private fun rememberCookingTurn(role: String, text: String) {
+        recentCookingTurns.addLast(CookingChatTurn(role, text))
+        while (recentCookingTurns.size > 6) recentCookingTurns.removeFirst()
+    }
+
     fun clearScannedIngredients() { _scannedIngredients.value = null }
 
     fun scanIngredients(image: Bitmap) {
-        AppLogger.i("Vision", "scanIngredients çağrıldı — bitmap: ${image.width}x${image.height}")
         viewModelScope.launch {
             _scannedIngredients.value = null
-            val hw = _hw.value
-            val geminiKey = hw.geminiApiKey
-            val aiProvider = hw.aiProvider
-
-            // Gemini sadece provider GEMINI ise ve key varsa dene
-            if (aiProvider == "GEMINI" && geminiKey.isNotBlank()) {
-                try {
-                    executeAiWithFallback { model ->
-                        val prompt = "Resimdeki yiyecek malzemelerini (sebze, et, baharat vb.) tespit et ve sadece aralarına virgül koyarak Türkçe kelimeler olarak listele. Başka hiçbir açıklama yazma."
-                        val response = model.generateContent(content {
-                            image(image)
-                            text(prompt)
-                        })
-                        val text = response.text ?: ""
-                        val items = text.split(",").map { it.trim().replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() } }.filter { it.isNotBlank() && !it.startsWith("Hata") }
-                        _scannedIngredients.value = items
-                    }
-                    return@launch
-                } catch (e: Exception) {
-                    AppLogger.w("Vision", "Gemini vision failed; trying image caption service")
-                }
-            }
-
-            // Real Free Vision Fallback (Hugging Face + Text AI)
-            var caption: String? = null
             try {
-                AppLogger.i("ScanIngr", "Hugging Face ile gerçek analiz yapılıyor...")
-                val visionService = providerFactory.vision(hw)
-                caption = visionService.analyzeImage(image)
-            } catch (e: Exception) {
-                AppLogger.w("ScanIngr", "Image caption service failed")
-            }
-
-            val textPrompt = imageDerivedIngredientPrompt(caption)
-            if (textPrompt == null) {
-                _aiError.value = "SCAN_FAILED"
-                _scannedIngredients.value = listOf("__ERROR__")
-                return@launch
-            }
-
-            // Convert only an image-derived caption into ingredient names.
-            try {
-                val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
-                val responseText = provider.generateContent(textPrompt) ?: ""
-                val items = responseText.split(",").map { it.trim().replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() } }.filter { it.isNotBlank() && !it.startsWith("Hata") }
-                if (items.isNotEmpty()) {
-                    _scannedIngredients.value = items
-                    emitUiEvent("Görsel analiz Hugging Face + ${hw.aiProvider} ile yapıldı.")
-                } else {
-                    throw Exception("Boş malzeme listesi alındı")
-                }
+                val provider = getActiveProvider() ?: throw AiRequestException(
+                    AiResult.Failure(
+                        AiFailureType.MissingCredential,
+                        false,
+                        AiFailureType.MissingCredential.userMessageRes
+                    )
+                )
+                val result = provider.scanShoppingPhoto(
+                    ShoppingPhotoRequest(
+                        image = encodeKitchenImage(image),
+                        language = language.value
+                    )
+                ).requireValue()
+                val items = result.items.map { it.displayName.trim() }.filter(String::isNotBlank)
+                if (items.isEmpty()) throw AiRequestException(
+                    AiResult.Failure(
+                        AiFailureType.InvalidResponse,
+                        true,
+                        AiFailureType.InvalidResponse.userMessageRes
+                    )
+                )
+                _scannedIngredients.value = items
+            } catch (error: CancellationException) {
+                throw error
             } catch (e: Exception) {
                 logAiFailure("ScanIngr", e)
-                val msg = e.message ?: ""
-                if (msg.contains("API_KEY_MISSING")) {
+                if (e is AiRequestException && e.failure.type == AiFailureType.MissingCredential) {
                     _aiError.value = "API_KEY_MISSING"
-                } else if (msg.contains("quota", ignoreCase = true) || msg.contains("rate", ignoreCase = true) || msg.contains("429")) {
+                } else if (e is AiRequestException && e.failure.type in setOf(AiFailureType.QuotaExceeded, AiFailureType.RateLimited)) {
                     _aiError.value = "QUOTA_EXCEEDED"
                 } else {
                     _aiError.value = "SCAN_FAILED"
@@ -690,43 +750,61 @@ class AppViewModel(
 
     fun checkVisionAgent(image: Bitmap) {
         val currentState = _planState.value as? PlanState.RecipeActive ?: return
-        val hw = _hw.value
-        val geminiKey = hw.geminiApiKey
-        val aiProvider = hw.aiProvider
 
         viewModelScope.launch {
-            // Gemini sadece provider GEMINI ise ve key varsa dene
-            if (aiProvider == "GEMINI" && geminiKey.isNotBlank()) {
-                try {
-                    executeAiWithFallback { model ->
-                        val prompt = "Şu anki tarif: ${currentState.recipe.name}. Bu fotoğrafı sakin ve pratik bir mutfak asistanı gibi incele. Yemeğin durumunu ve güvenli sonraki adımı kısa ve açık biçimde anlat."
-                        val response = model.generateContent(content {
-                            image(image)
-                            text(prompt)
-                        })
-                        _planState.value = currentState.copy(visionScanResponse = response.text ?: readerSafeAiError(null))
-                    }
-                    return@launch
-                } catch (e: Exception) {
-                    AppLogger.w("Vision", "Gemini vision check failed; trying image caption service")
-                }
-            }
-
-            // Free Vision Check Fallback
             try {
-                val visionService = providerFactory.vision(hw)
-                val caption = visionService.analyzeImage(image)
-                if (caption != null) {
-                    val provider = getActiveProvider() ?: throw Exception("API_KEY_MISSING")
-                    val prompt = "Şu anki tarif: ${currentState.recipe.name}. Görseldeki durum şu şekilde betimlendi: '$caption'. Durumu sakin ve pratik bir mutfak asistanı gibi değerlendir; güvenli sonraki adımı kısa ve açık biçimde anlat."
-                    val responseText = provider.generateContent(prompt) ?: readerSafeAiError(null)
-                    _planState.value = currentState.copy(visionScanResponse = responseText)
-                } else {
-                    _planState.value = currentState.copy(visionScanResponse = readerSafeAiError(null))
+                val activeOperation = _cookingState.value.active.firstOrNull()
+                val response = executeAiWithProvider { provider ->
+                    provider.inspectCookingPhoto(
+                        CookingPhotoRequest(
+                            recipeName = currentState.recipe.name,
+                            plan = currentState.cookingPlan ?: throw IllegalStateException("Validated plan missing"),
+                            currentStep = activeOperation?.event?.instruction
+                                ?: currentState.events.firstOrNull()?.instruction.orEmpty(),
+                            elapsedSeconds = _cookingState.value.elapsedSeconds,
+                            resource = activeOperation?.event?.resource,
+                            recentTurns = recentCookingTurns.toList(),
+                            question = if (L.isTr) "Yemeğin durumunu ve güvenli sonraki adımı değerlendir." else "Assess the food and the safe next action.",
+                            image = encodeKitchenImage(image),
+                            language = language.value
+                        )
+                    ).requireValue()
                 }
+                val text = listOfNotNull(
+                    response.visibleObservation,
+                    response.immediateAction,
+                    response.heatAdjustment,
+                    response.safetyWarning,
+                    response.uncertainty
+                ).filter(String::isNotBlank).joinToString("\n\n")
+                _planState.value = currentState.copy(visionScanResponse = text)
+            } catch (error: CancellationException) {
+                throw error
             } catch (e: Exception) {
                 _planState.value = currentState.copy(visionScanResponse = readerSafeAiError(e))
             }
+        }
+    }
+
+    private fun encodeKitchenImage(bitmap: Bitmap): KitchenImage {
+        val maxDimension = 1_800
+        val scale = (maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)).coerceAtMost(1f)
+        val scaled = if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).toInt().coerceAtLeast(1),
+                (bitmap.height * scale).toInt().coerceAtLeast(1),
+                true
+            )
+        } else {
+            bitmap
+        }
+        return try {
+            val output = java.io.ByteArrayOutputStream()
+            check(scaled.compress(Bitmap.CompressFormat.JPEG, 85, output)) { "Image encoding failed" }
+            KitchenImage(output.toByteArray(), "image/jpeg")
+        } finally {
+            if (scaled !== bitmap) scaled.recycle()
         }
     }
 
@@ -741,18 +819,40 @@ class AppViewModel(
     }
 
     fun saveHardwareSettings(hw: HardwareSettings) {
-        _hw.value = hw
-        prefs.saveHardwareSettings(hw)
+        val normalized = hw.copy(aiProvider = CookingProviderSelection.normalize(hw.aiProvider))
+        _hw.value = normalized
+        prefs.saveHardwareSettings(normalized)
+        _aiConnectionStatus.value = if (
+            normalized.aiProvider == CookingProviderSelection.Gemini &&
+            normalized.geminiApiKey.isBlank()
+        ) {
+            AiConnectionStatus.NOT_CONFIGURED
+        } else {
+            _aiConnectionStatus.value
+        }
         refreshPantryIntel()
     }
 
     fun saveApiKey(key: String) {
-        val current = _hw.value
-        val updated = when (current.aiProvider) {
-            "HUGGINGFACE" -> current.copy(hfApiKey = key)
-            else -> current.copy(geminiApiKey = key)
+        saveHardwareSettings(_hw.value.copy(geminiApiKey = key))
+    }
+
+    fun testAiConnection(settings: HardwareSettings = _hw.value) {
+        val normalized = settings.copy(aiProvider = CookingProviderSelection.normalize(settings.aiProvider))
+        if (normalized.aiProvider == CookingProviderSelection.Gemini && normalized.geminiApiKey.isBlank()) {
+            _aiConnectionStatus.value = AiConnectionStatus.NOT_CONFIGURED
+            return
         }
-        saveHardwareSettings(updated)
+        _aiConnectionStatus.value = AiConnectionStatus.TESTING
+        viewModelScope.launch {
+            val result = providerFactory.provider(normalized)?.testConnection()
+                ?: AiResult.Failure(
+                    AiFailureType.MissingCredential,
+                    false,
+                    AiFailureType.MissingCredential.userMessageRes
+                )
+            _aiConnectionStatus.value = aiConnectionStatusFor(result)
+        }
     }
 
     fun saveDietSettings(diet: DietSettings) {
@@ -782,7 +882,8 @@ class AppViewModel(
     }
 
     private fun loadHardwareSettings(): HardwareSettings {
-        return prefs.hardwareSettings()
+        val stored = prefs.hardwareSettings()
+        return stored.copy(aiProvider = CookingProviderSelection.normalize(stored.aiProvider))
     }
 
     private fun quantityToGrams(quantity: Double, unit: String): Int = when (unit.lowercase()) {
