@@ -112,6 +112,10 @@ class AppViewModelTest {
             "Could not connect. Check your internet connection and try again.",
             readerSafeAiError(ProviderFailure("FREE_LOCAL", ProviderFailureCategory.NETWORK))
         )
+        assertEquals(
+            "The selected ingredients conflict with the diet, allergy, or safe cooking setup.",
+            readerSafeAiError(ProviderFailure("FREE_LOCAL", ProviderFailureCategory.CONSTRAINT_CONFLICT))
+        )
         assertNotEquals("provider exploded", readerSafeAiError(Exception("provider exploded")))
         L.applyLanguage(L.Turkish)
     }

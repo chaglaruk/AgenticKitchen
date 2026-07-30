@@ -225,6 +225,51 @@ class CookingPlanValidatorTest {
     }
 
     @Test
+    fun `Turkish animal ingredients conflict with strict diets`() {
+        val plan = validPlan().copy(
+            ingredients = listOf(PlannedIngredientDto("Tavuk göğsü", 300.0, "g"))
+        )
+        val strictValidator = CookingPlanValidator(
+            availableEquipment = setOf("stove", "pan"),
+            stoveMaxLevel = 9,
+            ovenAvailable = false,
+            airfryerAvailable = false,
+            dietType = "vegetarian",
+            allergens = emptySet(),
+            servings = 2
+        )
+
+        val result = strictValidator.validate(plan)
+
+        assertFalse(result.valid)
+        assertEquals(1, result.errors.count { it.type == ErrorType.DIET_CONFLICT })
+    }
+
+    @Test
+    fun `allergen group produces one error for multiple Turkish dairy ingredients`() {
+        val plan = validPlan().copy(
+            ingredients = listOf(
+                PlannedIngredientDto("Yoğurt", 100.0, "g"),
+                PlannedIngredientDto("Kaşar peyniri", 50.0, "g")
+            )
+        )
+        val allergenValidator = CookingPlanValidator(
+            availableEquipment = setOf("stove", "pan"),
+            stoveMaxLevel = 9,
+            ovenAvailable = false,
+            airfryerAvailable = false,
+            dietType = "none",
+            allergens = setOf("milk"),
+            servings = 2
+        )
+
+        val result = allergenValidator.validate(plan)
+
+        assertFalse(result.valid)
+        assertEquals(1, result.errors.count { it.type == ErrorType.ALLERGEN_CONFLICT })
+    }
+
+    @Test
     fun `same-resource serialization required`() {
         val plan = validPlan().copy(
             steps = listOf(

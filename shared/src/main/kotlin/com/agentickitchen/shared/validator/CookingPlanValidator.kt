@@ -24,7 +24,7 @@ class CookingPlanValidator(
         validateServings(plan, errors)
         validateIngredients(plan, errors)
         validateSteps(plan, errors, warnings)
-        validateDietAndAllergens(plan, errors, warnings)
+        validateDietAndAllergens(plan, errors)
         validateSafety(plan, warnings)
 
         return ValidationResult(
@@ -307,34 +307,17 @@ class CookingPlanValidator(
         }
     }
 
-    private fun validateDietAndAllergens(plan: CookingPlanResponse, errors: MutableList<ValidationError>, warnings: MutableList<String>) {
-        if (dietType == "vegan" && plan.ingredients.any { it.name.lowercase() in setOf("meat", "chicken", "fish", "egg", "egg", "milk", "cheese", "butter", "cream", "yogurt", "honey") }) {
-            errors.add(ValidationError(ErrorType.DIET_CONFLICT, "ingredients", "Plan conflicts with vegan diet"))
+    private fun validateDietAndAllergens(plan: CookingPlanResponse, errors: MutableList<ValidationError>) {
+        if (plan.ingredients.any { IngredientSafety.conflictsWithDiet(it.name, dietType) }) {
+            errors.add(ValidationError(ErrorType.DIET_CONFLICT, "ingredients", "Plan conflicts with $dietType diet"))
         }
-        if (dietType == "vegetarian" && plan.ingredients.any { it.name.lowercase() in setOf("meat", "chicken", "fish", "beef", "pork", "lamb") }) {
-            errors.add(ValidationError(ErrorType.DIET_CONFLICT, "ingredients", "Plan conflicts with vegetarian diet"))
-        }
-
-        val recipeIngredientNames = plan.ingredients.map { it.name.lowercase() }.toSet()
         for (allergen in allergens) {
-            val allergenLower = allergen.lowercase()
-            if (allergenLower in recipeIngredientNames) {
+            if (plan.ingredients.any { IngredientSafety.conflictsWithAllergen(it.name, allergen) }) {
                 errors.add(
                     ValidationError(
                         ErrorType.ALLERGEN_CONFLICT,
                         "ingredients",
-                        "Plan contains '$allergen' which user reported as allergen"
-                    )
-                )
-            }
-            val knownAllergenIngredients = knownAllergenMap[allergenLower].orEmpty()
-            val conflict = knownAllergenIngredients.intersect(recipeIngredientNames)
-            if (conflict.isNotEmpty()) {
-                errors.add(
-                    ValidationError(
-                        ErrorType.ALLERGEN_CONFLICT,
-                        "ingredients",
-                        "Plan contains '$conflict' which may contain allergen '$allergen'"
+                        "Plan contains an ingredient in the reported '$allergen' allergen group"
                     )
                 )
             }
@@ -356,20 +339,5 @@ class CookingPlanValidator(
     companion object {
         private val stoveHeatingResources = setOf("stove", "pan", "pot")
         private val stoveEquipmentIds = setOf("stove", "elec", "gas", "camping")
-        private val knownAllergenMap = mapOf(
-            "gluten" to setOf("un", "flour", "bread", "pasta", "noodle", "wheat", "bulgur"),
-            "süt" to setOf("süt", "milk", "cheese", "peynir", "cream", "krema", "butter", "tereyağı", "yogurt", "yoğurt"),
-            "milk" to setOf("milk", "cheese", "cream", "butter", "yogurt"),
-            "yumurta" to setOf("yumurta", "egg"),
-            "egg" to setOf("egg"),
-            "fındık" to setOf("fındık", "nut", "almond", "badem", "ceviz", "walnut"),
-            "tree nuts" to setOf("almond", "badem", "walnut", "ceviz", "hazelnut", "fındık", "cashew", "kaju", "pistachio", "antep fıstığı"),
-            "yer fıstığı" to setOf("peanut", "yer fıstığı"),
-            "peanut" to setOf("peanut"),
-            "soya" to setOf("soya", "soy", "tofu"),
-            "soy" to setOf("soy", "tofu"),
-            "deniz ürünü" to setOf("shrimp", "karides", "crab", "yengeç", "mussel", "midye"),
-            "shellfish" to setOf("shrimp", "crab", "mussel", "lobster", "prawn"),
-        )
     }
 }

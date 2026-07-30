@@ -174,6 +174,8 @@ internal fun readerSafeAiError(error: Throwable?): String {
                 if (L.isTr) "Sağlayıcı şu anda yoğun veya kullanım sınırına ulaşıldı. Biraz sonra tekrar dene." else "The provider is busy or has reached its usage limit. Try again shortly."
             error.category == ProviderFailureCategory.TIMEOUT || error.category == ProviderFailureCategory.NETWORK ->
                 if (L.isTr) "İnternet bağlantısı kurulamadı. Bağlantını kontrol edip tekrar dene." else "Could not connect. Check your internet connection and try again."
+            error.category == ProviderFailureCategory.CONSTRAINT_CONFLICT ->
+                if (L.isTr) "Seçili malzemeler diyet, alerji veya güvenli pişirme koşullarıyla uyuşmuyor." else "The selected ingredients conflict with the diet, allergy, or safe cooking setup."
             else ->
                 if (L.isTr) "Şu anda yanıt alınamadı. Tekrar deneyebilirsin." else "No response was available just now. You can try again."
         }
@@ -362,6 +364,7 @@ class AppViewModel(
                     val stoveType = when {
                         "gas" in _selectedEquipment.value -> "gas"
                         "elec" in _selectedEquipment.value -> "electric"
+                        "camping" in _selectedEquipment.value -> "gas"
                         else -> "none"
                     }
                     val prompt = PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, selection.servings, stoveType, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value)
