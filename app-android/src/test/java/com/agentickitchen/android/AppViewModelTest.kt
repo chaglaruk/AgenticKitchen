@@ -11,6 +11,10 @@ import com.agentickitchen.shared.agents.Orchestrator
 import com.agentickitchen.shared.agents.PantryIntelAgent
 import com.agentickitchen.shared.db.RecipeHistory
 import com.agentickitchen.shared.db.RecipeHistoryRepository
+import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
+import com.agentickitchen.shared.inventory.PantryInventoryRepository
+import com.agentickitchen.shared.inventory.PantryStockItem
+import com.agentickitchen.shared.inventory.PendingRecipeUsageRecord
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
@@ -58,7 +62,13 @@ class AppViewModelTest {
         val preferences = FakePreferences()
         val history = FakeHistoryRepository()
         val factory = AppViewModelFactory(
-            preferences, history, FakeOrchestrator, FakePantryIntelAgent, FakeProviderFactory, TargetTimeResolver()
+            preferences,
+            history,
+            FakeInventoryRepository(),
+            FakeOrchestrator,
+            FakePantryIntelAgent,
+            FakeProviderFactory,
+            TargetTimeResolver()
         )
 
         val viewModel = factory.create(AppViewModel::class.java)
@@ -194,12 +204,80 @@ class AppViewModelTest {
         assertEquals(setOf("milk", "sesame", "custom:my_custom"), recreated.dietSettings.value.allergies)
     }
 
+    @Test
+    fun draftUndoRestoresExactOrderAfterMultipleRemovals() {
+        val preferences = FakePreferences().apply {
+            ingredientDraftValue = listOf("Tomato", "Onion", "Rice", "Cheese")
+        }
+        val viewModel = newViewModel(preferences, FakeHistoryRepository())
+        val onionRemoval = UiEvent.DraftIngredientRemoved(
+            "Onion",
+            1,
+            listOf("Tomato", "Onion", "Rice", "Cheese"),
+            "Onion removed"
+        )
+        val riceRemoval = UiEvent.DraftIngredientRemoved(
+            "Rice",
+            2,
+            listOf("Tomato", "Onion", "Rice", "Cheese"),
+            "Rice removed"
+        )
+
+        viewModel.removeChip("Onion")
+        viewModel.removeChip("Rice")
+        viewModel.restoreRemovedChip(onionRemoval)
+        viewModel.restoreRemovedChip(riceRemoval)
+
+        assertEquals(listOf("Tomato", "Onion", "Rice", "Cheese"), viewModel.chips.value)
+        assertEquals(viewModel.chips.value, preferences.ingredientDraftValue)
+    }
+
+    @Test
+    fun inventoryPersistsAcrossViewModelRecreation() {
+        val inventory = FakeInventoryRepository()
+        val preferences = FakePreferences().apply { ingredientDraftValue = listOf("Tomato") }
+        val first = newViewModel(preferences, FakeHistoryRepository(), inventory = inventory)
+
+        assertTrue(first.inventory.value.isEmpty())
+
+        first.saveInventoryItem(null, "Milk", 1.5, "L", "bottle")
+        val recreated = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)
+
+        assertEquals(1, recreated.inventory.value.size)
+        assertEquals(1500.0, recreated.inventory.value.single().quantity, 0.0)
+        assertEquals("ml", recreated.inventory.value.single().unit)
+    }
+
+    @Test
+    fun editingInventoryKeepsTheItemUntilExplicitDelete() {
+        val inventory = FakeInventoryRepository()
+        val viewModel = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)
+        viewModel.saveInventoryItem(null, "Eggs", 6.0, "adet", null)
+        val item = viewModel.inventory.value.single()
+
+        viewModel.saveInventoryItem(item, "Eggs", 12.0, "adet", null)
+
+        assertEquals(1, viewModel.inventory.value.size)
+        assertEquals(12.0, viewModel.inventory.value.single().quantity, 0.0)
+        assertEquals(2, viewModel.inventoryAdjustments.value.getValue(item.id).size)
+
+        viewModel.deleteInventoryItem(viewModel.inventory.value.single())
+        assertTrue(viewModel.inventory.value.isEmpty())
+    }
+
     private fun newViewModel(
         preferences: FakePreferences,
         history: FakeHistoryRepository,
-        pantryIntelAgent: PantryIntelAgent = FakePantryIntelAgent
+        pantryIntelAgent: PantryIntelAgent = FakePantryIntelAgent,
+        inventory: PantryInventoryRepository = FakeInventoryRepository()
     ) = AppViewModel(
-        preferences, history, FakeOrchestrator, pantryIntelAgent, FakeProviderFactory, TargetTimeResolver()
+        preferences,
+        history,
+        inventory,
+        FakeOrchestrator,
+        pantryIntelAgent,
+        FakeProviderFactory,
+        TargetTimeResolver()
     )
 
     private class FakePreferences : AppPreferences {
@@ -238,6 +316,31 @@ class AppViewModelTest {
             entries += RecipeHistory(id, name, ingredients, timestamp, status)
         }
         override fun deleteRecipe(id: String) { entries.removeAll { it.id == id } }
+    }
+
+    private class FakeInventoryRepository : PantryInventoryRepository {
+        private val items = linkedMapOf<String, PantryStockItem>()
+        private val adjustments = mutableListOf<InventoryAdjustmentRecord>()
+        private val pending = mutableListOf<PendingRecipeUsageRecord>()
+
+        override fun getAll() = items.values.toList()
+        override fun upsert(item: PantryStockItem, adjustment: InventoryAdjustmentRecord) {
+            items[item.id] = item
+            adjustments += adjustment
+        }
+        override fun delete(item: PantryStockItem, adjustment: InventoryAdjustmentRecord) {
+            adjustments += adjustment
+            items.remove(item.id)
+        }
+        override fun adjustments(itemId: String) = adjustments.filter { it.itemId == itemId }
+        override fun pendingUsage(sessionId: String) = pending.filter { it.sessionId == sessionId }
+        override fun upsertPendingUsage(usage: PendingRecipeUsageRecord) {
+            pending.removeAll { it.sessionId == usage.sessionId && it.itemId == usage.itemId }
+            pending += usage
+        }
+        override fun deletePendingUsage(sessionId: String) {
+            pending.removeAll { it.sessionId == sessionId }
+        }
     }
 
     private object FakeOrchestrator : Orchestrator {

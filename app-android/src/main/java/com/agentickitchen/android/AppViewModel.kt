@@ -12,6 +12,12 @@ import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.agentickitchen.shared.db.RecipeHistory
 import com.agentickitchen.shared.db.RecipeHistoryRepository
+import com.agentickitchen.shared.inventory.AdjustmentMode
+import com.agentickitchen.shared.inventory.AdjustmentReason
+import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
+import com.agentickitchen.shared.inventory.InventoryUnits
+import com.agentickitchen.shared.inventory.PantryInventoryRepository
+import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
@@ -134,6 +140,12 @@ sealed class PlanState {
 
 sealed class UiEvent {
     data class ShowSnackbar(val message: String) : UiEvent()
+    data class DraftIngredientRemoved(
+        val ingredient: String,
+        val previousIndex: Int,
+        val orderBeforeRemoval: List<String>,
+        val message: String
+    ) : UiEvent()
 }
 
 data class HardwareSettings(
@@ -210,6 +222,7 @@ internal fun readerSafeAiError(error: Throwable?): String {
 class AppViewModel(
     private val prefs: AppPreferences,
     private val historyRepo: RecipeHistoryRepository,
+    private val inventoryRepository: PantryInventoryRepository,
     private val orchestrator: Orchestrator,
     private val pantryIntelAgent: PantryIntelAgent,
     private val providerFactory: AiProviderFactory,
@@ -227,6 +240,14 @@ class AppViewModel(
 
     private val _chips = MutableStateFlow(loadIngredientDraft())
     val chips: StateFlow<List<String>> = _chips.asStateFlow()
+    private var draftOrder = _chips.value
+
+    private val _inventory = MutableStateFlow(inventoryRepository.getAll())
+    val inventory: StateFlow<List<PantryStockItem>> = _inventory.asStateFlow()
+    private val _inventoryAdjustments = MutableStateFlow(
+        _inventory.value.associate { it.id to inventoryRepository.adjustments(it.id) }
+    )
+    val inventoryAdjustments = _inventoryAdjustments.asStateFlow()
 
     private val _planState = MutableStateFlow<PlanState>(PlanState.Idle)
     val planState: StateFlow<PlanState> = _planState.asStateFlow()
@@ -235,7 +256,7 @@ class AppViewModel(
     val cookingState: StateFlow<CookingSessionState> = _cookingState.asStateFlow()
     private var cookingTicker: Job? = null
 
-    private val _uiEvent = MutableSharedFlow<UiEvent>()
+    private val _uiEvent = MutableSharedFlow<UiEvent>(extraBufferCapacity = 16)
     val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
 
     private fun emitUiEvent(message: String) {
@@ -292,6 +313,7 @@ class AppViewModel(
     fun addChip(name: String) {
         val trimmed = name.trim()
         if (trimmed.isNotEmpty() && !_chips.value.any { it.equals(trimmed, ignoreCase = true) }) {
+            draftOrder = draftOrder.filterNot { it.equals(trimmed, ignoreCase = true) } + trimmed
             saveIngredientDraft(_chips.value + trimmed)
         }
     }
@@ -300,12 +322,47 @@ class AppViewModel(
         names.map(String::trim).filter(String::isNotEmpty).forEach { ingredient ->
             if (updated.none { it.equals(ingredient, ignoreCase = true) }) updated += ingredient
         }
-        if (updated != _chips.value) saveIngredientDraft(updated)
+        if (updated != _chips.value) {
+            updated.filterNot { candidate ->
+                _chips.value.any { it.equals(candidate, ignoreCase = true) }
+            }.forEach { addition ->
+                draftOrder = draftOrder.filterNot { it.equals(addition, ignoreCase = true) } + addition
+            }
+            saveIngredientDraft(updated)
+        }
     }
     fun removeChip(name: String) {
-        saveIngredientDraft(_chips.value.filterNot { it == name })
+        val before = _chips.value
+        val index = before.indexOf(name)
+        if (index < 0) return
+        saveIngredientDraft(before.toMutableList().apply { removeAt(index) })
+        _uiEvent.tryEmit(
+            UiEvent.DraftIngredientRemoved(
+                ingredient = name,
+                previousIndex = index,
+                orderBeforeRemoval = draftOrder,
+                message = if (L.isTr) "$name kaldırıldı" else "$name removed"
+            )
+        )
+    }
+
+    fun restoreRemovedChip(event: UiEvent.DraftIngredientRemoved) {
+        if (_chips.value.any { it.equals(event.ingredient, ignoreCase = true) }) return
+        val restored = _chips.value.toMutableList()
+        val previous = event.orderBeforeRemoval.take(event.previousIndex).asReversed()
+            .firstOrNull { candidate -> restored.any { it.equals(candidate, ignoreCase = true) } }
+        val next = event.orderBeforeRemoval.drop(event.previousIndex + 1)
+            .firstOrNull { candidate -> restored.any { it.equals(candidate, ignoreCase = true) } }
+        val insertionIndex = when {
+            previous != null -> restored.indexOfFirst { it.equals(previous, ignoreCase = true) } + 1
+            next != null -> restored.indexOfFirst { it.equals(next, ignoreCase = true) }
+            else -> event.previousIndex.coerceIn(0, restored.size)
+        }
+        restored.add(insertionIndex, event.ingredient)
+        saveIngredientDraft(restored)
     }
     fun clearAll() {
+        draftOrder = emptyList()
         saveIngredientDraft(emptyList())
         _planState.value = PlanState.Idle
         lastOptions = emptyList()
@@ -321,6 +378,78 @@ class AppViewModel(
         _chips.value = ingredients
         prefs.saveIngredientDraft(ingredients)
         refreshPantryIntel()
+    }
+
+    fun saveInventoryItem(
+        existing: PantryStockItem?,
+        name: String,
+        quantity: Double,
+        unit: String,
+        packageLabel: String?
+    ) {
+        val cleanName = name.trim()
+        val normalized = runCatching { InventoryUnits.normalize(quantity, unit) }.getOrElse {
+            emitUiEvent(if (L.isTr) "Geçerli bir stok miktarı gir." else "Enter a valid pantry amount.")
+            return
+        }
+        if (cleanName.isEmpty()) {
+            emitUiEvent(if (L.isTr) "Malzeme adı gerekli." else "Ingredient name is required.")
+            return
+        }
+        val now = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val item = PantryStockItem(
+            id = existing?.id ?: UUID.randomUUID().toString(),
+            canonicalIngredientId = existing?.canonicalIngredientId,
+            originalName = cleanName,
+            displayNameTr = existing?.displayNameTr,
+            displayNameEn = existing?.displayNameEn,
+            quantity = normalized.quantity,
+            unit = normalized.unit,
+            unitDimension = normalized.dimension,
+            packageLabel = packageLabel?.trim()?.takeIf(String::isNotEmpty),
+            isEstimated = existing?.isEstimated ?: false,
+            confidence = existing?.confidence,
+            source = existing?.source ?: "manual",
+            createdAt = existing?.createdAt ?: now,
+            updatedAt = now
+        )
+        inventoryRepository.upsert(
+            item,
+            InventoryAdjustmentRecord(
+                id = UUID.randomUUID().toString(),
+                itemId = item.id,
+                amount = item.quantity,
+                mode = if (existing == null) AdjustmentMode.DELTA else AdjustmentMode.REPLACE,
+                reason = if (existing == null) AdjustmentReason.MANUAL_ADD else AdjustmentReason.RECOUNT,
+                source = "manual",
+                timestamp = now
+            )
+        )
+        refreshInventory()
+    }
+
+    fun deleteInventoryItem(item: PantryStockItem) {
+        val now = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        inventoryRepository.delete(
+            item,
+            InventoryAdjustmentRecord(
+                id = UUID.randomUUID().toString(),
+                itemId = item.id,
+                amount = item.quantity,
+                mode = AdjustmentMode.REPLACE,
+                reason = AdjustmentReason.DELETION,
+                source = "manual",
+                timestamp = now
+            )
+        )
+        refreshInventory()
+    }
+
+    private fun refreshInventory() {
+        _inventory.value = inventoryRepository.getAll()
+        _inventoryAdjustments.value = _inventory.value.associate { item ->
+            item.id to inventoryRepository.adjustments(item.id)
+        }
     }
 
     fun startSession(isRefresh: Boolean = false) {

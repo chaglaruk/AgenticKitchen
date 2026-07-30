@@ -9,6 +9,7 @@ import com.agentickitchen.shared.agents.SimplePantryIntelAgent
 import com.agentickitchen.shared.agents.SimpleTimingAgent
 import com.agentickitchen.shared.db.AppDatabase
 import com.agentickitchen.shared.db.HistoryRepository
+import com.agentickitchen.shared.inventory.SqlDelightPantryInventoryRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.ai.AiProviderFactory
 import com.agentickitchen.android.ai.DefaultAiProviderFactory
@@ -26,6 +27,7 @@ class AppContainer(private val app: Application) : Closeable {
     val database: AppDatabase = AppDatabase(sqlDriver)
 
     val historyRepository: HistoryRepository = HistoryRepository(database)
+    val pantryInventoryRepository = SqlDelightPantryInventoryRepository(database)
 
     val targetTimeResolver: TargetTimeResolver = TargetTimeResolver()
 

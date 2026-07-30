@@ -6,6 +6,44 @@ CREATE TABLE RecipeHistory (
     status TEXT NOT NULL
 );
 
+CREATE TABLE PantryItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    canonicalIngredientId TEXT,
+    originalName TEXT NOT NULL,
+    displayNameTr TEXT,
+    displayNameEn TEXT,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    unitDimension TEXT NOT NULL,
+    packageLabel TEXT,
+    isEstimated INTEGER NOT NULL,
+    confidence REAL,
+    source TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+);
+
+CREATE TABLE InventoryAdjustment (
+    id TEXT NOT NULL PRIMARY KEY,
+    itemId TEXT NOT NULL,
+    amount REAL NOT NULL,
+    mode TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    source TEXT NOT NULL,
+    timestamp TEXT NOT NULL
+);
+
+CREATE TABLE PendingRecipeUsage (
+    sessionId TEXT NOT NULL,
+    itemId TEXT NOT NULL,
+    plannedQuantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    actualQuantity REAL,
+    status TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    PRIMARY KEY (sessionId, itemId)
+);
+
 selectAll:
 SELECT * FROM RecipeHistory ORDER BY timestamp DESC;
 
@@ -18,3 +56,37 @@ DELETE FROM RecipeHistory WHERE id = ?;
 
 clearHistory:
 DELETE FROM RecipeHistory;
+
+selectAllPantryItems:
+SELECT * FROM PantryItem ORDER BY updatedAt DESC;
+
+selectPantryItem:
+SELECT * FROM PantryItem WHERE id = ?;
+
+upsertPantryItem:
+INSERT OR REPLACE INTO PantryItem(
+    id, canonicalIngredientId, originalName, displayNameTr, displayNameEn,
+    quantity, unit, unitDimension, packageLabel, isEstimated, confidence,
+    source, createdAt, updatedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deletePantryItem:
+DELETE FROM PantryItem WHERE id = ?;
+
+insertInventoryAdjustment:
+INSERT INTO InventoryAdjustment(id, itemId, amount, mode, reason, source, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectInventoryAdjustments:
+SELECT * FROM InventoryAdjustment WHERE itemId = ? ORDER BY timestamp DESC;
+
+upsertPendingRecipeUsage:
+INSERT OR REPLACE INTO PendingRecipeUsage(
+    sessionId, itemId, plannedQuantity, unit, actualQuantity, status, timestamp
+) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectPendingRecipeUsage:
+SELECT * FROM PendingRecipeUsage WHERE sessionId = ? ORDER BY itemId;
+
+deletePendingRecipeUsage:
+DELETE FROM PendingRecipeUsage WHERE sessionId = ?;

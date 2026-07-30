@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Scaffold
+import androidx.compose.material.SnackbarResult
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -144,6 +145,8 @@ fun AppNavigation(viewModel: AppViewModel) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Intelligence) }
 
     val chips by viewModel.chips.collectAsState()
+    val inventory by viewModel.inventory.collectAsState()
+    val inventoryAdjustments by viewModel.inventoryAdjustments.collectAsState()
     val planState by viewModel.planState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
 
@@ -165,11 +168,20 @@ fun AppNavigation(viewModel: AppViewModel) {
     val screens = listOf(Screen.Intelligence, Screen.Options, Screen.Operations, Screen.Settings)
     val colors = LocalAppColors.current
     val scaffoldState = rememberScaffoldState()
-    val uiEvent by viewModel.uiEvent.collectAsState(initial = null)
-
-    LaunchedEffect(uiEvent) {
-        if (uiEvent is UiEvent.ShowSnackbar) {
-            scaffoldState.snackbarHostState.showSnackbar((uiEvent as UiEvent.ShowSnackbar).message)
+    LaunchedEffect(Unit) {
+        viewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowSnackbar -> scaffoldState.snackbarHostState.showSnackbar(event.message)
+                is UiEvent.DraftIngredientRemoved -> {
+                    val result = scaffoldState.snackbarHostState.showSnackbar(
+                        message = event.message,
+                        actionLabel = if (L.isTr) "Geri al" else "Undo"
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.restoreRemovedChip(event)
+                    }
+                }
+            }
         }
     }
 
@@ -191,6 +203,8 @@ fun AppNavigation(viewModel: AppViewModel) {
             when (currentScreen) {
                 Screen.Intelligence -> HomeScreen(
                     chips = chips,
+                    inventory = inventory,
+                    inventoryAdjustments = inventoryAdjustments,
                     scannedIngredients = scannedIngredients,
                     pantryIntel = pantryIntel,
                     onScanImage = viewModel::scanIngredients,
@@ -198,6 +212,8 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onAddChip = viewModel::addChip,
                     onAddMultipleChips = viewModel::addMultipleChips,
                     onRemoveChip = viewModel::removeChip,
+                    onSaveInventoryItem = viewModel::saveInventoryItem,
+                    onDeleteInventoryItem = viewModel::deleteInventoryItem,
                     onClearAll = viewModel::clearAll,
                     onStart = viewModel::startSession,
                     onEditSetup = viewModel::startEditingSetup

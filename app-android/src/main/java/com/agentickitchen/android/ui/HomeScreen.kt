@@ -10,11 +10,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,8 +28,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -83,6 +90,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,13 +104,20 @@ import com.agentickitchen.android.searchIngredientCatalog
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.PantryIntelSignal
 import com.agentickitchen.shared.models.ScheduleEvent
+import com.agentickitchen.shared.inventory.PantryStockItem
+import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
+import com.agentickitchen.shared.inventory.AdjustmentReason
+import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class, ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
     chips: List<String>,
+    inventory: List<PantryStockItem>,
+    inventoryAdjustments: Map<String, List<InventoryAdjustmentRecord>>,
     scannedIngredients: List<String>?,
     pantryIntel: PantryIntelReport,
     onScanImage: (android.graphics.Bitmap) -> Unit,
@@ -110,6 +125,8 @@ fun HomeScreen(
     onAddChip: (String) -> Unit,
     onAddMultipleChips: (List<String>) -> Unit,
     onRemoveChip: (String) -> Unit,
+    onSaveInventoryItem: (PantryStockItem?, String, Double, String, String?) -> Unit,
+    onDeleteInventoryItem: (PantryStockItem) -> Unit,
     onClearAll: () -> Unit,
     onStart: () -> Unit,
     onEditSetup: () -> Unit
@@ -117,6 +134,8 @@ fun HomeScreen(
     var input by remember { mutableStateOf("") }
     var showPicker by remember { mutableStateOf(false) }
     var showCameraModal by remember { mutableStateOf(false) }
+    var showInventoryEditor by remember { mutableStateOf(false) }
+    var editingInventoryItem by remember { mutableStateOf<PantryStockItem?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
     val colors = LocalAppColors.current
 
@@ -131,16 +150,21 @@ fun HomeScreen(
         expandedAuto = filteredIngredients.isNotEmpty()
     }
 
-    Column(
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 28.dp)
+            .imePadding(),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 28.dp),
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        EditorialHomeHeader(chips = chips)
-        IngredientComposer(
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            EditorialHomeHeader(chips = chips, modifier = Modifier.fillMaxWidth())
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            IngredientComposer(
             input = input,
             onInputChange = { input = it },
             expandedAuto = expandedAuto,
@@ -158,21 +182,64 @@ fun HomeScreen(
             canGenerate = chips.isNotEmpty(),
             onStart = onStart,
             onOpenCamera = { showCameraModal = true }
-        )
-
-        Spacer(Modifier.height(16.dp))
-        EditorialIngredientCollection(chips = chips, onRemove = onRemoveChip)
-
-        if (chips.isNotEmpty()) {
-            Spacer(Modifier.height(20.dp))
-            CompactKitchenSummary(pantryIntel)
+            )
         }
-        Spacer(Modifier.height(20.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            EditorialSectionHeading(
+                eyebrow = if (L.isTr) "TARİF TASLAĞI" else "RECIPE DRAFT",
+                title = if (L.isTr) "Seçtiğin malzemeler" else "Selected ingredients"
+            )
+        }
+        if (chips.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) { EmptyIngredientCollection() }
+        } else {
+            itemsIndexed(chips, key = { _, ingredient -> ingredient.lowercase() }) { index, ingredient ->
+                CompactDraftIngredientCard(
+                    ingredient = ingredient,
+                    entranceDelay = index.coerceAtMost(8) * 35,
+                    onRemove = { onRemoveChip(ingredient) },
+                    modifier = Modifier.animateItem()
+                )
+            }
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            EditorialSectionHeading(
+                eyebrow = if (L.isTr) "MUTFAĞIM" else "MY KITCHEN",
+                title = if (L.isTr) "Stoktakiler" else "Pantry inventory",
+                action = if (L.isTr) "Malzeme ekle" else "Add item",
+                onAction = {
+                    editingInventoryItem = null
+                    showInventoryEditor = true
+                }
+            )
+        }
+        if (inventory.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    if (L.isTr) "Henüz miktarlı stok eklenmedi." else "No quantified stock yet.",
+                    color = colors.onSurfaceSub,
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+        } else {
+            itemsIndexed(inventory, key = { _, item -> item.id }) { _, item ->
+                InventoryIngredientCard(item, Modifier.animateItem()) {
+                    editingInventoryItem = item
+                    showInventoryEditor = true
+                }
+            }
+        }
+        if (chips.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) { CompactKitchenSummary(pantryIntel) }
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             EditorialTextAction(
                 modifier = Modifier.weight(1f),
                 title = if (L.isTr) "Tüm malzemeler" else "All ingredients",
@@ -194,9 +261,8 @@ fun HomeScreen(
                     onClick = onClearAll
                 )
             }
+            }
         }
-
-        Spacer(Modifier.height(24.dp))
     }
 
     if (showPicker) {
@@ -223,10 +289,307 @@ fun HomeScreen(
             onImageCaptured = { bmp -> onScanImage(bmp) }
         )
     }
+
+    if (showInventoryEditor) {
+        InventoryItemDialog(
+            item = editingInventoryItem,
+            adjustments = editingInventoryItem?.let { inventoryAdjustments[it.id] }.orEmpty(),
+            onDismiss = { showInventoryEditor = false },
+            onSave = { name, quantity, unit, packageLabel ->
+                onSaveInventoryItem(editingInventoryItem, name, quantity, unit, packageLabel)
+                showInventoryEditor = false
+            },
+            onDelete = editingInventoryItem?.let { item ->
+                {
+                    onDeleteInventoryItem(item)
+                    showInventoryEditor = false
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun EditorialHomeHeader(chips: List<String>) {
+private fun EditorialSectionHeading(
+    eyebrow: String,
+    title: String,
+    action: String? = null,
+    onAction: () -> Unit = {}
+) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 4.dp)) {
+        Divider(color = colors.divider)
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(eyebrow, color = colors.primary, style = MaterialTheme.typography.overline)
+                Text(title, color = colors.onSurface, style = MaterialTheme.typography.h5)
+            }
+            if (action != null) {
+                TextButton(onClick = onAction, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(action, color = colors.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactDraftIngredientCard(
+    ingredient: String,
+    entranceDelay: Int,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalAppColors.current
+    var visible by remember(ingredient) { mutableStateOf(false) }
+    LaunchedEffect(ingredient) {
+        delay(entranceDelay.toLong())
+        visible = true
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 8 }
+    ) {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .aspectRatio(.82f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.surfaceAlt)
+                .clickable(onClick = onRemove)
+                .padding(8.dp)
+                .semantics {
+                    contentDescription = if (L.isTr) "$ingredient kaldır" else "Remove $ingredient"
+                },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                IngredientArtwork(ingredient, Modifier.fillMaxSize().padding(4.dp))
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(colors.surface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub, modifier = Modifier.size(13.dp))
+                }
+            }
+            Text(
+                ingredient,
+                color = colors.onSurface,
+                style = MaterialTheme.typography.subtitle2,
+                maxLines = 2,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun InventoryIngredientCard(item: PantryStockItem, modifier: Modifier = Modifier, onEdit: () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(.82f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surfaceAlt)
+            .clickable(onClick = onEdit)
+            .padding(8.dp)
+            .semantics {
+                contentDescription = if (L.isTr) {
+                    "${item.originalName}, ${formatInventoryQuantity(item)}, düzenle"
+                } else {
+                    "${item.originalName}, ${formatInventoryQuantity(item)}, edit"
+                }
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        IngredientArtwork(item.originalName, Modifier.weight(1f).fillMaxWidth().padding(4.dp))
+        Text(
+            item.originalName,
+            color = colors.onSurface,
+            style = MaterialTheme.typography.subtitle2,
+            maxLines = 2,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            formatInventoryQuantity(item),
+            color = colors.primary,
+            style = MaterialTheme.typography.caption,
+            maxLines = 1
+        )
+    }
+}
+
+private fun formatInventoryQuantity(item: PantryStockItem): String =
+    "${BigDecimal.valueOf(item.quantity).stripTrailingZeros().toPlainString()} ${item.unit}"
+
+@Composable
+private fun InventoryItemDialog(
+    item: PantryStockItem?,
+    adjustments: List<InventoryAdjustmentRecord>,
+    onDismiss: () -> Unit,
+    onSave: (String, Double, String, String?) -> Unit,
+    onDelete: (() -> Unit)?
+) {
+    val colors = LocalAppColors.current
+    var name by remember(item?.id) { mutableStateOf(item?.originalName.orEmpty()) }
+    var quantityText by remember(item?.id) {
+        mutableStateOf(item?.quantity?.let { BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty())
+    }
+    var unit by remember(item?.id) { mutableStateOf(item?.unit ?: "adet") }
+    var packageLabel by remember(item?.id) { mutableStateOf(item?.packageLabel.orEmpty()) }
+    var error by remember(item?.id) { mutableStateOf<String?>(null) }
+    var confirmDelete by remember(item?.id) { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            backgroundColor = colors.surface,
+            elevation = 0.dp,
+            border = BorderStroke(1.dp, colors.divider),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    if (item == null) {
+                        if (L.isTr) "Mutfağına ekle" else "Add to your kitchen"
+                    } else {
+                        if (L.isTr) "Stok miktarını düzenle" else "Edit pantry amount"
+                    },
+                    color = colors.onSurface,
+                    style = MaterialTheme.typography.h5
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(if (L.isTr) "Malzeme" else "Ingredient") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (adjustments.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Divider(color = colors.divider)
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        if (L.isTr) "Son stok değişiklikleri" else "Recent stock changes",
+                        color = colors.onSurface,
+                        style = MaterialTheme.typography.subtitle2
+                    )
+                    adjustments.take(3).forEach { adjustment ->
+                        Text(
+                            "${adjustmentLabel(adjustment.reason)} · ${BigDecimal.valueOf(adjustment.amount).stripTrailingZeros().toPlainString()} ${item?.unit.orEmpty()}",
+                            color = colors.onSurfaceSub,
+                            style = MaterialTheme.typography.caption
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = quantityText,
+                    onValueChange = { quantityText = it },
+                    label = { Text(if (L.isTr) "Miktar" else "Quantity") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf("g", "kg", "ml", "L", "adet", "paket", "demet").forEach { choice ->
+                        TextButton(onClick = { unit = choice }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text(
+                                choice,
+                                color = if (unit == choice) colors.primary else colors.onSurfaceSub,
+                                fontWeight = if (unit == choice) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = packageLabel,
+                    onValueChange = { packageLabel = it },
+                    label = { Text(if (L.isTr) "Paket notu (isteğe bağlı)" else "Package note (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (error != null) {
+                    Text(error.orEmpty(), color = MaterialTheme.colors.error, style = MaterialTheme.typography.caption)
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (onDelete != null) {
+                        TextButton(onClick = { confirmDelete = true }) {
+                            Text(if (L.isTr) "Stoktan sil" else "Delete stock", color = MaterialTheme.colors.error)
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) { Text(if (L.isTr) "İptal" else "Cancel") }
+                    Button(
+                        onClick = {
+                            val quantity = quantityText.replace(',', '.').toDoubleOrNull()
+                            if (name.isBlank() || quantity == null || !quantity.isFinite() || quantity <= 0) {
+                                error = if (L.isTr) "Ad ve sıfırdan büyük geçerli bir miktar gir." else "Enter a name and a valid amount above zero."
+                            } else {
+                                onSave(name.trim(), quantity, unit, packageLabel)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                        elevation = ButtonDefaults.elevation(0.dp)
+                    ) {
+                        Text(if (L.isTr) "Kaydet" else "Save", color = colors.onPrimary)
+                    }
+                }
+            }
+        }
+    }
+
+    if (confirmDelete && onDelete != null) {
+        Dialog(onDismissRequest = { confirmDelete = false }) {
+            Card(
+                backgroundColor = colors.surface,
+                elevation = 0.dp,
+                border = BorderStroke(1.dp, colors.divider),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        if (L.isTr) "Bu stok kaydı silinsin mi?" else "Delete this pantry item?",
+                        color = colors.onSurface,
+                        style = MaterialTheme.typography.h6
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Row(modifier = Modifier.align(Alignment.End)) {
+                        TextButton(onClick = { confirmDelete = false }) {
+                            Text(if (L.isTr) "Vazgeç" else "Keep")
+                        }
+                        TextButton(onClick = onDelete) {
+                            Text(if (L.isTr) "Sil" else "Delete", color = MaterialTheme.colors.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun adjustmentLabel(reason: AdjustmentReason): String = when (reason) {
+    AdjustmentReason.MANUAL_ADD -> if (L.isTr) "Elle eklendi" else "Added manually"
+    AdjustmentReason.SHOPPING_ADD -> if (L.isTr) "Alışveriş eklendi" else "Shopping added"
+    AdjustmentReason.RECOUNT -> if (L.isTr) "Yeniden sayıldı" else "Recounted"
+    AdjustmentReason.RECIPE_RESERVATION -> if (L.isTr) "Tarif için ayrıldı" else "Reserved for recipe"
+    AdjustmentReason.RECIPE_CONSUMPTION -> if (L.isTr) "Tarifte kullanıldı" else "Used in recipe"
+    AdjustmentReason.CORRECTION -> if (L.isTr) "Düzeltildi" else "Corrected"
+    AdjustmentReason.DELETION -> if (L.isTr) "Silindi" else "Deleted"
+}
+
+@Composable
+private fun EditorialHomeHeader(chips: List<String>, modifier: Modifier = Modifier) {
     val colors = LocalAppColors.current
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
@@ -236,7 +599,7 @@ private fun EditorialHomeHeader(chips: List<String>) {
         enter = fadeIn(tween(260)) + slideInVertically(tween(260)) { -it / 5 }
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp)
+            modifier = modifier.padding(vertical = 32.dp)
         ) {
             EditorialBrandLockup()
             Spacer(Modifier.height(10.dp))
@@ -282,7 +645,7 @@ private fun IngredientComposer(
     val keyboard = LocalSoftwareKeyboardController.current
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+        modifier = Modifier.fillMaxWidth()
             .background(colors.surfaceAlt, RoundedCornerShape(14.dp))
             .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
             .padding(12.dp)
@@ -357,7 +720,7 @@ private fun CompactKitchenSummary(pantryIntel: PantryIntelReport) {
     val observation = pantryIntel.tactics.firstOrNull()?.let(::pantrySignalText)
         ?: pantryIntel.warnings.firstOrNull()?.let(::pantrySignalText)
         ?: return
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Divider(color = colors.divider)
         Spacer(Modifier.height(12.dp))
         Text(if (L.isTr) "MUTFAK ÖZETİ" else "KITCHEN SUMMARY", color = colors.success, style = MaterialTheme.typography.caption)
@@ -629,6 +992,8 @@ private fun EditorialHomePreview(chips: List<String>) {
     AgenticTheme("editorial") {
         HomeScreen(
             chips = chips,
+            inventory = emptyList(),
+            inventoryAdjustments = emptyMap(),
             scannedIngredients = null,
             pantryIntel = PantryIntelReport(
                 readinessScore = 70,
@@ -644,6 +1009,8 @@ private fun EditorialHomePreview(chips: List<String>) {
             onAddChip = {},
             onAddMultipleChips = {},
             onRemoveChip = {},
+            onSaveInventoryItem = { _, _, _, _, _ -> },
+            onDeleteInventoryItem = {},
             onClearAll = {},
             onStart = {},
             onEditSetup = {}
