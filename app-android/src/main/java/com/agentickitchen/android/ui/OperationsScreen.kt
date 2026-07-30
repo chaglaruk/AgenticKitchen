@@ -467,12 +467,22 @@ private fun ErrorCookingState(recipeName: String) {
     )
 }
 
-private fun CookingResourceLabel(resource: String): String = when (resource) {
-    "stovetop" -> if (L.isTr) "OCAK" else "STOVE"
-    "oven" -> if (L.isTr) "FIRIN" else "OVEN"
-    "airfryer" -> "AIRFRYER"
-    "microwave" -> if (L.isTr) "MİKRODALGA" else "MICROWAVE"
-    else -> resource.uppercase()
+private fun CookingResourceLabel(resource: String): String =
+    cookingResourceLabel(resource, L.isTr)
+
+internal fun cookingResourceLabel(resource: String, isTurkish: Boolean): String = when (resource.lowercase()) {
+    "counter" -> if (isTurkish) "TEZGAH" else "COUNTER"
+    "stove", "stovetop" -> if (isTurkish) "OCAK" else "STOVE"
+    "oven" -> if (isTurkish) "FIRIN" else "OVEN"
+    "airfryer" -> if (isTurkish) "HAVA FRİTÖZÜ" else "AIR FRYER"
+    "pan" -> if (isTurkish) "TAVA" else "PAN"
+    "pot" -> if (isTurkish) "TENCERE" else "POT"
+    "bowl" -> if (isTurkish) "KASE" else "BOWL"
+    "microwave" -> if (isTurkish) "MİKRODALGA" else "MICROWAVE"
+    "fridge" -> if (isTurkish) "BUZDOLABI" else "FRIDGE"
+    "cutting_board" -> if (isTurkish) "KESME TAHTASI" else "CUTTING BOARD"
+    "baking_tray" -> if (isTurkish) "FIRIN TEPSİSİ" else "BAKING TRAY"
+    else -> if (isTurkish) "MUTFAK ALANI" else "KITCHEN AREA"
 }
 
 @Composable
@@ -640,7 +650,7 @@ private fun KitchenSummary(pantryIntel: PantryIntelReport, hardwareSettings: Har
             Spacer(Modifier.height(8.dp))
             Divider(color = colors.divider, thickness = 1.dp)
             Spacer(Modifier.height(8.dp))
-            Text("• ${note.message}", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+            Text("• ${pantrySignalText(note)}", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
         }
     }
 }

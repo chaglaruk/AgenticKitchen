@@ -361,12 +361,7 @@ class AppViewModel(
             try {
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
-                    val stoveType = when {
-                        "gas" in _selectedEquipment.value -> "gas"
-                        "elec" in _selectedEquipment.value -> "electric"
-                        "camping" in _selectedEquipment.value -> "gas"
-                        else -> "none"
-                    }
+                    val stoveType = selectedStoveType()
                     val prompt = PromptFactory.cookingPlanPrompt(option.name, _chips.value, _selectedEquipment.value, selection.servings, stoveType, hw.stovePowerMax, hw.ovenAvailable, hw.ovenHasFan, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, language.value)
                     val parsed = StructuredRecipeParser.cookingPlan(requireProviderText(provider.generateContent(prompt)))
                     val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
@@ -395,6 +390,13 @@ class AppViewModel(
 
     private fun getActiveProvider(): LlmProvider? {
         return CookingProviderSelection.provider(providerFactory, _hw.value)
+    }
+
+    private fun selectedStoveType(): String = when {
+        "gas" in _selectedEquipment.value -> "gas"
+        "elec" in _selectedEquipment.value -> "electric"
+        "camping" in _selectedEquipment.value -> "gas"
+        else -> "none"
     }
 
     private suspend fun <T> executeAiWithProvider(action: suspend (LlmProvider) -> T): T {
@@ -444,7 +446,17 @@ class AppViewModel(
             viewModelScope.launch {
                 try {
                     executeAiWithProvider { provider ->
-                        val prompt = "Sen deneyimli bir mutfak asistanısın. Şu anki tarif: ${currentState.recipe.name}. Kullanıcı sorusu: '$question'. Kısa, sakin ve pratik bir yanıt ver; değişiklik uygun değilse nedenini ve güvenli bir alternatifi açıkla."
+                        val currentStep = _cookingState.value.active.firstOrNull()?.event?.instruction
+                            ?: currentState.events.firstOrNull()?.instruction
+                            ?: if (L.isTr) "Henüz etkin adım yok." else "No active step yet."
+                        val prompt = """
+                            Kitchen guidance request
+                            Recipe: ${currentState.recipe.name}
+                            Current step: $currentStep
+                            Stove type: ${selectedStoveType()}
+                            Language: ${language.value}
+                            Question: $question
+                        """.trimIndent()
                         val responseText = provider.generateContent(prompt)
                         _planState.value = currentState.copy(agentChatResponse = responseText ?: readerSafeAiError(null))
                     }

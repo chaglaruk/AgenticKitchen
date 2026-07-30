@@ -12,11 +12,11 @@ class SimplePantryIntelAgent : PantryIntelAgent {
     )
 
     private val categoryRules = listOf(
-        CategoryRule("vegetation", "Vegetation", setOf("onion", "garlic", "tomato", "potato", "mushroom", "lemon", "broccoli", "pepper", "biber", "patates", "sogan", "sarimsak", "domates", "mantar", "limon"), 1.0),
-        CategoryRule("protein_aqua", "Protein Aqua", setOf("salmon", "fish", "tuna", "shrimp", "prawn", "somon", "balik", "karides"), 2.4),
-        CategoryRule("protein_land", "Protein Land", setOf("chicken", "beef", "lamb", "turkey", "egg", "yogurt", "cheese", "tavuk", "kiyma", "dana", "et", "yumurta", "peynir"), 2.2),
-        CategoryRule("carb_matrix", "Carb Matrix", setOf("rice", "pasta", "bread", "noodle", "potato", "chickpea", "bean", "pirinc", "makarna", "ekmek", "nohut", "fasulye"), 1.4),
-        CategoryRule("spice_payload", "Spice Payload", setOf("salt", "pepper", "paprika", "cumin", "oregano", "thyme", "oil", "salt", "tuz", "karabiber", "kimyon", "kekik", "yag", "zeytinyagi"), 1.1),
+        CategoryRule("vegetation", "Vegetables", setOf("onion", "garlic", "tomato", "potato", "mushroom", "lemon", "broccoli", "pepper", "biber", "patates", "sogan", "sarimsak", "domates", "mantar", "limon"), 1.0),
+        CategoryRule("protein_aqua", "Fish and seafood", setOf("salmon", "fish", "tuna", "shrimp", "prawn", "somon", "balik", "karides"), 2.4),
+        CategoryRule("protein_land", "Meat, poultry and eggs", setOf("chicken", "beef", "lamb", "turkey", "egg", "yogurt", "cheese", "tavuk", "kiyma", "dana", "et", "yumurta", "peynir"), 2.2),
+        CategoryRule("carb_matrix", "Grains and legumes", setOf("rice", "pasta", "bread", "noodle", "potato", "chickpea", "bean", "pirinc", "makarna", "ekmek", "nohut", "fasulye"), 1.4),
+        CategoryRule("spice_payload", "Seasonings", setOf("salt", "pepper", "paprika", "cumin", "oregano", "thyme", "oil", "salt", "tuz", "karabiber", "kimyon", "kekik", "yag", "zeytinyagi"), 1.1),
         CategoryRule("liquids", "Liquids", setOf("water", "milk", "cream", "stock", "broth", "wine", "su", "sut", "krema", "bulyon", "et suyu"), 0.9)
     )
 
@@ -56,20 +56,20 @@ class SimplePantryIntelAgent : PantryIntelAgent {
             warnings += PantryIntelSignal("diet_conflict", "Current inventory conflicts with the selected diet profile.")
         }
         if (!hasLiquid) {
-            warnings += PantryIntelSignal("needs_liquid", "Add a liquid support lane to avoid a dry finish.")
-            tactics += PantryIntelSignal("add_liquid_support", "Introduce water, stock, cream, or a sauce base before final heat.")
+            warnings += PantryIntelSignal("needs_liquid", "Add a little liquid to avoid a dry finish.")
+            tactics += PantryIntelSignal("add_liquid_support", "Add water, stock, cream, or sauce before the final heating step.")
         }
         if (!hasAromatic) {
-            warnings += PantryIntelSignal("needs_aromatic", "Add an aromatic anchor for depth and control.")
+            warnings += PantryIntelSignal("needs_aromatic", "Add onion, garlic, citrus, or herbs for more depth.")
         }
         if (!hasProtein) {
-            warnings += PantryIntelSignal("needs_protein", "Protein anchor missing; plan will skew side-dish heavy.")
-            tactics += PantryIntelSignal("add_protein_anchor", "Bring in legumes, eggs, fish, or meat before generating the plan.")
+            warnings += PantryIntelSignal("needs_protein", "No main protein is present; the result may work better as a side dish.")
+            tactics += PantryIntelSignal("add_protein_anchor", "Add legumes, eggs, fish, or meat before generating the recipe.")
         } else {
-            tactics += PantryIntelSignal("protein_forward_plan", "Lead with the protein lane and build the rest of the operation around it.")
+            tactics += PantryIntelSignal("protein_forward_plan", "Cook the main protein first, then build the rest of the dish around it.")
         }
         if (uniqueCategoryCount >= 4) {
-            tactics += PantryIntelSignal("balanced_payload", "Payload is balanced enough for a layered main dish.")
+            tactics += PantryIntelSignal("balanced_payload", "The ingredients are balanced enough for a complete main dish.")
         }
 
         val equipmentLane = when {
@@ -81,7 +81,7 @@ class SimplePantryIntelAgent : PantryIntelAgent {
 
         tactics += when (equipmentLane) {
             "hybrid_finish" -> PantryIntelSignal("hybrid_finish_lane", "Use stovetop for flavor buildup, then finish with stable oven heat.")
-            "controlled_roast" -> PantryIntelSignal("controlled_roast_lane", "Favor controlled roasting to reduce timing volatility.")
+            "controlled_roast" -> PantryIntelSignal("controlled_roast_lane", "Use steady oven cooking for an even result.")
             "rapid_pan" -> PantryIntelSignal("rapid_pan_lane", "Favor fast pan work and short hold times.")
             else -> PantryIntelSignal("adaptive_lane", "Stay with short reversible steps until the pantry improves.")
         }

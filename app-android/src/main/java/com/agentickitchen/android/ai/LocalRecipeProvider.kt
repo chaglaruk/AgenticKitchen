@@ -1,7 +1,6 @@
 package com.agentickitchen.android.ai
 
 import com.agentickitchen.android.AppLogger
-import com.agentickitchen.android.L
 import com.agentickitchen.android.catalogIngredientForName
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
@@ -57,7 +56,7 @@ class LocalRecipeProvider internal constructor(
             OPTIONS_MARKER in prompt -> recipeOptions(prompt)
             PLAN_MARKER in prompt -> cookingPlan(prompt)
             SCAN_MARKER in prompt -> throw invalidRequest()
-            else -> localAssistantResponse()
+            else -> localAssistantResponse(prompt)
         }
         diagnosticSink(ProviderDiagnostic(PROVIDER_ID, null, "SUCCESS", response.length))
         return response
@@ -247,10 +246,63 @@ class LocalRecipeProvider internal constructor(
         return steps
     }
 
-    private fun localAssistantResponse(): String = if (L.isTr) {
-        "Mevcut adıma sadık kal, ısıyı kontrollü tut ve yemeğin görünümünü sık sık kontrol et."
-    } else {
-        "Stay with the current step, keep the heat controlled, and check the food often."
+    private fun localAssistantResponse(prompt: String): String {
+        val question = prompt.lineValue("Question:").ifBlank { prompt }.normalized()
+        val context = GuidanceContext(
+            recipeName = prompt.lineValue("Recipe:"),
+            currentStep = prompt.lineValue("Current step:"),
+            stoveType = prompt.lineValue("Stove type:"),
+            isTurkish = prompt.lineValue("Language:").normalized() in setOf("turkce", "turkish")
+        )
+        val intent = guidanceIntents.firstOrNull { (_, phrases) -> phrases.any(question::contains) }?.first
+        return guidanceResponse(intent, context)
+    }
+
+    private fun guidanceResponse(intent: GuidanceIntent?, context: GuidanceContext): String {
+        val step = context.currentStep.ifBlank {
+            if (context.isTurkish) "mevcut adım" else "the current step"
+        }
+        val recipe = context.recipeName.ifBlank {
+            if (context.isTurkish) "bu tarif" else "this recipe"
+        }
+        val stove = when (context.stoveType) {
+            "gas" -> if (context.isTurkish) "gaz alevini" else "the gas flame"
+            "electric" -> if (context.isTurkish) "elektrikli ocak seviyesini" else "the electric hob level"
+            else -> if (context.isTurkish) "ısıyı" else "the heat"
+        }
+        return if (context.isTurkish) {
+            when (intent) {
+                GuidanceIntent.THICK_SAUCE -> "Sosu 1 yemek kaşığı sıcak suyla açıp 30 saniye karıştır. Kıvamı kontrol etmeden daha fazla sıvı ekleme."
+                GuidanceIntent.THIN_SAUCE -> "Sosu kapağı açık, düşük ısıda 1 dakika koyulaştır. Dibi tutmaması için karıştır ve her dakika yeniden kontrol et."
+                GuidanceIntent.BURNING -> "Tavayı hemen ocaktan al ve ısıyı kapat; yanmamış kısmı temiz bir kaba aktar. Duman veya alev varsa su dökme, kapağı kapat."
+                GuidanceIntent.HOT_PAN -> "Tavayı ısıdan 30 saniye uzaklaştır, sonra $stove bir kademe azalt. Yağ duman çıkarıyorsa yemeği eklemeden önce soğumasını bekle."
+                GuidanceIntent.UNDERCOOKED -> "En kalın parçayı yeniden ısıtıp küçük aralıklarla pişir. Et, balık veya yumurtada güvenli iç sıcaklığı termometreyle doğrula."
+                GuidanceIntent.OVERCOOKED -> "Isıyı kapatıp az miktarda su, sos veya yağ ekle ve hemen servis et. Yanmış veya güvenliğinden şüpheli kısmı kullanma."
+                GuidanceIntent.SALTY -> "Tuzsuz malzeme veya 1 yemek kaşığı su ekleyip karıştır, sonra yeniden tat. Şeker ekleyerek tuzu gizlemeye çalışma."
+                GuidanceIntent.SPICY -> "Acılığı yoğurt, süt ürünü veya uygun bir yağlı eşlikle dengele; önce az miktar ekle. Alerji ve beslenme tercihini kontrol et."
+                GuidanceIntent.SUBSTITUTION -> "$recipe için benzer görevdeki malzemeyi önce yarım miktarla ekle, kıvam ve tadı kontrol ederek artır. Alerji ve beslenme uyumunu doğrula."
+                GuidanceIntent.TIMING -> "$recipe içinde \"$step\" adımını dokusu ve güvenli iç sıcaklığı uygun olana kadar sürdür; yalnız süreye güvenme. Bir dakikalık aralıklarla kontrol et."
+                GuidanceIntent.LOWER_HEAT -> "$stove bir kademe azalt ve 30 saniye gözle. Duman veya hızlı kararma sürerse tavayı geçici olarak ısıdan al."
+                GuidanceIntent.RAISE_HEAT -> "$stove yalnız bir kademe artır ve 30 saniye gözle. Yağ duman çıkarmaya başlarsa hemen geri azalt."
+                null -> "Çevrimdışı asistan $recipe için bunu tam olarak belirleyemiyor. \"$step\" adımını durdurup koku, doku ve güvenli sıcaklığı kontrol et; şüphedeysen ısıyı azalt."
+            }
+        } else {
+            when (intent) {
+                GuidanceIntent.THICK_SAUCE -> "Stir in 1 tablespoon of hot water for 30 seconds. Check the texture before adding more liquid."
+                GuidanceIntent.THIN_SAUCE -> "Reduce the sauce uncovered over low heat for 1 minute. Stir to prevent sticking and check it each minute."
+                GuidanceIntent.BURNING -> "Take the pan off the heat and turn the heat off; move the unburnt food to a clean pan. If there is smoke or flame, do not add water—cover it."
+                GuidanceIntent.HOT_PAN -> "Move the pan off the heat for 30 seconds, then lower $stove by one level. If the oil is smoking, let it cool before adding food."
+                GuidanceIntent.UNDERCOOKED -> "Return the thickest piece to the heat and cook in short intervals. For meat, fish, or eggs, verify a safe internal temperature with a thermometer."
+                GuidanceIntent.OVERCOOKED -> "Turn off the heat, add a little water, sauce, or oil, and serve promptly. Discard burnt or questionable portions."
+                GuidanceIntent.SALTY -> "Add an unsalted ingredient or 1 tablespoon of water, stir, then taste again. Do not try to hide excess salt with sugar."
+                GuidanceIntent.SPICY -> "Balance the heat with yoghurt, another suitable dairy product, or a little fat. Add a small amount first and check allergies and diet."
+                GuidanceIntent.SUBSTITUTION -> "For $recipe, add a similar-purpose substitute at half the amount first, then adjust after checking texture and taste. Confirm allergy and diet compatibility."
+                GuidanceIntent.TIMING -> "For $recipe, continue \"$step\" until its texture and safe internal temperature are right; do not rely on time alone. Check at one-minute intervals."
+                GuidanceIntent.LOWER_HEAT -> "Lower $stove by one level and watch for 30 seconds. If smoking or rapid browning continues, take the pan off the heat briefly."
+                GuidanceIntent.RAISE_HEAT -> "Raise $stove by only one level and watch for 30 seconds. Lower it immediately if the oil starts to smoke."
+                null -> "The offline assistant cannot determine that precisely for $recipe. Pause \"$step\" and check smell, texture, and safe temperature; lower the heat if unsure."
+            }
+        }
     }
 
     private fun invalidRequest(): ProviderFailure {
@@ -576,6 +628,20 @@ class LocalRecipeProvider internal constructor(
         const val OPTIONS_MARKER = "Generate exactly 3 different recipe options"
         const val PLAN_MARKER = "Create a detailed cooking plan for \""
         const val SCAN_MARKER = "görsel açıklamasındaki yiyecek malzemelerini"
+        val guidanceIntents = listOf(
+            GuidanceIntent.BURNING to setOf("burning", "burnt", "yanıyor", "yaniyor", "yandı", "yandi"),
+            GuidanceIntent.HOT_PAN to setOf("pan too hot", "pan is too hot", "tava çok sıcak", "tava cok sicak", "tava fazla sıcak", "tava fazla sicak"),
+            GuidanceIntent.THICK_SAUCE to setOf("too thick", "çok koyu", "cok koyu", "fazla koyu"),
+            GuidanceIntent.THIN_SAUCE to setOf("too thin", "watery", "çok sulu", "cok sulu", "fazla sulu"),
+            GuidanceIntent.UNDERCOOKED to setOf("undercooked", "still raw", "az pişmiş", "az pismis", "çiğ", "cig"),
+            GuidanceIntent.OVERCOOKED to setOf("overcooked", "too dry", "fazla pişmiş", "fazla pismis", "çok pişti", "cok pisti", "kurudu"),
+            GuidanceIntent.SALTY to setOf("too salty", "çok tuzlu", "cok tuzlu", "fazla tuzlu"),
+            GuidanceIntent.SPICY to setOf("too spicy", "çok acı", "cok aci", "fazla acı", "fazla aci"),
+            GuidanceIntent.SUBSTITUTION to setOf("substitute", "replace", "instead of", "yerine", "değiştir", "degistir"),
+            GuidanceIntent.TIMING to setOf("how long", "timing", "kaç dakika", "kac dakika", "ne kadar"),
+            GuidanceIntent.LOWER_HEAT to setOf("reduce heat", "lower heat", "ısıyı azalt", "isiyi azalt", "ateşi kıs", "atesi kis"),
+            GuidanceIntent.RAISE_HEAT to setOf("increase heat", "raise heat", "ısıyı artır", "isiyi artir", "ateşi artır", "atesi artir", "ateşi aç", "atesi ac")
+        )
         val stoveEquipmentIds = setOf("elec", "gas", "camping")
         val heatEquipmentIds = stoveEquipmentIds + setOf("oven", "airfryer", "grill", "microwave")
         val herbIds = setOf("parsley", "dill", "mint", "basil", "coriander", "thyme", "rosemary", "oregano", "bay-leaf")
@@ -584,6 +650,28 @@ class LocalRecipeProvider internal constructor(
         val supportingRoles = stapleRoles + vegetableRoles + setOf(IngredientRole.AROMATIC, IngredientRole.FRUIT)
         val json = Json { encodeDefaults = true }
     }
+}
+
+private data class GuidanceContext(
+    val recipeName: String,
+    val currentStep: String,
+    val stoveType: String,
+    val isTurkish: Boolean
+)
+
+private enum class GuidanceIntent {
+    THICK_SAUCE,
+    THIN_SAUCE,
+    BURNING,
+    HOT_PAN,
+    UNDERCOOKED,
+    OVERCOOKED,
+    SALTY,
+    SPICY,
+    SUBSTITUTION,
+    TIMING,
+    LOWER_HEAT,
+    RAISE_HEAT
 }
 
 private data class LocalIngredient(

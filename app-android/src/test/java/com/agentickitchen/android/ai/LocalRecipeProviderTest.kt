@@ -244,6 +244,57 @@ class LocalRecipeProviderTest {
         assertFalse(twelve.ingredients.all { it.quantity == 1_200.0 })
     }
 
+    @Test
+    fun offlineGuidanceAnswersDifferentEnglishKitchenProblems() = runBlocking {
+        val responses = listOf(
+            "The sauce is too thick",
+            "The sauce is watery",
+            "The food is burning",
+            "The pan is too hot",
+            "The chicken is undercooked",
+            "The dish is too salty",
+            "What can I substitute instead of cream?",
+            "Should I reduce heat?"
+        ).map { guidance(it, "English") }
+
+        assertEquals(responses.size, responses.toSet().size)
+        assertTrue(responses[0].contains("hot water"))
+        assertTrue(responses[2].contains("off the heat"))
+        assertTrue(responses[4].contains("safe internal temperature"))
+        assertTrue(responses[7].contains("electric hob"))
+    }
+
+    @Test
+    fun offlineGuidanceAnswersDifferentTurkishKitchenProblems() = runBlocking {
+        val responses = listOf(
+            "Sos çok koyu",
+            "Sos çok sulu",
+            "Yemek yanıyor",
+            "Tava çok sıcak",
+            "Tavuk az pişmiş",
+            "Yemek çok tuzlu",
+            "Krema yerine ne kullanabilirim?",
+            "Ateşi artırmalı mıyım?"
+        ).map { guidance(it, "Türkçe") }
+
+        assertEquals(responses.size, responses.toSet().size)
+        assertTrue(responses[0].contains("sıcak su"))
+        assertTrue(responses[2].contains("su dökme"))
+        assertTrue(responses[4].contains("güvenli iç sıcaklığı"))
+        assertTrue(responses[7].contains("elektrikli ocak"))
+    }
+
+    @Test
+    fun unsupportedOfflineGuidanceAdmitsItsLimitAndUsesTheCurrentStep() = runBlocking {
+        val english = guidance("Is this ready for a dinner party?", "English")
+        val turkish = guidance("Bu misafirler için uygun mu?", "Türkçe")
+
+        assertTrue(english.contains("cannot determine that precisely"))
+        assertTrue(english.contains("Simmer the rice"))
+        assertTrue(turkish.contains("tam olarak belirleyemiyor"))
+        assertTrue(turkish.contains("Simmer the rice"))
+    }
+
     private suspend fun options(
         ingredients: List<String>,
         equipment: Set<String>,
@@ -288,6 +339,18 @@ class LocalRecipeProviderTest {
         )
         return requireNotNull(StructuredRecipeParser.cookingPlan(response).getOrNull())
     }
+
+    private suspend fun guidance(question: String, language: String): String =
+        LocalRecipeProvider { }.generateContent(
+            """
+                Kitchen guidance request
+                Recipe: Tomato rice
+                Current step: Simmer the rice
+                Stove type: electric
+                Language: $language
+                Question: $question
+            """.trimIndent()
+        )
 
     private fun assertValidated(
         plan: CookingPlanResponse,
