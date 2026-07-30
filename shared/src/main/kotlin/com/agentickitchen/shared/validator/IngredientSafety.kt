@@ -13,7 +13,8 @@ enum class IngredientSafetyGroup {
     GLUTEN,
     TREE_NUTS,
     PEANUT,
-    SOY
+    SOY,
+    SESAME
 }
 
 object IngredientSafety {
@@ -97,7 +98,8 @@ object IngredientSafety {
             "cashew", "cashews", "kaju", "pine nuts", "cam fistigi"
         ),
         IngredientSafetyGroup.PEANUT to setOf("peanut", "peanuts", "yer fistigi"),
-        IngredientSafetyGroup.SOY to setOf("soy", "soya", "soybeans", "soya fasulyesi", "tofu", "edamame")
+        IngredientSafetyGroup.SOY to setOf("soy", "soya", "soybeans", "soya fasulyesi", "tofu", "edamame"),
+        IngredientSafetyGroup.SESAME to setOf("sesame", "sesame seeds", "tahini", "tahin", "susam", "susam tohumu")
     )
 
     private val allergenAliases = mapOf(
@@ -110,6 +112,7 @@ object IngredientSafety {
         IngredientSafetyGroup.GLUTEN to setOf("gluten", "wheat", "bugday"),
         IngredientSafetyGroup.TREE_NUTS to setOf("tree nuts", "nuts", "kuruyemis", "findik"),
         IngredientSafetyGroup.PEANUT to setOf("peanut", "yer fistigi"),
-        IngredientSafetyGroup.SOY to setOf("soy", "soya")
+        IngredientSafetyGroup.SOY to setOf("soy", "soya"),
+        IngredientSafetyGroup.SESAME to setOf("sesame", "susam")
     )
 }

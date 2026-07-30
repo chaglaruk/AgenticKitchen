@@ -19,6 +19,7 @@ import com.agentickitchen.android.ai.ProviderFailure
 import com.agentickitchen.android.ai.ProviderFailureCategory
 import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.StructuredRecipeParser
+import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.prompt.PromptFactory
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import com.agentickitchen.shared.validator.CookingPlanValidator
@@ -120,9 +121,11 @@ sealed class PlanState {
     object Loading : PlanState()
     data class OptionsReady(val options: List<RecipeOption>) : PlanState()
     data class RecipeActive(
-        val recipe: RecipeOption, 
-        val events: List<ScheduleEvent>, 
+        val recipe: RecipeOption,
+        val events: List<ScheduleEvent>,
         val servings: Int = 2,
+        val resolvedReadyTimeIso: String = "",
+        val cookingPlan: CookingPlanResponse? = null,
         val agentChatResponse: String? = null,
         val visionScanResponse: String? = null
     ) : PlanState()
@@ -162,6 +165,20 @@ object CookingProviderSelection {
         factory.provider(settings.copy(aiProvider = normalize(settings.aiProvider)))
 }
 data class DietSettings(val dietType: String = "none", val allergies: Set<String> = emptySet())
+
+internal fun activeRecipeState(
+    option: RecipeOption,
+    events: List<ScheduleEvent>,
+    servings: Int,
+    readyTimeIso: String,
+    plan: CookingPlanResponse
+) = PlanState.RecipeActive(
+    recipe = option,
+    events = events,
+    servings = servings,
+    resolvedReadyTimeIso = readyTimeIso,
+    cookingPlan = plan
+)
 
 internal fun imageDerivedIngredientPrompt(caption: String?): String? = caption?.let {
     "Şu görsel açıklamasındaki yiyecek malzemelerini (sebze, et, baharat vb.) tespit et ve sadece aralarına virgül koyarak Türkçe kelimeler olarak listele: '$it'. Başka hiçbir metin yazma."
@@ -366,13 +383,16 @@ class AppViewModel(
                     val parsed = StructuredRecipeParser.cookingPlan(requireProviderText(provider.generateContent(prompt)))
                     val plan = (parsed as? AiResult.Success)?.value ?: throw IllegalArgumentException(parsed.failureOrNull()?.userMessage)
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
-                    if (!validation.valid) throw IllegalArgumentException(validation.errors.joinToString { it.message })
+                    if (!validation.valid) {
+                        throw ProviderFailure("VALIDATOR", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                    }
                     val target = targetTimeResolver.resolve(selection.targetTime).getOrElse { throw it }
-                    val session = RecipeSession(UUID.randomUUID().toString(), target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
+                    val readyTimeIso = target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                    val session = RecipeSession(UUID.randomUUID().toString(), readyTimeIso, plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
                     val result = orchestrator.startSession(session)
                     historyRepo.insertRecipe(session.sessionId, option.name, plan.ingredients.joinToString { "${it.quantity} ${it.unit} ${it.name}" }, ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), "started")
                     loadHistory()
-                    _planState.value = PlanState.RecipeActive(option, result.events, servings = selection.servings)
+                    _planState.value = activeRecipeState(option, result.events, selection.servings, readyTimeIso, plan)
                 }
             } catch (error: CancellationException) {
                 throw error

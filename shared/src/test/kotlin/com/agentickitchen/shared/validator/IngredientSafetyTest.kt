@@ -21,4 +21,11 @@ class IngredientSafetyTest {
         assertTrue(IngredientSafety.conflictsWithAllergen("Karides", "shellfish"))
         assertFalse(IngredientSafety.conflictsWithAllergen("Pirinç", "milk"))
     }
+
+    @Test
+    fun `sesame allergen recognizes Turkish and English ingredients`() {
+        assertTrue(IngredientSafety.conflictsWithAllergen("Tahin", "sesame"))
+        assertTrue(IngredientSafety.conflictsWithAllergen("Susam tohumu", "sesame"))
+        assertFalse(IngredientSafety.conflictsWithAllergen("Domates", "sesame"))
+    }
 }

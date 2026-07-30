@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.agentickitchen.android.BuildConfig
+import com.agentickitchen.android.AllergyCatalog
 import com.agentickitchen.android.DietSettings
 import com.agentickitchen.android.HardwareSettings
 import com.agentickitchen.android.L
@@ -216,9 +217,16 @@ private fun appearanceLabel(theme: String): String = when (themeSpec(theme).id) 
     else -> if (L.isTr) "Açık Editoryal" else "Light Editorial"
 }
 
-private fun dietSummary(diet: DietSettings): String = when (diet.dietType) {
-    "none" -> if (L.isTr) "Kısıtlama yok" else "No restrictions"
-    else -> diet.dietType.replaceFirstChar { it.uppercase() }
+private fun dietSummary(diet: DietSettings): String {
+    val dietLabel = when (diet.dietType) {
+        "none" -> if (L.isTr) "Kısıtlama yok" else "No restrictions"
+        else -> diet.dietType.replaceFirstChar { it.uppercase() }
+    }
+    val allergies = AllergyCatalog.normalize(diet.allergies)
+        .joinToString { AllergyCatalog.label(it, L.isTr) }
+    return if (allergies.isBlank()) dietLabel
+    else if (L.isTr) "$dietLabel · Alerjiler: $allergies"
+    else "$dietLabel · Allergies: $allergies"
 }
 
 @Composable
@@ -499,6 +507,10 @@ private fun EditorialChoiceButton(label: String, selected: Boolean, onClick: () 
 @Composable
 fun DietDialog(current: DietSettings, colors: AppColors, onSave: (DietSettings) -> Unit, onDismiss: () -> Unit) {
     var dietType by remember { mutableStateOf(current.dietType) }
+    var allergies by remember(current.allergies) {
+        mutableStateOf(AllergyCatalog.normalize(current.allergies))
+    }
+    var customAllergy by remember { mutableStateOf("") }
     EditorialDialogSurface(onDismiss) {
         EditorialDialogHeader(if (L.isTr) "Beslenme tercihi" else "Dietary preference", onDismiss)
         listOf(
@@ -510,7 +522,67 @@ fun DietDialog(current: DietSettings, colors: AppColors, onSave: (DietSettings) 
             EditorialSelectionRow(label, dietType == key) { dietType = key }
         }
         Spacer(Modifier.size(18.dp))
-        DialogActions(onDismiss = onDismiss, onSave = { onSave(DietSettings(dietType, current.allergies)) })
+        Text(
+            if (L.isTr) "Alerjiler" else "Allergies",
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h6
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (L.isTr) "Birden fazla seçim yapabilirsin." else "You can select more than one.",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body2
+        )
+        Spacer(Modifier.height(8.dp))
+        AllergyCatalog.definitions.forEach { allergy ->
+            val selected = allergy.id in allergies
+            EditorialSelectionRow(AllergyCatalog.label(allergy.id, L.isTr), selected) {
+                allergies = if (selected) allergies - allergy.id else allergies + allergy.id
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = customAllergy,
+                onValueChange = { customAllergy = it },
+                label = { Text(if (L.isTr) "Başka bir alerji" else "Another allergy") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = colors.primary,
+                    unfocusedBorderColor = colors.divider,
+                    textColor = colors.onSurface
+                )
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(
+                onClick = {
+                    AllergyCatalog.normalizeCustom(customAllergy)?.let { allergies = allergies + it }
+                    customAllergy = ""
+                },
+                enabled = AllergyCatalog.normalizeCustom(customAllergy) != null
+            ) {
+                Text(if (L.isTr) "Ekle" else "Add", color = colors.primary)
+            }
+        }
+        allergies.filter { it.startsWith("custom:") }.forEach { allergy ->
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    AllergyCatalog.label(allergy, L.isTr),
+                    color = colors.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { allergies = allergies - allergy }) {
+                    Text(if (L.isTr) "Kaldır" else "Remove", color = colors.primary)
+                }
+            }
+            Divider(color = colors.divider, thickness = 1.dp)
+        }
+        Spacer(Modifier.size(18.dp))
+        DialogActions(onDismiss = onDismiss, onSave = { onSave(DietSettings(dietType, allergies)) })
     }
 }
 

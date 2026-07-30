@@ -70,7 +70,11 @@ import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
 import com.agentickitchen.shared.cooking.LiveOperation
+import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.models.ScheduleEvent
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun OperationsScreen(
@@ -113,6 +117,7 @@ fun OperationsScreen(
         EditorialLiveCooking(
             state = cookingState,
             recipeName = recipeName,
+            activePlan = planState as? PlanState.RecipeActive,
             onStart = onStartCooking,
             onPause = onPauseCooking,
             onResume = onResumeCooking,
@@ -181,6 +186,7 @@ private fun EditorialCookingHeader(recipeName: String) {
 private fun EditorialLiveCooking(
     state: CookingSessionState,
     recipeName: String,
+    activePlan: PlanState.RecipeActive?,
     onStart: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -198,7 +204,7 @@ private fun EditorialLiveCooking(
             Spacer(Modifier.height(12.dp))
         }
         when (state.status) {
-            CookingSessionStatus.READY -> ReadyCookingState(recipeName, onStart)
+            CookingSessionStatus.READY -> ReadyCookingState(recipeName, activePlan, onStart)
             CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED -> ActiveCookingState(
                 state = state,
                 total = total,
@@ -220,7 +226,11 @@ private fun EditorialLiveCooking(
 }
 
 @Composable
-private fun ReadyCookingState(recipeName: String, onStart: () -> Unit) {
+private fun ReadyCookingState(
+    recipeName: String,
+    activePlan: PlanState.RecipeActive?,
+    onStart: () -> Unit
+) {
     val colors = LocalAppColors.current
     Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         IngredientArtwork(recipeName, Modifier.size(108.dp))
@@ -232,6 +242,10 @@ private fun ReadyCookingState(recipeName: String, onStart: () -> Unit) {
             color = colors.onSurfaceSub,
             style = MaterialTheme.typography.body1
         )
+        activePlan?.cookingPlan?.let { plan ->
+            Spacer(Modifier.height(28.dp))
+            PlanReview(activePlan)
+        }
         Spacer(Modifier.height(18.dp))
         Button(
             onClick = onStart,
@@ -243,6 +257,108 @@ private fun ReadyCookingState(recipeName: String, onStart: () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun PlanReview(active: PlanState.RecipeActive) {
+    val colors = LocalAppColors.current
+    val plan = active.cookingPlan ?: return
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Divider(color = colors.divider, thickness = 1.dp)
+        Spacer(Modifier.height(20.dp))
+        Text(
+            if (L.isTr) "PİŞİRME PLANI" else "COOKING PLAN",
+            color = colors.primary,
+            style = MaterialTheme.typography.caption
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (L.isTr) "${active.servings} kişilik · ${formatReadyTime(active.resolvedReadyTimeIso)} hazır"
+            else "Serves ${active.servings} · ready at ${formatReadyTime(active.resolvedReadyTimeIso)}",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body1
+        )
+        Spacer(Modifier.height(24.dp))
+        PlanReviewSectionTitle(if (L.isTr) "Malzemeler" else "Ingredients")
+        plan.ingredients.forEach { ingredient ->
+            EditorialPlanRow(
+                leading = "•",
+                title = ingredient.name,
+                detail = "${formatPlanQuantity(ingredient.quantity)} ${ingredient.unit}"
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+        PlanReviewSectionTitle(if (L.isTr) "Adımlar" else "Steps")
+        plan.steps.forEachIndexed { index, step ->
+            EditorialPlanStep(index + 1, step)
+        }
+        if (plan.safetyNotes.isNotEmpty()) {
+            Spacer(Modifier.height(24.dp))
+            PlanReviewSectionTitle(if (L.isTr) "Güvenlik notları" else "Safety notes")
+            plan.safetyNotes.forEach { note ->
+                EditorialPlanRow(leading = "•", title = note, detail = null)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Divider(color = colors.divider, thickness = 1.dp)
+    }
+}
+
+@Composable
+private fun PlanReviewSectionTitle(title: String) {
+    Text(
+        title,
+        color = LocalAppColors.current.onSurface,
+        style = MaterialTheme.typography.h6
+    )
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun EditorialPlanRow(leading: String, title: String, detail: String?) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.Top
+    ) {
+        Text(leading, color = colors.primary, modifier = Modifier.width(28.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = colors.onSurface, style = MaterialTheme.typography.body1)
+            detail?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(it, color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditorialPlanStep(number: Int, step: CookingStepDto) {
+    val meta = buildList {
+        add(cookingResourceLabel(step.resource, L.isTr))
+        add(formatCookingDuration(step.durationSeconds.toLong()))
+        step.targetTemperatureC?.let { add("$it°C") }
+        step.powerLevel?.let { add(if (L.isTr) "Seviye $it" else "Level $it") }
+        if (step.dependsOn.isNotEmpty()) {
+            add(
+                if (L.isTr) "${step.dependsOn.joinToString()} sonrasında"
+                else "after ${step.dependsOn.joinToString()}"
+            )
+        }
+    }.joinToString(" · ")
+    EditorialPlanRow(
+        leading = number.toString().padStart(2, '0'),
+        title = step.instruction,
+        detail = meta
+    )
+}
+
+internal fun formatPlanQuantity(quantity: Double): String =
+    if (quantity % 1.0 == 0.0) quantity.toLong().toString()
+    else String.format(Locale.ROOT, "%.2f", quantity).trimEnd('0').trimEnd('.')
+
+internal fun formatReadyTime(readyTimeIso: String): String = runCatching {
+    ZonedDateTime.parse(readyTimeIso).format(DateTimeFormatter.ofPattern("HH:mm"))
+}.getOrDefault(if (L.isTr) "belirsiz" else "unspecified")
 
 @Composable
 private fun ActiveCookingState(
@@ -768,7 +884,7 @@ private fun CompletedCookingPreview() = CookingPreview(
 @Composable
 private fun CookingPreview(state: CookingSessionState) {
     AgenticTheme("editorial") {
-        EditorialLiveCooking(state, state.recipeName, {}, {}, {}, {}, {}, {})
+        EditorialLiveCooking(state, state.recipeName, null, {}, {}, {}, {}, {}, {})
     }
 }
 

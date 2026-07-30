@@ -41,4 +41,14 @@ class PromptFactoryTest {
         assertContains(prompt, "\"powerLevel\": null")
         assertFalse(prompt.contains("Stove type: electric"))
     }
+
+    @Test
+    fun allergiesArePropagatedToProviderPrompts() {
+        val prompt = PromptFactory.cookingPlanPrompt(
+            "Soup", listOf("tomato"), setOf("elec"), 2, "electric", 9,
+            false, false, false, "none", setOf("milk", "sesame"), "English"
+        )
+
+        assertContains(prompt, "Allergies: milk, sesame")
+    }
 }

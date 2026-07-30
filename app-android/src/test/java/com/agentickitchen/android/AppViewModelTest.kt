@@ -11,13 +11,18 @@ import com.agentickitchen.shared.agents.Orchestrator
 import com.agentickitchen.shared.agents.PantryIntelAgent
 import com.agentickitchen.shared.db.RecipeHistory
 import com.agentickitchen.shared.db.RecipeHistoryRepository
+import com.agentickitchen.shared.ai.dto.CookingPlanResponse
+import com.agentickitchen.shared.ai.dto.CookingStepDto
+import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.models.PantryIntelReport
+import com.agentickitchen.shared.models.ScheduleEvent
 import com.agentickitchen.shared.models.ScheduleResult
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -150,6 +155,43 @@ class AppViewModelTest {
 
         viewModel.clearAll()
         assertTrue(preferences.ingredientDraftValue.isEmpty())
+    }
+
+    @Test
+    fun activeRecipeStateRetainsTheValidatedPlanAndResolvedReadyTime() {
+        val plan = CookingPlanResponse(
+            recipeName = "Soup",
+            servings = 4,
+            ingredients = listOf(PlannedIngredientDto("Tomato", 500.0, "g")),
+            steps = listOf(CookingStepDto("prep", "prep", "Chop tomato", "counter", 120)),
+            safetyNotes = listOf("Wash produce")
+        )
+        val events = listOf(ScheduleEvent("prep", "2026-07-30T18:00:00Z", "2026-07-30T18:02:00Z", "Chop tomato", "counter"))
+
+        val state = activeRecipeState(
+            RecipeOption("1", "Easy", "Soup", "Tomato soup"),
+            events,
+            4,
+            "2026-07-30T19:00:00Z",
+            plan
+        )
+
+        assertSame(plan, state.cookingPlan)
+        assertEquals(events, state.events)
+        assertEquals("2026-07-30T19:00:00Z", state.resolvedReadyTimeIso)
+        assertEquals(4, state.servings)
+    }
+
+    @Test
+    fun canonicalAllergiesSurviveViewModelRecreationWithoutDuplicates() {
+        val preferences = FakePreferences()
+        val first = newViewModel(preferences, FakeHistoryRepository())
+        val normalized = AllergyCatalog.normalize(setOf("dairy", "milk", "Susam", "  my custom  "))
+
+        first.saveDietSettings(DietSettings("none", normalized))
+        val recreated = newViewModel(preferences, FakeHistoryRepository())
+
+        assertEquals(setOf("milk", "sesame", "custom:my_custom"), recreated.dietSettings.value.allergies)
     }
 
     private fun newViewModel(
