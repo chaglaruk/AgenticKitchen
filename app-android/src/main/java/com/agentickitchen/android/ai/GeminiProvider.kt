@@ -86,7 +86,20 @@ class GeminiProvider internal constructor(
                 request.dietType,
                 request.allergies,
                 request.language
-            ),
+            ) + if (request.inventoryLines.isEmpty()) {
+                ""
+            } else {
+                """
+
+Available pantry quantities:
+${request.inventoryLines.joinToString("\n")}
+Strict stock only: ${request.strictStock}
+Maximum missing staples: ${request.maxMissingStaples}
+Servings: ${request.servings}
+Prioritize: ${request.prioritizedIngredients.joinToString(", ")}
+Include exact proposedIngredients for every option. Never exceed available quantities when strict stock only is true.
+                """.trimIndent()
+            },
             schema = recipeOptionsSchema,
             decode = json::decodeFromString,
             validate = { response ->
@@ -115,7 +128,11 @@ class GeminiProvider internal constructor(
                 request.dietType,
                 request.allergies,
                 request.language
-            ),
+            ) + if (request.inventoryLines.isEmpty()) {
+                ""
+            } else {
+                "\nAvailable pantry quantities:\n${request.inventoryLines.joinToString("\n")}\nDo not exceed these quantities."
+            },
             schema = cookingPlanSchema,
             decode = json::decodeFromString,
             validate = { plan ->
@@ -405,7 +422,7 @@ For photo requests, describe only visible evidence and state uncertainty."""
         private fun schema(source: String) = json.parseToJsonElement(source).jsonObject
 
         private val recipeOptionsSchema = schema(
-            """{"type":"object","properties":{"options":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"summary":{"type":"string"},"difficulty":{"type":"string"},"estimatedMinutes":{"type":"integer"},"requiredEquipment":{"type":"array","items":{"type":"string"}},"missingIngredients":{"type":"array","items":{"type":"string"}}},"required":["id","name","summary","difficulty","estimatedMinutes","requiredEquipment","missingIngredients"]}}},"required":["options"]}"""
+            """{"type":"object","properties":{"options":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"summary":{"type":"string"},"difficulty":{"type":"string"},"estimatedMinutes":{"type":"integer"},"requiredEquipment":{"type":"array","items":{"type":"string"}},"missingIngredients":{"type":"array","items":{"type":"string"}},"proposedIngredients":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"quantity":{"type":"number"},"unit":{"type":"string"}},"required":["name","quantity","unit"]}}},"required":["id","name","summary","difficulty","estimatedMinutes","requiredEquipment","missingIngredients","proposedIngredients"]}}},"required":["options"]}"""
         )
         private val cookingPlanSchema = schema(
             """{"type":"object","properties":{"recipeName":{"type":"string"},"servings":{"type":"integer"},"ingredients":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"quantity":{"type":"number"},"unit":{"type":"string"}},"required":["name","quantity","unit"]}},"steps":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"type":{"type":"string"},"instruction":{"type":"string"},"resource":{"type":"string"},"durationSeconds":{"type":"integer"},"targetTemperatureC":{"type":["integer","null"]},"powerLevel":{"type":["integer","null"]},"dependsOn":{"type":"array","items":{"type":"string"}},"visionCheckpointRecommended":{"type":"boolean"}},"required":["id","type","instruction","resource","durationSeconds","dependsOn","visionCheckpointRecommended"]}},"safetyNotes":{"type":"array","items":{"type":"string"}}},"required":["recipeName","servings","ingredients","steps","safetyNotes"]}"""

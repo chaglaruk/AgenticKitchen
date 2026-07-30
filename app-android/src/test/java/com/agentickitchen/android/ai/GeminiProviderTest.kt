@@ -6,10 +6,14 @@ import com.agentickitchen.android.aiConnectionStatusFor
 import com.agentickitchen.shared.ai.AiFailureType
 import com.agentickitchen.shared.ai.AiProviderId
 import com.agentickitchen.shared.ai.AiResult
+import com.agentickitchen.shared.ai.CookingChatRequest
+import com.agentickitchen.shared.ai.CookingChatTurn
 import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.ai.KitchenImage
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
+import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -78,6 +82,57 @@ class GeminiProviderTest {
         assertEquals("image", input[1].jsonObject["type"]!!.jsonPrimitive.content)
         assertEquals("image/jpeg", input[1].jsonObject["mime_type"]!!.jsonPrimitive.content)
         assertEquals("AQID", input[1].jsonObject["data"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun turkishAndEnglishShoppingTextUseTheTypedReviewResponse() = runBlocking {
+        val prompts = mutableListOf<String>()
+        val provider = provider { request ->
+            prompts += request.body.toByteArray().decodeToString()
+            respondJson(modelResponse(shoppingJson))
+        }
+
+        val turkish = provider.parseShoppingText(
+            ShoppingTextRequest("2 paket makarna, 1 kilo tavuk ve 12 yumurta aldım", "Türkçe")
+        )
+        val english = provider.parseShoppingText(
+            ShoppingTextRequest("I bought 2 litres of milk, six tomatoes and a loaf of bread", "English")
+        )
+
+        assertEquals("Tomato", (turkish as AiResult.Success).value.items.single().displayName)
+        assertEquals("Tomato", (english as AiResult.Success).value.items.single().displayName)
+        assertTrue(prompts[0].contains("2 paket makarna"))
+        assertTrue(prompts[1].contains("2 litres of milk"))
+    }
+
+    @Test
+    fun cookingChatSendsRecentTurnsAndCurrentRecipeContext() = runBlocking {
+        var body = ""
+        val provider = provider { request ->
+            body = request.body.toByteArray().decodeToString()
+            respondJson(modelResponse("""{"answer":"Reduce the heat."}"""))
+        }
+        val result = provider.askCookingAssistant(
+            CookingChatRequest(
+                recipeName = "Tomato pasta",
+                plan = CookingPlanResponse("Tomato pasta", 2, emptyList(), emptyList(), emptyList()),
+                currentStep = "Simmer the sauce",
+                elapsedSeconds = 120,
+                resource = "stovetop",
+                recentTurns = listOf(
+                    CookingChatTurn("user", "Is it bubbling?"),
+                    CookingChatTurn("assistant", "Keep watching the edges.")
+                ),
+                question = "What now?",
+                language = "English"
+            )
+        )
+
+        assertTrue(result is AiResult.Success)
+        assertTrue(body.contains("Tomato pasta"))
+        assertTrue(body.contains("Is it bubbling?"))
+        assertTrue(body.contains("Keep watching the edges."))
+        assertTrue(body.contains("What now?"))
     }
 
     @Test

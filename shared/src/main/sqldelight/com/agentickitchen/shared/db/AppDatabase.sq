@@ -88,5 +88,8 @@ INSERT OR REPLACE INTO PendingRecipeUsage(
 selectPendingRecipeUsage:
 SELECT * FROM PendingRecipeUsage WHERE sessionId = ? ORDER BY itemId;
 
+selectAllPendingRecipeUsage:
+SELECT * FROM PendingRecipeUsage ORDER BY timestamp;
+
 deletePendingRecipeUsage:
 DELETE FROM PendingRecipeUsage WHERE sessionId = ?;

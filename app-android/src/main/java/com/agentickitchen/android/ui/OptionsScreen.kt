@@ -555,6 +555,18 @@ private fun EditorialRecipeRow(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(option.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+                if (option.shortages.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (L.isTr) {
+                            "Eksik: ${option.shortages.joinToString()}"
+                        } else {
+                            "Missing: ${option.shortages.joinToString()}"
+                        },
+                        color = Color(0xFF9B3F32),
+                        style = MaterialTheme.typography.caption
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
                 Text(
                     if (L.isTr) "Tarifi incele →" else "Explore recipe →",

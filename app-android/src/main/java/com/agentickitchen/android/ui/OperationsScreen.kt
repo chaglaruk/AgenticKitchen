@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +37,7 @@ import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,8 +65,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.agentickitchen.android.HardwareSettings
 import com.agentickitchen.android.L
+import com.agentickitchen.android.PendingConsumption
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.shared.models.PantryIntelReport
@@ -71,6 +77,7 @@ import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
 import com.agentickitchen.shared.cooking.LiveOperation
 import com.agentickitchen.shared.ai.dto.CookingStepDto
+import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.models.ScheduleEvent
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -89,7 +96,12 @@ fun OperationsScreen(
     onBackToOptions: () -> Unit,
     cookingState: CookingSessionState,
     onStartCooking: () -> Unit, onPauseCooking: () -> Unit, onResumeCooking: () -> Unit,
-    onCompleteCookingStep: (String) -> Unit, onSkipCookingStep: (String) -> Unit, onEndCooking: () -> Unit
+    onCompleteCookingStep: (String) -> Unit, onSkipCookingStep: (String) -> Unit, onEndCooking: () -> Unit,
+    pendingConsumption: PendingConsumption? = null,
+    inventory: List<PantryStockItem> = emptyList(),
+    onConsumePlanned: () -> Unit = {},
+    onConsumeActual: (Map<String, Double>) -> Unit = {},
+    onCancelConsumption: () -> Unit = {}
 ) {
     val colors = LocalAppColors.current
     val activity = LocalContext.current as? Activity
@@ -146,6 +158,15 @@ fun OperationsScreen(
             else -> EditorialIdleOperations(onBackToOptions)
         }
     }
+    pendingConsumption?.let {
+        ConsumptionConfirmationDialog(
+            pending = it,
+            inventory = inventory,
+            onUsePlanned = onConsumePlanned,
+            onUseActual = onConsumeActual,
+            onCancel = onCancelConsumption
+        )
+    }
 }
 
 internal fun formatCookingDuration(totalSeconds: Long): String {
@@ -154,6 +175,82 @@ internal fun formatCookingDuration(totalSeconds: Long): String {
     val minutes = (seconds % 3_600) / 60
     val remainder = seconds % 60
     return if (hours > 0) "%02d:%02d:%02d".format(hours, minutes, remainder) else "%02d:%02d".format(minutes, remainder)
+}
+
+@Composable
+private fun ConsumptionConfirmationDialog(
+    pending: PendingConsumption,
+    inventory: List<PantryStockItem>,
+    onUsePlanned: () -> Unit,
+    onUseActual: (Map<String, Double>) -> Unit,
+    onCancel: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    var actual by remember(pending.sessionId) {
+        mutableStateOf(pending.usages.associate { it.itemId to formatPlanQuantity(it.plannedQuantity) })
+    }
+    val parsed = actual.mapValues { (_, value) -> value.replace(',', '.').toDoubleOrNull() }
+    val valid = parsed.values.all { it != null && it.isFinite() && it > 0.0 }
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(.92f)
+                .background(colors.surface, RoundedCornerShape(20.dp))
+                .border(1.dp, colors.divider, RoundedCornerShape(20.dp))
+                .padding(20.dp)
+        ) {
+            Text(if (L.isTr) "MUTFAK STOĞU" else "KITCHEN INVENTORY", color = colors.primary, style = MaterialTheme.typography.overline)
+            Text(
+                if (L.isTr) "Planlanan miktarlar kullanıldı mı?" else "Were the planned amounts used?",
+                color = colors.onSurface,
+                style = MaterialTheme.typography.h4
+            )
+            Spacer(Modifier.height(12.dp))
+            pending.usages.forEach { usage ->
+                val name = inventory.firstOrNull { it.id == usage.itemId }?.originalName ?: usage.itemId
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(name, color = colors.onSurface, style = MaterialTheme.typography.body1)
+                        Text(
+                            if (L.isTr) "Plan: ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit}" else "Plan: ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit}",
+                            color = colors.onSurfaceSub,
+                            style = MaterialTheme.typography.caption
+                        )
+                    }
+                    OutlinedTextField(
+                        value = actual[usage.itemId].orEmpty(),
+                        onValueChange = { actual = actual + (usage.itemId to it) },
+                        modifier = Modifier.width(104.dp),
+                        label = { Text(usage.unit) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+                }
+                Divider(color = colors.divider, modifier = Modifier.padding(vertical = 8.dp))
+            }
+            Button(
+                onClick = onUsePlanned,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Text(if (L.isTr) "Planlananı kullan" else "Use planned amounts", color = colors.onPrimary)
+            }
+            TextButton(
+                onClick = { onUseActual(parsed.mapValues { requireNotNull(it.value) }) },
+                enabled = valid,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Text(if (L.isTr) "Gerçek miktarları uygula" else "Apply actual amounts", color = colors.primary)
+            }
+            TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(if (L.isTr) "Stok tüketmeden iptal et" else "Cancel without consuming stock", color = colors.onSurfaceSub)
+            }
+        }
+    }
 }
 
 @Composable
@@ -285,6 +382,21 @@ private fun PlanReview(active: PlanState.RecipeActive) {
                 title = ingredient.name,
                 detail = "${formatPlanQuantity(ingredient.quantity)} ${ingredient.unit}"
             )
+        }
+        if (active.plannedUsage.isNotEmpty()) {
+            Spacer(Modifier.height(24.dp))
+            PlanReviewSectionTitle(if (L.isTr) "Stoktan ayrılacak" else "Planned pantry use")
+            active.plannedUsage.forEach { usage ->
+                EditorialPlanRow(
+                    leading = "−",
+                    title = usage.itemName,
+                    detail = if (L.isTr) {
+                        "Mevcut ${formatPlanQuantity(usage.currentQuantity)} ${usage.unit} · kullanılacak ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit} · kalacak ${formatPlanQuantity(usage.remainingQuantity)} ${usage.unit}"
+                    } else {
+                        "Current ${formatPlanQuantity(usage.currentQuantity)} ${usage.unit} · planned ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit} · remaining ${formatPlanQuantity(usage.remainingQuantity)} ${usage.unit}"
+                    }
+                )
+            }
         }
         Spacer(Modifier.height(24.dp))
         PlanReviewSectionTitle(if (L.isTr) "Adımlar" else "Steps")

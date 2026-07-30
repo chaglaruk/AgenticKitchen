@@ -12,6 +12,10 @@ import com.agentickitchen.shared.db.RecipeHistoryRepository
 import com.agentickitchen.shared.inventory.AdjustmentMode
 import com.agentickitchen.shared.inventory.AdjustmentReason
 import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
+import com.agentickitchen.shared.inventory.InventoryWorkflow
+import com.agentickitchen.shared.inventory.PlannedPantryUsage
+import com.agentickitchen.shared.inventory.PendingRecipeUsageRecord
+import com.agentickitchen.shared.inventory.ShoppingImportMode
 import com.agentickitchen.shared.inventory.InventoryUnits
 import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.PantryStockItem
@@ -30,12 +34,15 @@ import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.ai.KitchenImage
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
+import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.ShoppingCandidate
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import com.agentickitchen.shared.validator.CookingPlanValidator
 import com.agentickitchen.shared.cooking.CookingSessionController
 import com.agentickitchen.shared.cooking.CookingSessionState
+import com.agentickitchen.shared.cooking.CookingSessionStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -129,7 +136,9 @@ data class RecipeOption(
     val type: String,
     val name: String,
     val description: String,
-    val sourceLabel: String? = null
+    val sourceLabel: String? = null,
+    val proposedIngredients: List<com.agentickitchen.shared.ai.dto.PlannedIngredientDto> = emptyList(),
+    val shortages: List<String> = emptyList()
 )
 data class RecipeRequestSelection(val servings: Int, val targetTime: TargetTimeChoice)
 
@@ -138,16 +147,42 @@ sealed class PlanState {
     object Loading : PlanState()
     data class OptionsReady(val options: List<RecipeOption>) : PlanState()
     data class RecipeActive(
+        val sessionId: String = "",
         val recipe: RecipeOption,
         val events: List<ScheduleEvent>,
         val servings: Int = 2,
         val resolvedReadyTimeIso: String = "",
         val cookingPlan: CookingPlanResponse? = null,
+        val plannedUsage: List<PlannedPantryUsage> = emptyList(),
         val agentChatResponse: String? = null,
         val visionScanResponse: String? = null
     ) : PlanState()
     data class Error(val message: String, val canUseOffline: Boolean = false) : PlanState()
 }
+
+sealed interface ShoppingImportState {
+    data object Idle : ShoppingImportState
+    data object Loading : ShoppingImportState
+    data class Review(
+        val candidates: List<ShoppingCandidate>,
+        val mode: ShoppingImportMode,
+        val source: String,
+        val conflicts: List<String> = emptyList()
+    ) : ShoppingImportState
+    data class Error(val message: String) : ShoppingImportState
+}
+
+data class InventoryRecipeRequest(
+    val servings: Int,
+    val strictStock: Boolean,
+    val maxMissingStaples: Int,
+    val prioritizedIngredients: List<String>
+)
+
+data class PendingConsumption(
+    val sessionId: String,
+    val usages: List<PendingRecipeUsageRecord>
+)
 
 sealed class UiEvent {
     data class ShowSnackbar(val message: String) : UiEvent()
@@ -206,17 +241,21 @@ internal fun aiConnectionStatusFor(result: AiResult<*>): AiConnectionStatus = wh
 data class DietSettings(val dietType: String = "none", val allergies: Set<String> = emptySet())
 
 internal fun activeRecipeState(
+    sessionId: String,
     option: RecipeOption,
     events: List<ScheduleEvent>,
     servings: Int,
     readyTimeIso: String,
-    plan: CookingPlanResponse
+    plan: CookingPlanResponse,
+    plannedUsage: List<PlannedPantryUsage> = emptyList()
 ) = PlanState.RecipeActive(
+    sessionId = sessionId,
     recipe = option,
     events = events,
     servings = servings,
     resolvedReadyTimeIso = readyTimeIso,
-    cookingPlan = plan
+    cookingPlan = plan,
+    plannedUsage = plannedUsage
 )
 
 internal fun readerSafeAiError(error: Throwable?): String {
@@ -292,6 +331,17 @@ class AppViewModel(
         _inventory.value.associate { it.id to inventoryRepository.adjustments(it.id) }
     )
     val inventoryAdjustments = _inventoryAdjustments.asStateFlow()
+    private val _shoppingImportState = MutableStateFlow<ShoppingImportState>(ShoppingImportState.Idle)
+    val shoppingImportState: StateFlow<ShoppingImportState> = _shoppingImportState.asStateFlow()
+    private val _pendingConsumption = MutableStateFlow(
+        inventoryRepository.allPendingUsage()
+            .groupBy(PendingRecipeUsageRecord::sessionId)
+            .entries
+            .firstOrNull()
+            ?.let { PendingConsumption(it.key, it.value) }
+    )
+    val pendingConsumption: StateFlow<PendingConsumption?> = _pendingConsumption.asStateFlow()
+    private var inventoryRecipeRequest: InventoryRecipeRequest? = null
 
     private val _planState = MutableStateFlow<PlanState>(PlanState.Idle)
     val planState: StateFlow<PlanState> = _planState.asStateFlow()
@@ -499,8 +549,97 @@ class AppViewModel(
         }
     }
 
-    fun startSession(isRefresh: Boolean = false) {
-        if (_chips.value.isEmpty()) { _planState.value = PlanState.Error(L.noIngredientError); return }
+    private fun reservedQuantities(): Map<String, Double> =
+        inventoryRepository.allPendingUsage()
+            .filter { it.status == "reserved" }
+            .groupBy(PendingRecipeUsageRecord::itemId)
+            .mapValues { (_, usages) ->
+                usages.sumOf { InventoryUnits.normalize(it.plannedQuantity, it.unit).quantity }
+            }
+
+    fun importShoppingText(text: String, mode: ShoppingImportMode) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            _shoppingImportState.value = ShoppingImportState.Loading
+            try {
+                val response = executeAiWithProvider {
+                    it.parseShoppingText(ShoppingTextRequest(text.trim(), language.value)).requireValue()
+                }
+                _shoppingImportState.value = ShoppingImportState.Review(response.items, mode, "text")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _shoppingImportState.value = ShoppingImportState.Error(readerSafeCurrentProviderError(error))
+            }
+        }
+    }
+
+    fun importShoppingPhoto(image: Bitmap, mode: ShoppingImportMode) {
+        viewModelScope.launch {
+            _shoppingImportState.value = ShoppingImportState.Loading
+            try {
+                val response = executeAiWithProvider {
+                    it.scanShoppingPhoto(
+                        ShoppingPhotoRequest(encodeKitchenImage(image), language.value)
+                    ).requireValue()
+                }
+                _shoppingImportState.value = ShoppingImportState.Review(response.items, mode, "photo")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _shoppingImportState.value = ShoppingImportState.Error(readerSafeCurrentProviderError(error))
+            }
+        }
+    }
+
+    fun confirmShoppingImport(candidates: List<ShoppingCandidate>, mode: ShoppingImportMode): Boolean {
+        val timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val plan = InventoryWorkflow.planImport(
+            existing = _inventory.value,
+            candidates = candidates,
+            mode = mode,
+            timestamp = timestamp,
+            idFactory = { UUID.randomUUID().toString() }
+        )
+        if (plan.conflicts.isNotEmpty()) {
+            _shoppingImportState.value = ShoppingImportState.Review(
+                candidates = candidates,
+                mode = mode,
+                source = "review",
+                conflicts = plan.conflicts
+            )
+            return false
+        }
+        inventoryRepository.applyMutations(plan.mutations)
+        refreshInventory()
+        _shoppingImportState.value = ShoppingImportState.Idle
+        emitUiEvent(if (L.isTr) "Mutfak stoğu güncellendi." else "Kitchen inventory updated.")
+        return true
+    }
+
+    fun clearShoppingImport() {
+        _shoppingImportState.value = ShoppingImportState.Idle
+    }
+
+    fun startSession() {
+        inventoryRecipeRequest = null
+        requestRecipeOptions(_chips.value, null)
+    }
+
+    fun startInventorySession(request: InventoryRecipeRequest) {
+        if (_inventory.value.isEmpty()) {
+            _planState.value = PlanState.Error(if (L.isTr) "Önce mutfak stoğuna ürün ekle." else "Add items to your kitchen inventory first.")
+            return
+        }
+        inventoryRecipeRequest = request
+        requestRecipeOptions(_inventory.value.map(PantryStockItem::originalName), request)
+    }
+
+    private fun requestRecipeOptions(
+        ingredients: List<String>,
+        inventoryRequest: InventoryRecipeRequest?
+    ) {
+        if (ingredients.isEmpty()) { _planState.value = PlanState.Error(L.noIngredientError); return }
         AppLogger.i("Session", "Recipe option request started")
         viewModelScope.launch {
             _planState.value = PlanState.Loading
@@ -508,19 +647,62 @@ class AppViewModel(
                 executeAiWithProvider { provider ->
                     val result = provider.generateRecipeOptions(
                         RecipeOptionsRequest(
-                            ingredients = _chips.value,
+                            ingredients = ingredients,
                             equipment = _selectedEquipment.value,
                             dietType = dietSettings.value.dietType,
                             allergies = dietSettings.value.allergies,
-                            language = language.value
+                            language = language.value,
+                            inventoryLines = if (inventoryRequest == null) emptyList() else _inventory.value.map {
+                                "${it.quantity} ${it.unit} ${it.originalName}"
+                            },
+                            strictStock = inventoryRequest?.strictStock == true,
+                            maxMissingStaples = inventoryRequest?.maxMissingStaples ?: 0,
+                            prioritizedIngredients = inventoryRequest?.prioritizedIngredients.orEmpty(),
+                            servings = inventoryRequest?.servings ?: 2
                         )
                     )
                     val response = result.requireValue()
+                    val shortagesByOption = mutableMapOf<String, List<String>>()
+                    if (inventoryRequest != null) {
+                        val reserved = reservedQuantities()
+                        val invalid = response.options.any { option ->
+                            val usage = InventoryWorkflow.planUsage(
+                                CookingPlanResponse(
+                                    recipeName = option.name,
+                                    servings = inventoryRequest.servings,
+                                    ingredients = option.proposedIngredients,
+                                    steps = emptyList(),
+                                    safetyNotes = emptyList()
+                                ),
+                                _inventory.value,
+                                reserved
+                            )
+                            shortagesByOption[option.id] = usage.shortages
+                            option.proposedIngredients.isEmpty() ||
+                                (inventoryRequest.strictStock && usage.shortages.isNotEmpty()) ||
+                                (!inventoryRequest.strictStock && usage.shortages.size > inventoryRequest.maxMissingStaples)
+                        }
+                        if (invalid) throw AiRequestException(
+                            AiResult.Failure(
+                                AiFailureType.InvalidPlan,
+                                true,
+                                AiFailureType.InvalidPlan.userMessageRes
+                            )
+                        )
+                    }
                     val sourceLabel = (result as? AiResult.Success)?.provider
                         ?.takeIf { it == com.agentickitchen.shared.ai.AiProviderId.FREE }
                         ?.label
                     lastOptions = response.options.map {
-                        RecipeOption(it.id, it.difficulty, it.name, it.summary, sourceLabel)
+                        RecipeOption(
+                            it.id,
+                            it.difficulty,
+                            it.name,
+                            it.summary,
+                            sourceLabel,
+                            it.proposedIngredients,
+                            shortagesByOption[it.id].orEmpty()
+                        )
                     }
                     _planState.value = PlanState.OptionsReady(lastOptions)
                 }
@@ -528,7 +710,7 @@ class AppViewModel(
                 throw error
             } catch (e: Exception) {
                 logAiFailure("Options", e)
-                val errorMsg = readerSafeAiError(e)
+                val errorMsg = readerSafeCurrentProviderError(e)
                 emitUiEvent(errorMsg)
                 _planState.value = PlanState.Error(
                     errorMsg,
@@ -549,17 +731,137 @@ class AppViewModel(
         }
     }
 
-    fun startCooking() { val active = _planState.value as? PlanState.RecipeActive ?: run { _cookingState.value = CookingSessionState(error = "Choose a recipe first"); return }; _cookingState.value = cookingController.start(active.recipe.name, active.events); startCookingTicker() }
-    fun pauseCooking() { _cookingState.value = cookingController.pause(); cookingTicker?.cancel() }
-    fun resumeCooking() { _cookingState.value = cookingController.resume(); startCookingTicker() }
-    fun completeCookingStep(id: String) { _cookingState.value = cookingController.complete(id); stopTickerIfFinished() }
-    fun skipCookingStep(id: String) { _cookingState.value = cookingController.skip(id); stopTickerIfFinished() }
-    fun endCooking() { _cookingState.value = cookingController.end(); cookingTicker?.cancel() }
-    private fun startCookingTicker() { cookingTicker?.cancel(); if (_cookingState.value.status != com.agentickitchen.shared.cooking.CookingSessionStatus.RUNNING) return; cookingTicker = viewModelScope.launch { while (true) { _cookingState.value = cookingController.current(); if (_cookingState.value.status != com.agentickitchen.shared.cooking.CookingSessionStatus.RUNNING) break; delay(500) } } }
-    private fun stopTickerIfFinished() { if (_cookingState.value.status != com.agentickitchen.shared.cooking.CookingSessionStatus.RUNNING) cookingTicker?.cancel() }
+    fun startCooking() {
+        val active = _planState.value as? PlanState.RecipeActive ?: run {
+            _cookingState.value = CookingSessionState(
+                status = CookingSessionStatus.ERROR,
+                error = if (L.isTr) "Önce bir tarif seç." else "Choose a recipe first."
+            )
+            return
+        }
+        if (_cookingState.value.status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
+            _cookingState.value = _cookingState.value.copy(
+                error = if (L.isTr) "Pişirme zaten devam ediyor." else "Cooking is already running."
+            )
+            return
+        }
+        if (active.plannedUsage.isNotEmpty()) {
+            val timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            val reservations = active.plannedUsage.map {
+                PendingRecipeUsageRecord(
+                    sessionId = active.sessionId,
+                    itemId = it.itemId,
+                    plannedQuantity = it.plannedQuantity,
+                    unit = it.unit,
+                    status = "reserved",
+                    timestamp = timestamp
+                )
+            }
+            if (!inventoryRepository.reserve(reservations)) {
+                _cookingState.value = CookingSessionState(
+                    recipeName = active.recipe.name,
+                    status = CookingSessionStatus.ERROR,
+                    error = if (L.isTr) {
+                        "Bu tarif için yeterli kullanılabilir stok kalmadı."
+                    } else {
+                        "There is no longer enough available stock for this recipe."
+                    }
+                )
+                return
+            }
+        }
+        _cookingState.value = cookingController.start(active.recipe.name, active.events)
+        startCookingTicker()
+    }
+
+    fun pauseCooking() {
+        _cookingState.value = cookingController.pause()
+        cookingTicker?.cancel()
+    }
+
+    fun resumeCooking() {
+        _cookingState.value = cookingController.resume()
+        startCookingTicker()
+    }
+
+    fun completeCookingStep(id: String) {
+        _cookingState.value = cookingController.complete(id)
+        stopTickerIfFinished()
+    }
+
+    fun skipCookingStep(id: String) {
+        _cookingState.value = cookingController.skip(id)
+        stopTickerIfFinished()
+    }
+
+    fun endCooking() {
+        _cookingState.value = cookingController.end()
+        cookingTicker?.cancel()
+        exposePendingConsumption()
+    }
+
+    fun consumePlannedInventory() {
+        val pending = _pendingConsumption.value ?: return
+        consumeInventory(pending.usages.associate { it.itemId to it.plannedQuantity })
+    }
+
+    fun consumeActualInventory(actualQuantities: Map<String, Double>) {
+        consumeInventory(actualQuantities)
+    }
+
+    fun cancelInventoryConsumption() {
+        val pending = _pendingConsumption.value ?: return
+        inventoryRepository.deletePendingUsage(pending.sessionId)
+        _pendingConsumption.value = null
+        refreshInventory()
+    }
+
+    private fun consumeInventory(actualQuantities: Map<String, Double>) {
+        val pending = _pendingConsumption.value ?: return
+        if (actualQuantities.values.any { !it.isFinite() || it <= 0.0 }) {
+            emitUiEvent(if (L.isTr) "Kullanılan miktarlar sıfırdan büyük olmalı." else "Used amounts must be greater than zero.")
+            return
+        }
+        if (!inventoryRepository.consume(pending.sessionId, actualQuantities)) {
+            emitUiEvent(if (L.isTr) "Stok miktarları uygulanamadı." else "The pantry amounts could not be applied.")
+            return
+        }
+        _pendingConsumption.value = null
+        refreshInventory()
+    }
+
+    private fun startCookingTicker() {
+        cookingTicker?.cancel()
+        if (_cookingState.value.status != CookingSessionStatus.RUNNING) return
+        cookingTicker = viewModelScope.launch {
+            while (true) {
+                _cookingState.value = cookingController.current()
+                if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
+                    exposePendingConsumption()
+                    break
+                }
+                delay(500)
+            }
+        }
+    }
+
+    private fun stopTickerIfFinished() {
+        if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
+            cookingTicker?.cancel()
+            exposePendingConsumption()
+        }
+    }
+
+    private fun exposePendingConsumption() {
+        val active = _planState.value as? PlanState.RecipeActive ?: return
+        val usages = inventoryRepository.pendingUsage(active.sessionId)
+        if (usages.isNotEmpty()) {
+            _pendingConsumption.value = PendingConsumption(active.sessionId, usages)
+        }
+    }
 
     fun refreshSession() {
-        startSession(isRefresh = true)
+        inventoryRecipeRequest?.let(::startInventorySession) ?: startSession()
     }
 
     fun selectRecipeOption(option: RecipeOption, selection: RecipeRequestSelection) {
@@ -569,10 +871,15 @@ class AppViewModel(
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
                     val stoveType = selectedStoveType()
+                    val selectedIngredients = if (inventoryRecipeRequest == null) {
+                        _chips.value
+                    } else {
+                        _inventory.value.map(PantryStockItem::originalName)
+                    }
                     val plan = provider.generateCookingPlan(
                         CookingPlanRequest(
                             recipeName = option.name,
-                            ingredients = _chips.value,
+                            ingredients = selectedIngredients,
                             equipment = _selectedEquipment.value,
                             servings = selection.servings,
                             stoveType = stoveType,
@@ -582,7 +889,10 @@ class AppViewModel(
                             airfryerAvailable = "airfryer" in _selectedEquipment.value,
                             dietType = dietSettings.value.dietType,
                             allergies = dietSettings.value.allergies,
-                            language = language.value
+                            language = language.value,
+                            inventoryLines = if (inventoryRecipeRequest == null) emptyList() else _inventory.value.map {
+                                "${it.quantity} ${it.unit} ${it.originalName}"
+                            }
                         )
                     ).requireValue()
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
@@ -591,16 +901,37 @@ class AppViewModel(
                     }
                     val target = targetTimeResolver.resolve(selection.targetTime).getOrElse { throw it }
                     val readyTimeIso = target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-                    val session = RecipeSession(UUID.randomUUID().toString(), readyTimeIso, plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
+                    val sessionId = UUID.randomUUID().toString()
+                    val usagePlan = if (inventoryRecipeRequest == null) {
+                        com.agentickitchen.shared.inventory.InventoryUsagePlan(emptyList(), emptyList())
+                    } else {
+                        InventoryWorkflow.planUsage(plan, _inventory.value, reservedQuantities())
+                    }
+                    val allowedMissing = inventoryRecipeRequest?.maxMissingStaples ?: 0
+                    if (
+                        inventoryRecipeRequest?.strictStock == true && usagePlan.shortages.isNotEmpty() ||
+                        inventoryRecipeRequest?.strictStock == false && usagePlan.shortages.size > allowedMissing
+                    ) {
+                        throw ProviderFailure("INVENTORY", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                    }
+                    val session = RecipeSession(sessionId, readyTimeIso, plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
                     val result = orchestrator.startSession(session)
                     historyRepo.insertRecipe(session.sessionId, option.name, plan.ingredients.joinToString { "${it.quantity} ${it.unit} ${it.name}" }, ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), "started")
                     loadHistory()
-                    _planState.value = activeRecipeState(option, result.events, selection.servings, readyTimeIso, plan)
+                    _planState.value = activeRecipeState(
+                        sessionId,
+                        option,
+                        result.events,
+                        selection.servings,
+                        readyTimeIso,
+                        plan,
+                        usagePlan.usages
+                    )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (e: Exception) {
-                val message = readerSafeAiError(e)
+                val message = readerSafeCurrentProviderError(e)
                 emitUiEvent(message)
                 _planState.value = PlanState.Error(
                     message,
@@ -631,6 +962,17 @@ class AppViewModel(
         )
         return action(provider)
     }
+
+    private fun readerSafeCurrentProviderError(error: Throwable): String =
+        if (CookingProviderSelection.normalize(_hw.value.aiProvider) == CookingProviderSelection.Free) {
+            if (L.isTr) {
+                "Çevrimdışı mod bu isteği tamamlayamadı. Gemini kullanmak için Ayarlar'dan Gemini'yi seç."
+            } else {
+                "Offline mode could not complete this request. Select Gemini in Settings to use Gemini."
+            }
+        } else {
+            readerSafeAiError(error)
+        }
 
     private fun <T> AiResult<T>.requireValue(): T = when (this) {
         is AiResult.Success -> value
@@ -693,7 +1035,7 @@ class AppViewModel(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (e: Exception) {
-                    _planState.value = currentState.copy(agentChatResponse = readerSafeAiError(e))
+                    _planState.value = currentState.copy(agentChatResponse = readerSafeCurrentProviderError(e))
                 }
             }
         }
@@ -781,7 +1123,7 @@ class AppViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (e: Exception) {
-                _planState.value = currentState.copy(visionScanResponse = readerSafeAiError(e))
+                _planState.value = currentState.copy(visionScanResponse = readerSafeCurrentProviderError(e))
             }
         }
     }

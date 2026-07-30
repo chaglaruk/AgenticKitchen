@@ -1,6 +1,9 @@
 package com.agentickitchen.shared.inventory
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.agentickitchen.shared.ai.ShoppingCandidate
+import com.agentickitchen.shared.ai.dto.CookingPlanResponse
+import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.db.AppDatabase
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -74,6 +77,136 @@ class PantryInventoryTest {
         driver.close()
     }
 
+    @Test
+    fun shoppingAddAndRecountUseLocalCompatibleUnitArithmetic() {
+        val existing = item(quantity = 500.0, unit = "g", dimension = UnitDimension.WEIGHT)
+            .copy(originalName = "Tavuk", canonicalIngredientId = "chicken")
+        val candidate = candidate("Chicken", 1.0, "kg", "weight", canonicalId = "chicken")
+
+        val added = InventoryWorkflow.planImport(
+            listOf(existing),
+            listOf(candidate),
+            ShoppingImportMode.ADD,
+            "later",
+            sequenceIds()
+        )
+        val recounted = InventoryWorkflow.planImport(
+            listOf(existing),
+            listOf(candidate),
+            ShoppingImportMode.RECOUNT,
+            "later",
+            sequenceIds()
+        )
+
+        assertTrue(added.conflicts.isEmpty())
+        assertEquals(1500.0, added.mutations.single().item.quantity)
+        assertEquals(1000.0, recounted.mutations.single().item.quantity)
+        assertEquals(AdjustmentMode.REPLACE, recounted.mutations.single().adjustment.mode)
+    }
+
+    @Test
+    fun recountProtectsUnseenItemsAndReviewExclusionStaysExcluded() {
+        val eggs = item(6.0, "adet", UnitDimension.COUNT)
+        val milk = item(1000.0, "ml", UnitDimension.VOLUME).copy(id = "milk", originalName = "Milk")
+        val includedAfterReview = listOf(candidate("Eggs", 12.0, "adet", "count"))
+
+        val plan = InventoryWorkflow.planImport(
+            listOf(eggs, milk),
+            includedAfterReview,
+            ShoppingImportMode.RECOUNT,
+            "later",
+            sequenceIds()
+        )
+
+        assertEquals(listOf("item-1"), plan.mutations.map { it.item.id })
+        assertEquals(12.0, plan.mutations.single().item.quantity)
+        assertEquals(1000.0, milk.quantity)
+    }
+
+    @Test
+    fun packageVisibleWeightConvertsAndIncompatibleUnitsConflict() {
+        val pasta = item(500.0, "g", UnitDimension.WEIGHT).copy(originalName = "Pasta")
+        val packages = candidate("Pasta", 2.0, "package", "package", packageLabel = "2 x 500 g")
+        val incompatible = candidate("Pasta", 2.0, "adet", "count")
+
+        val converted = InventoryWorkflow.planImport(
+            listOf(pasta),
+            listOf(packages),
+            ShoppingImportMode.ADD,
+            "later",
+            sequenceIds()
+        )
+        val conflict = InventoryWorkflow.planImport(
+            listOf(pasta),
+            listOf(incompatible),
+            ShoppingImportMode.ADD,
+            "later",
+            sequenceIds()
+        )
+
+        assertEquals(1500.0, converted.mutations.single().item.quantity)
+        assertEquals("2 x 500 g", converted.mutations.single().item.packageLabel)
+        assertEquals(listOf("Pasta"), conflict.conflicts)
+    }
+
+    @Test
+    fun stockPlanningAccountsForReservationsAndShortages() {
+        val chicken = item(1000.0, "g", UnitDimension.WEIGHT).copy(originalName = "Chicken")
+        val plan = CookingPlanResponse(
+            recipeName = "Chicken",
+            servings = 2,
+            ingredients = listOf(
+                PlannedIngredientDto("Chicken", 650.0, "g"),
+                PlannedIngredientDto("Milk", 200.0, "ml")
+            ),
+            steps = emptyList(),
+            safetyNotes = emptyList()
+        )
+
+        val usage = InventoryWorkflow.planUsage(plan, listOf(chicken), mapOf(chicken.id to 400.0))
+
+        assertTrue(usage.usages.isEmpty())
+        assertEquals(listOf("Chicken", "Milk"), usage.shortages)
+    }
+
+    @Test
+    fun reservationsPreventDoubleUseAndSurviveRepositoryRecreation() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        AppDatabase.Schema.create(driver)
+        val database = AppDatabase(driver)
+        val repository = SqlDelightPantryInventoryRepository(database)
+        val stock = item(1000.0, "g", UnitDimension.WEIGHT)
+        repository.upsert(stock, adjustment(stock, 1000.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD))
+
+        assertTrue(repository.reserve(listOf(pending("session-1", stock, 700.0))))
+        assertTrue(!repository.reserve(listOf(pending("session-2", stock, 400.0))))
+        assertEquals("session-1", SqlDelightPantryInventoryRepository(database).allPendingUsage().single().sessionId)
+
+        repository.deletePendingUsage("session-1")
+        assertTrue(repository.reserve(listOf(pending("session-2", stock, 400.0))))
+        driver.close()
+    }
+
+    @Test
+    fun consumptionIsAtomicAndSupportsPlannedOrEditedAmounts() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        AppDatabase.Schema.create(driver)
+        val repository = SqlDelightPantryInventoryRepository(AppDatabase(driver))
+        val chicken = item(1000.0, "g", UnitDimension.WEIGHT)
+        val milk = item(500.0, "ml", UnitDimension.VOLUME).copy(id = "milk", originalName = "Milk")
+        repository.upsert(chicken, adjustment(chicken, 1000.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD))
+        repository.upsert(milk, adjustment(milk, 500.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD))
+        assertTrue(repository.reserve(listOf(pending("session", chicken, 300.0), pending("session", milk, 200.0))))
+
+        assertTrue(!repository.consume("session", mapOf(chicken.id to 250.0, milk.id to 900.0)))
+        assertEquals(listOf(1000.0, 500.0), repository.getAll().sortedBy { it.id }.map { it.quantity })
+        assertTrue(repository.consume("session", mapOf(chicken.id to 250.0, milk.id to 100.0)))
+        assertEquals(750.0, repository.getAll().first { it.id == chicken.id }.quantity)
+        assertEquals(400.0, repository.getAll().first { it.id == milk.id }.quantity)
+        assertTrue(repository.pendingUsage("session").isEmpty())
+        driver.close()
+    }
+
     private fun item(quantity: Double, unit: String, dimension: UnitDimension) = PantryStockItem(
         id = "item-1",
         originalName = "Eggs",
@@ -99,4 +232,30 @@ class PantryInventoryTest {
         source = "test",
         timestamp = "now"
     )
+
+    private fun pending(sessionId: String, item: PantryStockItem, quantity: Double) =
+        PendingRecipeUsageRecord(sessionId, item.id, quantity, item.unit, status = "reserved", timestamp = "now")
+
+    private fun candidate(
+        name: String,
+        quantity: Double,
+        unit: String,
+        dimension: String,
+        canonicalId: String? = null,
+        packageLabel: String? = null
+    ) = ShoppingCandidate(
+        canonicalIngredientId = canonicalId,
+        displayName = name,
+        quantity = quantity,
+        unit = unit,
+        unitDimension = dimension,
+        packageLabel = packageLabel,
+        confidence = 0.9,
+        estimated = false
+    )
+
+    private fun sequenceIds(): () -> String {
+        var next = 0
+        return { "generated-${next++}" }
+    }
 }

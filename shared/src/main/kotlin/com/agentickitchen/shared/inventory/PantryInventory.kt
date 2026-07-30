@@ -49,6 +49,11 @@ data class PendingRecipeUsageRecord(
     val timestamp: String
 )
 
+data class InventoryMutation(
+    val item: PantryStockItem,
+    val adjustment: InventoryAdjustmentRecord
+)
+
 data class NormalizedAmount(
     val quantity: Double,
     val unit: String,
@@ -83,6 +88,10 @@ interface PantryInventoryRepository {
     fun delete(item: PantryStockItem, adjustment: InventoryAdjustmentRecord)
     fun adjustments(itemId: String): List<InventoryAdjustmentRecord>
     fun pendingUsage(sessionId: String): List<PendingRecipeUsageRecord>
+    fun allPendingUsage(): List<PendingRecipeUsageRecord>
     fun upsertPendingUsage(usage: PendingRecipeUsageRecord)
     fun deletePendingUsage(sessionId: String)
+    fun applyMutations(mutations: List<InventoryMutation>)
+    fun reserve(usages: List<PendingRecipeUsageRecord>): Boolean
+    fun consume(sessionId: String, actualQuantities: Map<String, Double>): Boolean
 }

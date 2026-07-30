@@ -147,6 +147,8 @@ fun AppNavigation(viewModel: AppViewModel) {
     val chips by viewModel.chips.collectAsState()
     val inventory by viewModel.inventory.collectAsState()
     val inventoryAdjustments by viewModel.inventoryAdjustments.collectAsState()
+    val shoppingImportState by viewModel.shoppingImportState.collectAsState()
+    val pendingConsumption by viewModel.pendingConsumption.collectAsState()
     val planState by viewModel.planState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
     val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsState()
@@ -164,6 +166,9 @@ fun AppNavigation(viewModel: AppViewModel) {
             is PlanState.RecipeActive -> currentScreen = Screen.Operations
             else -> Unit
         }
+    }
+    LaunchedEffect(pendingConsumption?.sessionId) {
+        if (pendingConsumption != null) currentScreen = Screen.Operations
     }
 
     val screens = listOf(Screen.Intelligence, Screen.Options, Screen.Operations, Screen.Settings)
@@ -206,6 +211,7 @@ fun AppNavigation(viewModel: AppViewModel) {
                     chips = chips,
                     inventory = inventory,
                     inventoryAdjustments = inventoryAdjustments,
+                    shoppingImportState = shoppingImportState,
                     scannedIngredients = scannedIngredients,
                     pantryIntel = pantryIntel,
                     onScanImage = viewModel::scanIngredients,
@@ -215,6 +221,11 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onRemoveChip = viewModel::removeChip,
                     onSaveInventoryItem = viewModel::saveInventoryItem,
                     onDeleteInventoryItem = viewModel::deleteInventoryItem,
+                    onImportShoppingText = viewModel::importShoppingText,
+                    onImportShoppingPhoto = viewModel::importShoppingPhoto,
+                    onConfirmShoppingImport = viewModel::confirmShoppingImport,
+                    onClearShoppingImport = viewModel::clearShoppingImport,
+                    onStartInventorySession = viewModel::startInventorySession,
                     onClearAll = viewModel::clearAll,
                     onStart = viewModel::startSession,
                     onEditSetup = viewModel::startEditingSetup
@@ -247,7 +258,12 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onResumeCooking = viewModel::resumeCooking,
                     onCompleteCookingStep = viewModel::completeCookingStep,
                     onSkipCookingStep = viewModel::skipCookingStep,
-                    onEndCooking = viewModel::endCooking
+                    onEndCooking = viewModel::endCooking,
+                    pendingConsumption = pendingConsumption,
+                    inventory = inventory,
+                    onConsumePlanned = viewModel::consumePlannedInventory,
+                    onConsumeActual = viewModel::consumeActualInventory,
+                    onCancelConsumption = viewModel::cancelInventoryConsumption
                 )
 
                 Screen.Settings -> SettingsScreen(

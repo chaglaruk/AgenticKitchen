@@ -19,7 +19,12 @@ data class RecipeOptionsRequest(
     val equipment: Set<String>,
     val dietType: String,
     val allergies: Set<String>,
-    val language: String
+    val language: String,
+    val inventoryLines: List<String> = emptyList(),
+    val strictStock: Boolean = false,
+    val maxMissingStaples: Int = 0,
+    val prioritizedIngredients: List<String> = emptyList(),
+    val servings: Int = 2
 )
 
 data class CookingPlanRequest(
@@ -34,7 +39,8 @@ data class CookingPlanRequest(
     val airfryerAvailable: Boolean,
     val dietType: String,
     val allergies: Set<String>,
-    val language: String
+    val language: String,
+    val inventoryLines: List<String> = emptyList()
 )
 
 data class ShoppingTextRequest(val text: String, val language: String)

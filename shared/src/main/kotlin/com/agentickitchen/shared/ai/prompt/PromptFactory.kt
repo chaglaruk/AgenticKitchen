@@ -29,7 +29,8 @@ Return ONLY valid JSON in this exact schema:
       "difficulty": "easy|medium|hard",
       "estimatedMinutes": 30,
       "requiredEquipment": ["pan", "oven"],
-      "missingIngredients": ["salt"]
+      "missingIngredients": ["salt"],
+      "proposedIngredients": [{"name": "...", "quantity": 200.0, "unit": "g"}]
     }
   ]
 }"""

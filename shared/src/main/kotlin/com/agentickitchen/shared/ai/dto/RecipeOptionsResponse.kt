@@ -15,5 +15,6 @@ data class RecipeOptionDto(
     val difficulty: String,
     val estimatedMinutes: Int,
     val requiredEquipment: List<String>,
-    val missingIngredients: List<String>
+    val missingIngredients: List<String>,
+    val proposedIngredients: List<PlannedIngredientDto> = emptyList()
 )

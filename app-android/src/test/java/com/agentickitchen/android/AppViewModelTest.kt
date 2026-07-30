@@ -171,11 +171,12 @@ class AppViewModelTest {
         val events = listOf(ScheduleEvent("prep", "2026-07-30T18:00:00Z", "2026-07-30T18:02:00Z", "Chop tomato", "counter"))
 
         val state = activeRecipeState(
-            RecipeOption("1", "Easy", "Soup", "Tomato soup"),
-            events,
-            4,
-            "2026-07-30T19:00:00Z",
-            plan
+            sessionId = "session",
+            option = RecipeOption("1", "Easy", "Soup", "Tomato soup"),
+            events = events,
+            servings = 4,
+            readyTimeIso = "2026-07-30T19:00:00Z",
+            plan = plan
         )
 
         assertSame(plan, state.cookingPlan)
@@ -326,12 +327,33 @@ class AppViewModelTest {
         }
         override fun adjustments(itemId: String) = adjustments.filter { it.itemId == itemId }
         override fun pendingUsage(sessionId: String) = pending.filter { it.sessionId == sessionId }
+        override fun allPendingUsage() = pending.toList()
         override fun upsertPendingUsage(usage: PendingRecipeUsageRecord) {
             pending.removeAll { it.sessionId == usage.sessionId && it.itemId == usage.itemId }
             pending += usage
         }
         override fun deletePendingUsage(sessionId: String) {
             pending.removeAll { it.sessionId == sessionId }
+        }
+        override fun applyMutations(mutations: List<com.agentickitchen.shared.inventory.InventoryMutation>) {
+            mutations.forEach {
+                items[it.item.id] = it.item
+                adjustments += it.adjustment
+            }
+        }
+        override fun reserve(usages: List<PendingRecipeUsageRecord>): Boolean {
+            usages.forEach(::upsertPendingUsage)
+            return true
+        }
+        override fun consume(sessionId: String, actualQuantities: Map<String, Double>): Boolean {
+            pendingUsage(sessionId).forEach { usage ->
+                val item = items[usage.itemId] ?: return false
+                val amount = actualQuantities[usage.itemId] ?: usage.plannedQuantity
+                if (amount > item.quantity) return false
+                items[item.id] = item.copy(quantity = item.quantity - amount)
+            }
+            deletePendingUsage(sessionId)
+            return true
         }
     }
 

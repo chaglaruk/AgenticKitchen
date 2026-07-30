@@ -1,5 +1,11 @@
 package com.agentickitchen.android.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -72,6 +78,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -84,6 +91,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -96,17 +104,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import com.agentickitchen.android.INGREDIENT_CATEGORIES
+import com.agentickitchen.android.InventoryRecipeRequest
 import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
+import com.agentickitchen.android.ShoppingImportState
 import com.agentickitchen.android.searchIngredientCatalog
+import com.agentickitchen.shared.ai.ShoppingCandidate
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.PantryIntelSignal
 import com.agentickitchen.shared.models.ScheduleEvent
 import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
 import com.agentickitchen.shared.inventory.AdjustmentReason
+import com.agentickitchen.shared.inventory.ShoppingImportMode
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -118,6 +131,7 @@ fun HomeScreen(
     chips: List<String>,
     inventory: List<PantryStockItem>,
     inventoryAdjustments: Map<String, List<InventoryAdjustmentRecord>>,
+    shoppingImportState: ShoppingImportState = ShoppingImportState.Idle,
     scannedIngredients: List<String>?,
     pantryIntel: PantryIntelReport,
     onScanImage: (android.graphics.Bitmap) -> Unit,
@@ -127,6 +141,11 @@ fun HomeScreen(
     onRemoveChip: (String) -> Unit,
     onSaveInventoryItem: (PantryStockItem?, String, Double, String, String?) -> Unit,
     onDeleteInventoryItem: (PantryStockItem) -> Unit,
+    onImportShoppingText: (String, ShoppingImportMode) -> Unit = { _, _ -> },
+    onImportShoppingPhoto: (Bitmap, ShoppingImportMode) -> Unit = { _, _ -> },
+    onConfirmShoppingImport: (List<ShoppingCandidate>, ShoppingImportMode) -> Boolean = { _, _ -> false },
+    onClearShoppingImport: () -> Unit = {},
+    onStartInventorySession: (InventoryRecipeRequest) -> Unit = {},
     onClearAll: () -> Unit,
     onStart: () -> Unit,
     onEditSetup: () -> Unit
@@ -135,6 +154,8 @@ fun HomeScreen(
     var showPicker by remember { mutableStateOf(false) }
     var showCameraModal by remember { mutableStateOf(false) }
     var showInventoryEditor by remember { mutableStateOf(false) }
+    var showShoppingImport by remember { mutableStateOf(false) }
+    var showInventoryRecipe by remember { mutableStateOf(false) }
     var editingInventoryItem by remember { mutableStateOf<PantryStockItem?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
     val colors = LocalAppColors.current
@@ -213,6 +234,30 @@ fun HomeScreen(
                     showInventoryEditor = true
                 }
             )
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { showShoppingImport = true },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    border = BorderStroke(1.dp, colors.divider),
+                    shape = RoundedCornerShape(999.dp)
+                ) {
+                    Text(if (L.isTr) "Alışveriş ekle" else "Add shopping", color = colors.primary)
+                }
+                Button(
+                    onClick = { showInventoryRecipe = true },
+                    enabled = inventory.isNotEmpty(),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                    shape = RoundedCornerShape(999.dp)
+                ) {
+                    Text(if (L.isTr) "Elimdekilerle pişir" else "Cook with what I have", color = colors.onPrimary)
+                }
+            }
         }
         if (inventory.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -304,6 +349,29 @@ fun HomeScreen(
                     onDeleteInventoryItem(item)
                     showInventoryEditor = false
                 }
+            }
+        )
+    }
+
+    if (showShoppingImport) {
+        ShoppingImportDialog(
+            state = shoppingImportState,
+            onDismiss = {
+                showShoppingImport = false
+                onClearShoppingImport()
+            },
+            onParseText = onImportShoppingText,
+            onParsePhoto = onImportShoppingPhoto,
+            onConfirm = onConfirmShoppingImport
+        )
+    }
+
+    if (showInventoryRecipe) {
+        InventoryRecipeDialog(
+            onDismiss = { showInventoryRecipe = false },
+            onStart = {
+                showInventoryRecipe = false
+                onStartInventorySession(it)
             }
         )
     }
@@ -1279,6 +1347,357 @@ fun SideTabCategoryPicker(
                         style = MaterialTheme.typography.button
                     )
                 }
+            }
+        }
+    }
+}
+
+private data class EditableShoppingItem(
+    val source: ShoppingCandidate,
+    val included: Boolean = true,
+    val name: String = source.displayName,
+    val quantity: String = source.quantity?.let {
+        if (it % 1.0 == 0.0) it.toLong().toString() else BigDecimal.valueOf(it).stripTrailingZeros().toPlainString()
+    }.orEmpty(),
+    val unit: String = source.unit.orEmpty()
+) {
+    fun candidateOrNull(): ShoppingCandidate? {
+        val parsedQuantity = quantity.replace(',', '.').toDoubleOrNull()
+        if (!included || name.isBlank() || parsedQuantity == null || parsedQuantity <= 0.0 || unit.isBlank()) return null
+        return source.copy(displayName = name.trim(), quantity = parsedQuantity, unit = unit.trim())
+    }
+}
+
+@Composable
+private fun ShoppingImportDialog(
+    state: ShoppingImportState,
+    onDismiss: () -> Unit,
+    onParseText: (String, ShoppingImportMode) -> Unit,
+    onParsePhoto: (Bitmap, ShoppingImportMode) -> Unit,
+    onConfirm: (List<ShoppingCandidate>, ShoppingImportMode) -> Boolean
+) {
+    val colors = LocalAppColors.current
+    val context = LocalContext.current
+    var textMode by remember { mutableStateOf(false) }
+    var inventoryMode by remember { mutableStateOf(ShoppingImportMode.ADD) }
+    var input by remember { mutableStateOf("") }
+    val editable = remember { mutableStateListOf<EditableShoppingItem>() }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        bitmap?.let { onParsePhoto(it, inventoryMode) }
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        val bitmap = runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                android.graphics.ImageDecoder.decodeBitmap(
+                    android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+            }
+        }.getOrNull()
+        bitmap?.let { onParsePhoto(it, inventoryMode) }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) cameraLauncher.launch(null)
+    }
+    fun openCamera() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            cameraLauncher.launch(null)
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+    LaunchedEffect(state) {
+        if (state is ShoppingImportState.Review) {
+            inventoryMode = state.mode
+            editable.clear()
+            editable.addAll(state.candidates.map(::EditableShoppingItem))
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(.94f)
+                .fillMaxHeight(.94f)
+                .background(colors.surface, RoundedCornerShape(22.dp))
+                .border(1.dp, colors.divider, RoundedCornerShape(22.dp))
+                .padding(20.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (L.isTr) "MUTFAK STOĞU" else "KITCHEN INVENTORY", color = colors.primary, style = MaterialTheme.typography.overline)
+                    Text(if (L.isTr) "Alışveriş ekle" else "Add shopping", color = colors.onSurface, style = MaterialTheme.typography.h3)
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = if (L.isTr) "Kapat" else "Close", tint = colors.onSurfaceSub)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ShoppingModeButton(
+                    selected = inventoryMode == ShoppingImportMode.ADD,
+                    label = if (L.isTr) "Alışveriş ekle" else "Add shopping"
+                ) { inventoryMode = ShoppingImportMode.ADD }
+                ShoppingModeButton(
+                    selected = inventoryMode == ShoppingImportMode.RECOUNT,
+                    label = if (L.isTr) "Mutfağı say" else "Recount kitchen"
+                ) { inventoryMode = ShoppingImportMode.RECOUNT }
+            }
+            Text(
+                if (inventoryMode == ShoppingImportMode.ADD) {
+                    if (L.isTr) "Onaylanan miktarlar mevcut stoğa eklenir." else "Confirmed amounts are added to existing stock."
+                } else {
+                    if (L.isTr) "Yalnızca onayladığın ürünlerin miktarı değiştirilir; görünmeyenler silinmez." else "Only reviewed items are replaced; unseen stock is kept."
+                },
+                color = colors.onSurfaceSub,
+                style = MaterialTheme.typography.caption,
+                modifier = Modifier.padding(vertical = 10.dp)
+            )
+            Divider(color = colors.divider)
+            when (state) {
+                ShoppingImportState.Idle, is ShoppingImportState.Error -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 10.dp)) {
+                        ShoppingModeButton(!textMode, if (L.isTr) "Fotoğraf" else "Photo") { textMode = false }
+                        ShoppingModeButton(textMode, if (L.isTr) "Metin" else "Text") { textMode = true }
+                    }
+                    if (state is ShoppingImportState.Error) {
+                        Text(state.message, color = Color(0xFF9B3F32), style = MaterialTheme.typography.body2)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    if (textMode) {
+                        OutlinedTextField(
+                            value = input,
+                            onValueChange = { input = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(if (L.isTr) "Ne aldın?" else "What did you buy?") },
+                            placeholder = {
+                                Text(
+                                    if (L.isTr) "2 paket makarna, 1 kilo tavuk ve 12 yumurta"
+                                    else "2 litres of milk, six tomatoes and a loaf of bread"
+                                )
+                            },
+                            minLines = 4,
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                focusedBorderColor = colors.primary,
+                                unfocusedBorderColor = colors.divider,
+                                textColor = colors.onSurface
+                            )
+                        )
+                        Button(
+                            onClick = { onParseText(input, inventoryMode) },
+                            enabled = input.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(48.dp),
+                            colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                            shape = RoundedCornerShape(999.dp)
+                        ) {
+                            Text(if (L.isTr) "İncele" else "Review", color = colors.onPrimary)
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            IngredientArtwork("shopping", Modifier.size(120.dp))
+                            TextButton(onClick = ::openCamera, modifier = Modifier.heightIn(min = 48.dp)) {
+                                Text(if (L.isTr) "Fotoğraf çek" else "Take a photo", color = colors.primary)
+                            }
+                            TextButton(onClick = { galleryLauncher.launch("image/*") }, modifier = Modifier.heightIn(min = 48.dp)) {
+                                Text(if (L.isTr) "Galeriden seç" else "Choose from gallery", color = colors.primary)
+                            }
+                        }
+                    }
+                }
+                ShoppingImportState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(if (L.isTr) "Ürünler inceleniyor…" else "Reviewing products…", color = colors.onSurfaceSub)
+                }
+                is ShoppingImportState.Review -> {
+                    Text(
+                        if (L.isTr) "Yazmadan önce adları, miktarları ve birimleri doğrula." else "Confirm names, amounts, and units before saving.",
+                        color = colors.onSurfaceSub,
+                        style = MaterialTheme.typography.body2,
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+                    if (state.conflicts.isNotEmpty()) {
+                        Text(
+                            if (L.isTr) {
+                                "Birimleri uyuşmayan ürünleri düzenle: ${state.conflicts.joinToString()}"
+                            } else {
+                                "Edit items with incompatible units: ${state.conflicts.joinToString()}"
+                            },
+                            color = Color(0xFF9B3F32),
+                            style = MaterialTheme.typography.body2,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        editable.forEachIndexed { index, item ->
+                            ShoppingReviewRow(item) { editable[index] = it }
+                        }
+                    }
+                    val selected = editable.mapNotNull(EditableShoppingItem::candidateOrNull)
+                    Button(
+                        onClick = {
+                            if (onConfirm(selected, inventoryMode)) onDismiss()
+                        },
+                        enabled = selected.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text(if (L.isTr) "Stoğa uygula" else "Apply to inventory", color = colors.onPrimary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShoppingModeButton(selected: Boolean, label: String, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .border(1.dp, if (selected) colors.primary else colors.divider, RoundedCornerShape(999.dp))
+    ) {
+        Text(label, color = if (selected) colors.primary else colors.onSurfaceSub)
+    }
+}
+
+@Composable
+private fun ShoppingReviewRow(item: EditableShoppingItem, onChange: (EditableShoppingItem) -> Unit) {
+    val colors = LocalAppColors.current
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(
+                checked = item.included,
+                onCheckedChange = { onChange(item.copy(included = it)) },
+                colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
+            )
+            OutlinedTextField(
+                value = item.name,
+                onValueChange = { onChange(item.copy(name = it)) },
+                modifier = Modifier.weight(1f),
+                label = { Text(if (L.isTr) "Ürün" else "Item") },
+                singleLine = true
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = item.quantity,
+                onValueChange = { onChange(item.copy(quantity = it)) },
+                modifier = Modifier.weight(1f),
+                label = { Text(if (L.isTr) "Miktar" else "Amount") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = item.unit,
+                onValueChange = { onChange(item.copy(unit = it)) },
+                modifier = Modifier.weight(1f),
+                label = { Text(if (L.isTr) "Birim" else "Unit") },
+                singleLine = true
+            )
+        }
+        item.source.packageLabel?.let {
+            Text(it, color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        }
+        if (item.source.estimated || item.source.confidence < .75 || item.source.uncertaintyReason != null) {
+            Text(
+                buildString {
+                    append(if (L.isTr) "Kontrol et" else "Check")
+                    append(" · ${(item.source.confidence * 100).toInt()}%")
+                    item.source.uncertaintyReason?.let { append(" · $it") }
+                },
+                color = colors.primary,
+                style = MaterialTheme.typography.caption
+            )
+        }
+        Divider(color = colors.divider, modifier = Modifier.padding(top = 10.dp))
+    }
+}
+
+@Composable
+private fun InventoryRecipeDialog(
+    onDismiss: () -> Unit,
+    onStart: (InventoryRecipeRequest) -> Unit
+) {
+    val colors = LocalAppColors.current
+    var servings by remember { mutableStateOf(2) }
+    var strictStock by remember { mutableStateOf(true) }
+    var missingStaples by remember { mutableStateOf(0) }
+    var priority by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(colors.surface, RoundedCornerShape(22.dp))
+                .border(1.dp, colors.divider, RoundedCornerShape(22.dp))
+                .padding(20.dp)
+        ) {
+            Text(if (L.isTr) "ELİNDEKİLERLE" else "FROM YOUR PANTRY", color = colors.primary, style = MaterialTheme.typography.overline)
+            Text(if (L.isTr) "Ne pişirelim?" else "What should we cook?", color = colors.onSurface, style = MaterialTheme.typography.h3)
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (L.isTr) "Kişi sayısı" else "Servings", color = colors.onSurface, modifier = Modifier.weight(1f))
+                TextButton(onClick = { servings = (servings - 1).coerceAtLeast(1) }) { Text("−", color = colors.primary) }
+                Text(servings.toString(), color = colors.onSurface, style = MaterialTheme.typography.h5)
+                TextButton(onClick = { servings = (servings + 1).coerceAtMost(12) }) { Text("+", color = colors.primary) }
+            }
+            Divider(color = colors.divider)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 56.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (L.isTr) "Yalnızca mevcut stok" else "Use existing stock only", color = colors.onSurface)
+                    Text(if (L.isTr) "Eksik ürünle tarif başlatılmaz." else "Recipes with shortages are blocked.", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+                }
+                Switch(checked = strictStock, onCheckedChange = { strictStock = it })
+            }
+            if (!strictStock) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (L.isTr) "Eksik temel ürün" else "Missing staples", modifier = Modifier.weight(1f), color = colors.onSurface)
+                    (0..2).forEach { value ->
+                        TextButton(onClick = { missingStaples = value }) {
+                            Text(value.toString(), color = if (missingStaples == value) colors.primary else colors.onSurfaceSub)
+                        }
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = priority,
+                onValueChange = { priority = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(if (L.isTr) "Öncelik ver (isteğe bağlı)" else "Prioritize (optional)") },
+                placeholder = { Text(if (L.isTr) "Örn. tavuk, ıspanak" else "E.g. chicken, spinach") }
+            )
+            Text(
+                if (L.isTr) "Hazır olma saatini tarif seçerken belirleyeceksin." else "You will choose the ready time after selecting a recipe.",
+                color = colors.onSurfaceSub,
+                style = MaterialTheme.typography.caption,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+            Button(
+                onClick = {
+                    onStart(
+                        InventoryRecipeRequest(
+                            servings,
+                            strictStock,
+                            if (strictStock) 0 else missingStaples,
+                            priority.split(',').map(String::trim).filter(String::isNotEmpty)
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Text(if (L.isTr) "Tarifleri bul" else "Find recipes", color = colors.onPrimary)
             }
         }
     }
