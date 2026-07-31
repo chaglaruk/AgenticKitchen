@@ -333,13 +333,13 @@ class AppViewModel(
     val inventoryAdjustments = _inventoryAdjustments.asStateFlow()
     private val _shoppingImportState = MutableStateFlow<ShoppingImportState>(ShoppingImportState.Idle)
     val shoppingImportState: StateFlow<ShoppingImportState> = _shoppingImportState.asStateFlow()
-    private val _pendingConsumption = MutableStateFlow(
+    private val _allPendingConsumptions = MutableStateFlow(
         inventoryRepository.allPendingUsage()
             .groupBy(PendingRecipeUsageRecord::sessionId)
-            .entries
-            .firstOrNull()
-            ?.let { PendingConsumption(it.key, it.value) }
+            .map { (sessionId, usages) -> PendingConsumption(sessionId, usages) }
     )
+    val allPendingConsumptions: StateFlow<List<PendingConsumption>> = _allPendingConsumptions.asStateFlow()
+    private val _pendingConsumption = MutableStateFlow(_allPendingConsumptions.value.firstOrNull())
     val pendingConsumption: StateFlow<PendingConsumption?> = _pendingConsumption.asStateFlow()
     private var inventoryRecipeRequest: InventoryRecipeRequest? = null
 
@@ -388,10 +388,112 @@ class AppViewModel(
     init {
         L.applyLanguage(language.value)
         loadHistory()
+        restoreActiveSession()
     }
     
     private fun loadHistory() {
         _history.value = historyRepo.getAllHistory()
+    }
+
+    private fun restoreActiveSession() {
+        refreshPendingConsumptions()
+        val activeSessions = inventoryRepository.getAllActiveSessions()
+        val sessionRecord = activeSessions.firstOrNull() ?: return
+        try {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            val plan = json.decodeFromString(CookingPlanResponse.serializer(), sessionRecord.cookingPlanJson)
+            val events = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(ScheduleEvent.serializer()), sessionRecord.eventsJson)
+            val plannedUsage = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(PlannedPantryUsage.serializer()), sessionRecord.plannedUsageJson)
+            val completedStepIds = json.decodeFromString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), sessionRecord.completedStepIdsJson)
+            val skippedStepIds = json.decodeFromString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), sessionRecord.skippedStepIdsJson)
+            val chatTurns = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(CookingChatTurn.serializer()), sessionRecord.recentChatTurnsJson)
+
+            recentCookingTurns.clear()
+            chatTurns.forEach { recentCookingTurns.addLast(it) }
+
+            val option = RecipeOption(
+                id = sessionRecord.recipeOptionId,
+                type = sessionRecord.recipeType,
+                name = sessionRecord.recipeName,
+                description = sessionRecord.description,
+                sourceLabel = sessionRecord.sourceLabel,
+                proposedIngredients = plan.ingredients
+            )
+
+            val restoredState = activeRecipeState(
+                sessionId = sessionRecord.sessionId,
+                option = option,
+                events = events,
+                servings = sessionRecord.servings,
+                readyTimeIso = sessionRecord.resolvedReadyTimeIso,
+                plan = plan,
+                plannedUsage = plannedUsage
+            )
+            _planState.value = restoredState
+
+            val restoredStatus = try {
+                CookingSessionStatus.valueOf(sessionRecord.status)
+            } catch (_: Exception) {
+                CookingSessionStatus.READY
+            }
+
+            _cookingState.value = cookingController.restore(
+                recipe = sessionRecord.recipeName,
+                schedule = events,
+                status = restoredStatus,
+                startedAtMillis = sessionRecord.startedAtMillis,
+                accumulatedElapsedSeconds = sessionRecord.accumulatedElapsedSeconds,
+                lastRunningStartMillis = sessionRecord.lastRunningStartMillis,
+                pausedAtMillis = sessionRecord.pausedAtMillis,
+                completed = completedStepIds,
+                skipped = skippedStepIds
+            )
+
+            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
+                startCookingTicker()
+            }
+        } catch (e: Exception) {
+            AppLogger.w("Recovery", "Failed to restore active session: ${e.message}")
+        }
+    }
+
+    private fun persistActiveSession() {
+        val activeState = _planState.value as? PlanState.RecipeActive ?: return
+        val currentCooking = _cookingState.value
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val nowIso = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+
+        val record = ActiveCookingSessionRecord(
+            sessionId = activeState.sessionId,
+            recipeOptionId = activeState.recipe.id,
+            recipeName = activeState.recipe.name,
+            recipeType = activeState.recipe.type,
+            description = activeState.recipe.description,
+            sourceLabel = activeState.recipe.sourceLabel,
+            servings = activeState.servings,
+            resolvedReadyTimeIso = activeState.resolvedReadyTimeIso,
+            cookingPlanJson = activeState.cookingPlan?.let { json.encodeToString(CookingPlanResponse.serializer(), it) }.orEmpty(),
+            eventsJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(ScheduleEvent.serializer()), activeState.events),
+            plannedUsageJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(PlannedPantryUsage.serializer()), activeState.plannedUsage),
+            status = currentCooking.status.name,
+            startedAtMillis = System.currentTimeMillis() - (currentCooking.elapsedSeconds * 1000L),
+            accumulatedElapsedSeconds = currentCooking.elapsedSeconds,
+            lastRunningStartMillis = if (currentCooking.status == CookingSessionStatus.RUNNING) System.currentTimeMillis() else null,
+            pausedAtMillis = if (currentCooking.status == CookingSessionStatus.PAUSED) System.currentTimeMillis() else null,
+            completedStepIdsJson = json.encodeToString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), currentCooking.completed),
+            skippedStepIdsJson = json.encodeToString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), currentCooking.skipped),
+            recentChatTurnsJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(CookingChatTurn.serializer()), recentCookingTurns.toList()),
+            updatedAtIso = nowIso
+        )
+        inventoryRepository.saveActiveSession(record)
+    }
+
+    private fun refreshPendingConsumptions() {
+        val groups = inventoryRepository.allPendingUsage()
+            .groupBy(PendingRecipeUsageRecord::sessionId)
+            .map { (sessionId, usages) -> PendingConsumption(sessionId, usages) }
+        _allPendingConsumptions.value = groups
+        _pendingConsumption.value = groups.firstOrNull()
     }
 
     fun completeSetup(equipment: Set<String>, hw: HardwareSettings) {
@@ -745,6 +847,16 @@ class AppViewModel(
             )
             return
         }
+        val existingReservingSessions = inventoryRepository.allPendingUsage()
+            .filter { it.status == "reserved" && it.sessionId != active.sessionId }
+        if (existingReservingSessions.isNotEmpty()) {
+            _cookingState.value = CookingSessionState(
+                recipeName = active.recipe.name,
+                status = CookingSessionStatus.ERROR,
+                error = if (L.isTr) "Başka bir aktif pişirme seansı tamamlanmayı bekliyor." else "Another active cooking session is pending completion."
+            )
+            return
+        }
         if (active.plannedUsage.isNotEmpty()) {
             val timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
             val reservations = active.plannedUsage.map {
@@ -771,53 +883,65 @@ class AppViewModel(
             }
         }
         _cookingState.value = cookingController.start(active.recipe.name, active.events)
+        persistActiveSession()
         startCookingTicker()
     }
 
     fun pauseCooking() {
         _cookingState.value = cookingController.pause()
         cookingTicker?.cancel()
+        persistActiveSession()
     }
 
     fun resumeCooking() {
         _cookingState.value = cookingController.resume()
+        persistActiveSession()
         startCookingTicker()
     }
 
     fun completeCookingStep(id: String) {
         _cookingState.value = cookingController.complete(id)
+        persistActiveSession()
         stopTickerIfFinished()
     }
 
     fun skipCookingStep(id: String) {
         _cookingState.value = cookingController.skip(id)
+        persistActiveSession()
         stopTickerIfFinished()
     }
 
     fun endCooking() {
         _cookingState.value = cookingController.end()
         cookingTicker?.cancel()
+        persistActiveSession()
         exposePendingConsumption()
     }
 
-    fun consumePlannedInventory() {
-        val pending = _pendingConsumption.value ?: return
-        consumeInventory(pending.usages.associate { it.itemId to it.plannedQuantity })
+    fun consumePlannedInventory(sessionId: String? = null) {
+        val pending = (if (sessionId != null) _allPendingConsumptions.value.firstOrNull { it.sessionId == sessionId } else _pendingConsumption.value) ?: return
+        consumeInventory(pending.sessionId, pending.usages.associate { it.itemId to it.plannedQuantity })
     }
 
-    fun consumeActualInventory(actualQuantities: Map<String, Double>) {
-        consumeInventory(actualQuantities)
+    fun consumeActualInventory(actualQuantities: Map<String, Double>, sessionId: String? = null) {
+        val pending = (if (sessionId != null) _allPendingConsumptions.value.firstOrNull { it.sessionId == sessionId } else _pendingConsumption.value) ?: return
+        consumeInventory(pending.sessionId, actualQuantities)
     }
 
-    fun cancelInventoryConsumption() {
-        val pending = _pendingConsumption.value ?: return
-        inventoryRepository.deletePendingUsage(pending.sessionId)
-        _pendingConsumption.value = null
+    fun cancelInventoryConsumption(sessionId: String? = null) {
+        val pendingSessionId = sessionId ?: _pendingConsumption.value?.sessionId ?: return
+        inventoryRepository.releaseReservation(pendingSessionId)
+        inventoryRepository.deleteActiveSession(pendingSessionId)
+        val active = _planState.value as? PlanState.RecipeActive
+        if (active?.sessionId == pendingSessionId) {
+            _planState.value = PlanState.Idle
+            _cookingState.value = CookingSessionState()
+        }
         refreshInventory()
+        refreshPendingConsumptions()
     }
 
-    private fun consumeInventory(actualQuantities: Map<String, Double>) {
-        val pending = _pendingConsumption.value ?: return
+    private fun consumeInventory(sessionId: String, actualQuantities: Map<String, Double>) {
         if (actualQuantities.values.any { !it.isFinite() || it <= 0.0 }) {
             emitUiEvent(if (L.isTr) "Kullanılan miktarlar sıfırdan büyük olmalı." else "Used amounts must be greater than zero.")
             return
@@ -853,11 +977,7 @@ class AppViewModel(
     }
 
     private fun exposePendingConsumption() {
-        val active = _planState.value as? PlanState.RecipeActive ?: return
-        val usages = inventoryRepository.pendingUsage(active.sessionId)
-        if (usages.isNotEmpty()) {
-            _pendingConsumption.value = PendingConsumption(active.sessionId, usages)
-        }
+        refreshPendingConsumptions()
     }
 
     fun refreshSession() {
@@ -927,6 +1047,7 @@ class AppViewModel(
                         plan,
                         usagePlan.usages
                     )
+                    persistActiveSession()
                 }
             } catch (error: CancellationException) {
                 throw error

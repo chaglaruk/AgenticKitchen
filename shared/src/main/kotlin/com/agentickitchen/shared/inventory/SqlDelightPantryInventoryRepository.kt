@@ -154,6 +154,7 @@ class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : P
                 )
             }
             queries.deletePendingRecipeUsage(sessionId)
+            queries.deleteActiveCookingSession(sessionId)
         }
         true
     } catch (_: InventoryConflict) {
@@ -161,6 +162,89 @@ class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : P
     } catch (_: IllegalArgumentException) {
         false
     }
+
+    override fun releaseReservation(sessionId: String): Boolean = try {
+        database.transaction {
+            val usages = queries.selectPendingRecipeUsage(sessionId).executeAsList()
+            val now = java.time.Instant.now().toString()
+            usages.forEach { usage ->
+                insertAdjustment(
+                    InventoryAdjustmentRecord(
+                        id = "$sessionId:${usage.itemId}:release",
+                        itemId = usage.itemId,
+                        amount = usage.plannedQuantity,
+                        mode = AdjustmentMode.DELTA,
+                        reason = AdjustmentReason.RECIPE_RESERVATION_RELEASE,
+                        source = "recipe",
+                        timestamp = now
+                    )
+                )
+            }
+            queries.deletePendingRecipeUsage(sessionId)
+            queries.deleteActiveCookingSession(sessionId)
+        }
+        true
+    } catch (_: Exception) {
+        false
+    }
+
+    override fun saveActiveSession(session: ActiveCookingSessionRecord) {
+        queries.upsertActiveCookingSession(
+            sessionId = session.sessionId,
+            recipeOptionId = session.recipeOptionId,
+            recipeName = session.recipeName,
+            recipeType = session.recipeType,
+            description = session.description,
+            sourceLabel = session.sourceLabel,
+            servings = session.servings.toLong(),
+            resolvedReadyTimeIso = session.resolvedReadyTimeIso,
+            cookingPlanJson = session.cookingPlanJson,
+            eventsJson = session.eventsJson,
+            plannedUsageJson = session.plannedUsageJson,
+            status = session.status,
+            startedAtMillis = session.startedAtMillis,
+            accumulatedElapsedSeconds = session.accumulatedElapsedSeconds,
+            lastRunningStartMillis = session.lastRunningStartMillis,
+            pausedAtMillis = session.pausedAtMillis,
+            completedStepIds = session.completedStepIdsJson,
+            skippedStepIds = session.skippedStepIdsJson,
+            recentChatTurnsJson = session.recentChatTurnsJson,
+            updatedAtIso = session.updatedAtIso
+        )
+    }
+
+    override fun getActiveSession(sessionId: String): ActiveCookingSessionRecord? =
+        queries.selectActiveCookingSession(sessionId).executeAsOneOrNull()?.let(::activeSessionRecord)
+
+    override fun getAllActiveSessions(): List<ActiveCookingSessionRecord> =
+        queries.selectAllActiveCookingSessions().executeAsList().map(::activeSessionRecord)
+
+    override fun deleteActiveSession(sessionId: String) {
+        queries.deleteActiveCookingSession(sessionId)
+    }
+
+    private fun activeSessionRecord(it: com.agentickitchen.shared.db.ActiveCookingSession) = ActiveCookingSessionRecord(
+        sessionId = it.sessionId,
+        recipeOptionId = it.recipeOptionId,
+        recipeName = it.recipeName,
+        recipeType = it.recipeType,
+        description = it.description,
+        sourceLabel = it.sourceLabel,
+        servings = it.servings.toInt(),
+        resolvedReadyTimeIso = it.resolvedReadyTimeIso,
+        cookingPlanJson = it.cookingPlanJson,
+        eventsJson = it.eventsJson,
+        plannedUsageJson = it.plannedUsageJson,
+        status = it.status,
+        startedAtMillis = it.startedAtMillis,
+        accumulatedElapsedSeconds = it.accumulatedElapsedSeconds,
+        lastRunningStartMillis = it.lastRunningStartMillis,
+        pausedAtMillis = it.pausedAtMillis,
+        completedStepIdsJson = it.completedStepIds,
+        skippedStepIdsJson = it.skippedStepIds,
+        recentChatTurnsJson = it.recentChatTurnsJson,
+        updatedAtIso = it.updatedAtIso
+    )
 
     private fun upsertItem(item: PantryStockItem) {
         queries.upsertPantryItem(

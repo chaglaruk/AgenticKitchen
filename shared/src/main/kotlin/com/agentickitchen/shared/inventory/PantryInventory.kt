@@ -1,5 +1,7 @@
 package com.agentickitchen.shared.inventory
 
+import kotlinx.serialization.Serializable
+
 enum class UnitDimension { WEIGHT, VOLUME, COUNT, PACKAGE, BUNCH, UNKNOWN }
 enum class AdjustmentMode { DELTA, REPLACE }
 enum class AdjustmentReason {
@@ -7,6 +9,7 @@ enum class AdjustmentReason {
     SHOPPING_ADD,
     RECOUNT,
     RECIPE_RESERVATION,
+    RECIPE_RESERVATION_RELEASE,
     RECIPE_CONSUMPTION,
     CORRECTION,
     DELETION
@@ -47,6 +50,30 @@ data class PendingRecipeUsageRecord(
     val actualQuantity: Double? = null,
     val status: String,
     val timestamp: String
+)
+
+@Serializable
+data class ActiveCookingSessionRecord(
+    val sessionId: String,
+    val recipeOptionId: String,
+    val recipeName: String,
+    val recipeType: String,
+    val description: String,
+    val sourceLabel: String? = null,
+    val servings: Int,
+    val resolvedReadyTimeIso: String,
+    val cookingPlanJson: String,
+    val eventsJson: String,
+    val plannedUsageJson: String,
+    val status: String,
+    val startedAtMillis: Long,
+    val accumulatedElapsedSeconds: Long,
+    val lastRunningStartMillis: Long? = null,
+    val pausedAtMillis: Long? = null,
+    val completedStepIdsJson: String,
+    val skippedStepIdsJson: String,
+    val recentChatTurnsJson: String,
+    val updatedAtIso: String
 )
 
 data class InventoryMutation(
@@ -93,5 +120,10 @@ interface PantryInventoryRepository {
     fun deletePendingUsage(sessionId: String)
     fun applyMutations(mutations: List<InventoryMutation>)
     fun reserve(usages: List<PendingRecipeUsageRecord>): Boolean
+    fun releaseReservation(sessionId: String): Boolean
     fun consume(sessionId: String, actualQuantities: Map<String, Double>): Boolean
+    fun saveActiveSession(session: ActiveCookingSessionRecord)
+    fun getActiveSession(sessionId: String): ActiveCookingSessionRecord?
+    fun getAllActiveSessions(): List<ActiveCookingSessionRecord>
+    fun deleteActiveSession(sessionId: String)
 }

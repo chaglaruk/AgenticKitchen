@@ -345,6 +345,22 @@ class AppViewModelTest {
             usages.forEach(::upsertPendingUsage)
             return true
         }
+        override fun releaseReservation(sessionId: String): Boolean {
+            pending.filter { it.sessionId == sessionId }.forEach { usage ->
+                adjustments += InventoryAdjustmentRecord(
+                    id = "$sessionId:${usage.itemId}:release",
+                    itemId = usage.itemId,
+                    amount = usage.plannedQuantity,
+                    mode = AdjustmentMode.DELTA,
+                    reason = AdjustmentReason.RECIPE_RESERVATION_RELEASE,
+                    source = "recipe",
+                    timestamp = "now"
+                )
+            }
+            deletePendingUsage(sessionId)
+            deleteActiveSession(sessionId)
+            return true
+        }
         override fun consume(sessionId: String, actualQuantities: Map<String, Double>): Boolean {
             pendingUsage(sessionId).forEach { usage ->
                 val item = items[usage.itemId] ?: return false
@@ -353,8 +369,16 @@ class AppViewModelTest {
                 items[item.id] = item.copy(quantity = item.quantity - amount)
             }
             deletePendingUsage(sessionId)
+            deleteActiveSession(sessionId)
             return true
         }
+        private val activeSessions = mutableMapOf<String, ActiveCookingSessionRecord>()
+        override fun saveActiveSession(session: ActiveCookingSessionRecord) {
+            activeSessions[session.sessionId] = session
+        }
+        override fun getActiveSession(sessionId: String) = activeSessions[sessionId]
+        override fun getAllActiveSessions() = activeSessions.values.toList()
+        override fun deleteActiveSession(sessionId: String) { activeSessions.remove(sessionId) }
     }
 
     private object FakeOrchestrator : Orchestrator {

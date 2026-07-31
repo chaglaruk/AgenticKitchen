@@ -93,3 +93,46 @@ SELECT * FROM PendingRecipeUsage ORDER BY timestamp;
 
 deletePendingRecipeUsage:
 DELETE FROM PendingRecipeUsage WHERE sessionId = ?;
+
+CREATE TABLE ActiveCookingSession (
+    sessionId TEXT NOT NULL PRIMARY KEY,
+    recipeOptionId TEXT NOT NULL,
+    recipeName TEXT NOT NULL,
+    recipeType TEXT NOT NULL,
+    description TEXT NOT NULL,
+    sourceLabel TEXT,
+    servings INTEGER NOT NULL,
+    resolvedReadyTimeIso TEXT NOT NULL,
+    cookingPlanJson TEXT NOT NULL,
+    eventsJson TEXT NOT NULL,
+    plannedUsageJson TEXT NOT NULL,
+    status TEXT NOT NULL,
+    startedAtMillis INTEGER NOT NULL,
+    accumulatedElapsedSeconds INTEGER NOT NULL,
+    lastRunningStartMillis INTEGER,
+    pausedAtMillis INTEGER,
+    completedStepIds TEXT NOT NULL,
+    skippedStepIds TEXT NOT NULL,
+    recentChatTurnsJson TEXT NOT NULL,
+    updatedAtIso TEXT NOT NULL
+);
+
+upsertActiveCookingSession:
+INSERT OR REPLACE INTO ActiveCookingSession(
+    sessionId, recipeOptionId, recipeName, recipeType, description, sourceLabel,
+    servings, resolvedReadyTimeIso, cookingPlanJson, eventsJson, plannedUsageJson,
+    status, startedAtMillis, accumulatedElapsedSeconds, lastRunningStartMillis,
+    pausedAtMillis, completedStepIds, skippedStepIds, recentChatTurnsJson, updatedAtIso
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectActiveCookingSession:
+SELECT * FROM ActiveCookingSession WHERE sessionId = ?;
+
+selectAllActiveCookingSessions:
+SELECT * FROM ActiveCookingSession ORDER BY updatedAtIso DESC;
+
+deleteActiveCookingSession:
+DELETE FROM ActiveCookingSession WHERE sessionId = ?;
+
+clearActiveCookingSessions:
+DELETE FROM ActiveCookingSession;
