@@ -651,6 +651,7 @@ private fun adjustmentLabel(reason: AdjustmentReason): String = when (reason) {
     AdjustmentReason.SHOPPING_ADD -> if (L.isTr) "Alışveriş eklendi" else "Shopping added"
     AdjustmentReason.RECOUNT -> if (L.isTr) "Yeniden sayıldı" else "Recounted"
     AdjustmentReason.RECIPE_RESERVATION -> if (L.isTr) "Tarif için ayrıldı" else "Reserved for recipe"
+    AdjustmentReason.RECIPE_RESERVATION_RELEASE -> if (L.isTr) "Rezervasyon serbest bırakıldı" else "Reservation released"
     AdjustmentReason.RECIPE_CONSUMPTION -> if (L.isTr) "Tarifte kullanıldı" else "Used in recipe"
     AdjustmentReason.CORRECTION -> if (L.isTr) "Düzeltildi" else "Corrected"
     AdjustmentReason.DELETION -> if (L.isTr) "Silindi" else "Deleted"

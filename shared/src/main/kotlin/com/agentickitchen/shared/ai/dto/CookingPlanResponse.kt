@@ -15,7 +15,8 @@ data class CookingPlanResponse(
 data class PlannedIngredientDto(
     val name: String,
     val quantity: Double,
-    val unit: String
+    val unit: String,
+    val canonicalIngredientId: String? = null
 )
 
 @Serializable

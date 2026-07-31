@@ -8,9 +8,8 @@ import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.db.AppDatabase
 import com.agentickitchen.shared.inventory.*
 import com.agentickitchen.shared.models.ScheduleEvent
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.SetSerializer
-import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
@@ -36,7 +35,7 @@ class ActiveCookingSessionRecoveryTest {
         recipeName = "Chicken Soup",
         servings = 2,
         ingredients = listOf(PlannedIngredientDto("Chicken", 500.0, "g", canonicalIngredientId = "chicken")),
-        steps = listOf(CookingStepDto("step1", "cook", "Boil chicken", 15, "stove", 100)),
+        steps = listOf(CookingStepDto("step1", "cook", "Boil chicken", "stove", 15, targetTemperatureC = 100)),
         safetyNotes = listOf("Hot surface")
     )
 
@@ -162,17 +161,17 @@ class ActiveCookingSessionRecoveryTest {
             sourceLabel = "Gemini",
             servings = 2,
             resolvedReadyTimeIso = "2026-01-01T13:00:00Z",
-            cookingPlanJson = json.encodeToString(CookingPlanResponse.serializer(), plan),
-            eventsJson = json.encodeToString(ListSerializer(ScheduleEvent.serializer()), events),
-            plannedUsageJson = json.encodeToString(ListSerializer(PlannedPantryUsage.serializer()), plannedUsage),
+            cookingPlanJson = json.encodeToString(plan),
+            eventsJson = json.encodeToString(events),
+            plannedUsageJson = json.encodeToString(plannedUsage),
             status = "RUNNING",
             startedAtMillis = 100_000L,
             accumulatedElapsedSeconds = 25,
             lastRunningStartMillis = 120_000L,
             pausedAtMillis = null,
-            completedStepIdsJson = json.encodeToString(SetSerializer(String.serializer()), setOf("step1")),
-            skippedStepIdsJson = json.encodeToString(SetSerializer(String.serializer()), emptySet()),
-            recentChatTurnsJson = json.encodeToString(ListSerializer(CookingChatTurn.serializer()), turns),
+            completedStepIdsJson = json.encodeToString(setOf("step1")),
+            skippedStepIdsJson = json.encodeToString(emptySet<String>()),
+            recentChatTurnsJson = json.encodeToString(turns),
             updatedAtIso = "2026-01-01T12:30:00Z"
         )
 
@@ -183,10 +182,10 @@ class ActiveCookingSessionRecoveryTest {
         assertEquals("Chicken Soup", loaded.recipeName)
         assertEquals(25, loaded.accumulatedElapsedSeconds)
 
-        val restoredPlan = json.decodeFromString(CookingPlanResponse.serializer(), loaded.cookingPlanJson)
+        val restoredPlan = json.decodeFromString<CookingPlanResponse>(loaded.cookingPlanJson)
         assertEquals("Chicken Soup", restoredPlan.recipeName)
 
-        val restoredTurns = json.decodeFromString(ListSerializer(CookingChatTurn.serializer()), loaded.recentChatTurnsJson)
+        val restoredTurns = json.decodeFromString<List<CookingChatTurn>>(loaded.recentChatTurnsJson)
         assertEquals(2, restoredTurns.size)
         assertEquals("Is it hot?", restoredTurns.first().text)
 

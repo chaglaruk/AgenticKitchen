@@ -96,9 +96,16 @@ object InventoryWorkflow {
         val usages = mutableListOf<PlannedPantryUsage>()
         val shortages = mutableListOf<String>()
         plan.ingredients.forEach { ingredient ->
-            val item = inventory.firstOrNull {
-                it.originalName.normalized() == ingredient.name.normalized() ||
-                    it.canonicalIngredientId?.normalized() == ingredient.name.normalized()
+            val resolvedIngredientCanonicalId = ingredient.canonicalIngredientId
+                ?: LocalIngredientResolver.resolveCanonicalId(ingredient.name)
+
+            val item = inventory.firstOrNull { stockItem ->
+                LocalIngredientResolver.matches(
+                    firstName = stockItem.originalName,
+                    firstCanonicalId = stockItem.canonicalIngredientId,
+                    secondName = ingredient.name,
+                    secondCanonicalId = resolvedIngredientCanonicalId
+                )
             }
             if (item == null) {
                 shortages += ingredient.name
@@ -171,8 +178,12 @@ object InventoryWorkflow {
     }
 
     private fun PantryStockItem.matches(candidate: ShoppingCandidate): Boolean =
-        candidate.canonicalIngredientId?.let { it.normalized() == canonicalIngredientId?.normalized() } == true ||
-            originalName.normalized() == candidate.displayName.normalized()
+        LocalIngredientResolver.matches(
+            firstName = originalName,
+            firstCanonicalId = canonicalIngredientId,
+            secondName = candidate.displayName,
+            secondCanonicalId = candidate.canonicalIngredientId
+        )
 
     private fun compatible(first: NormalizedAmount, second: NormalizedAmount): Boolean =
         first.dimension == second.dimension && first.dimension != UnitDimension.UNKNOWN

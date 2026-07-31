@@ -19,6 +19,8 @@ import com.agentickitchen.shared.inventory.ShoppingImportMode
 import com.agentickitchen.shared.inventory.InventoryUnits
 import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.PantryStockItem
+import com.agentickitchen.shared.inventory.ActiveCookingSessionRecord
+import com.agentickitchen.shared.inventory.LocalIngredientResolver
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
@@ -26,6 +28,8 @@ import com.agentickitchen.android.ai.ProviderFailure
 import com.agentickitchen.android.ai.ProviderFailureCategory
 import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.AiFailureType
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import com.agentickitchen.shared.ai.CookingChatRequest
 import com.agentickitchen.shared.ai.CookingChatResponse
 import com.agentickitchen.shared.ai.CookingChatTurn
@@ -401,12 +405,12 @@ class AppViewModel(
         val sessionRecord = activeSessions.firstOrNull() ?: return
         try {
             val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-            val plan = json.decodeFromString(CookingPlanResponse.serializer(), sessionRecord.cookingPlanJson)
-            val events = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(ScheduleEvent.serializer()), sessionRecord.eventsJson)
-            val plannedUsage = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(PlannedPantryUsage.serializer()), sessionRecord.plannedUsageJson)
-            val completedStepIds = json.decodeFromString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), sessionRecord.completedStepIdsJson)
-            val skippedStepIds = json.decodeFromString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), sessionRecord.skippedStepIdsJson)
-            val chatTurns = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(CookingChatTurn.serializer()), sessionRecord.recentChatTurnsJson)
+            val plan = json.decodeFromString<CookingPlanResponse>(sessionRecord.cookingPlanJson)
+            val events = json.decodeFromString<List<ScheduleEvent>>(sessionRecord.eventsJson)
+            val plannedUsage = json.decodeFromString<List<PlannedPantryUsage>>(sessionRecord.plannedUsageJson)
+            val completedStepIds = json.decodeFromString<Set<String>>(sessionRecord.completedStepIdsJson)
+            val skippedStepIds = json.decodeFromString<Set<String>>(sessionRecord.skippedStepIdsJson)
+            val chatTurns = json.decodeFromString<List<CookingChatTurn>>(sessionRecord.recentChatTurnsJson)
 
             recentCookingTurns.clear()
             chatTurns.forEach { recentCookingTurns.addLast(it) }
@@ -472,17 +476,17 @@ class AppViewModel(
             sourceLabel = activeState.recipe.sourceLabel,
             servings = activeState.servings,
             resolvedReadyTimeIso = activeState.resolvedReadyTimeIso,
-            cookingPlanJson = activeState.cookingPlan?.let { json.encodeToString(CookingPlanResponse.serializer(), it) }.orEmpty(),
-            eventsJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(ScheduleEvent.serializer()), activeState.events),
-            plannedUsageJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(PlannedPantryUsage.serializer()), activeState.plannedUsage),
+            cookingPlanJson = activeState.cookingPlan?.let { json.encodeToString(it) }.orEmpty(),
+            eventsJson = json.encodeToString(activeState.events),
+            plannedUsageJson = json.encodeToString(activeState.plannedUsage),
             status = currentCooking.status.name,
             startedAtMillis = System.currentTimeMillis() - (currentCooking.elapsedSeconds * 1000L),
             accumulatedElapsedSeconds = currentCooking.elapsedSeconds,
             lastRunningStartMillis = if (currentCooking.status == CookingSessionStatus.RUNNING) System.currentTimeMillis() else null,
             pausedAtMillis = if (currentCooking.status == CookingSessionStatus.PAUSED) System.currentTimeMillis() else null,
-            completedStepIdsJson = json.encodeToString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), currentCooking.completed),
-            skippedStepIdsJson = json.encodeToString(kotlinx.serialization.builtins.SetSerializer(kotlinx.serialization.builtins.serializer<String>()), currentCooking.skipped),
-            recentChatTurnsJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(CookingChatTurn.serializer()), recentCookingTurns.toList()),
+            completedStepIdsJson = json.encodeToString(currentCooking.completed),
+            skippedStepIdsJson = json.encodeToString(currentCooking.skipped),
+            recentChatTurnsJson = json.encodeToString(recentCookingTurns.toList()),
             updatedAtIso = nowIso
         )
         inventoryRepository.saveActiveSession(record)
