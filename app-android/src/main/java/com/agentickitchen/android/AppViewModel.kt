@@ -492,7 +492,7 @@ class AppViewModel(
         inventoryRepository.saveActiveSession(record)
     }
 
-    private fun refreshPendingConsumptions() {
+    internal fun refreshPendingConsumptions() {
         val groups = inventoryRepository.allPendingUsage()
             .groupBy(PendingRecipeUsageRecord::sessionId)
             .map { (sessionId, usages) -> PendingConsumption(sessionId, usages) }
@@ -648,7 +648,7 @@ class AppViewModel(
         refreshInventory()
     }
 
-    private fun refreshInventory() {
+    internal fun refreshInventory() {
         _inventory.value = inventoryRepository.getAll()
         _inventoryAdjustments.value = _inventory.value.associate { item ->
             item.id to inventoryRepository.adjustments(item.id)
@@ -954,8 +954,17 @@ class AppViewModel(
             emitUiEvent(if (L.isTr) "Stok miktarları uygulanamadı." else "The pantry amounts could not be applied.")
             return
         }
-        _pendingConsumption.value = null
+        // On successful consumption: refresh inventory, reload canonical pending state from repository,
+        // remove the consumed session, and expose the next pending session if one exists.
         refreshInventory()
+        refreshPendingConsumptions()
+
+        // Clear active recipe/cooking state only if the consumed session was the currently active session
+        val active = _planState.value as? PlanState.RecipeActive
+        if (active?.sessionId == sessionId) {
+            _planState.value = PlanState.Idle
+            _cookingState.value = CookingSessionState()
+        }
     }
 
     private fun startCookingTicker() {

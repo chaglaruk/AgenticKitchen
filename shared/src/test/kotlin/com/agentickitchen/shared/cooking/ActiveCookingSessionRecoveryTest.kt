@@ -304,21 +304,273 @@ class ActiveCookingSessionRecoveryTest {
     }
 
     @Test
-    fun `malformed timestamp correctly handled on recovery`() {
+    fun `legacy fallback uses startedAtMillis when lastRunningStartMillis is missing`() {
         val clock = TestClock(100_000L)
         val controller = CookingSessionController(clock)
         val events = listOf(sampleEvent("a", 0, 120))
+
+        // No lastRunningStartMillis, but startedAtMillis is valid
+        // Should use fallback: max(accumulated, epochNow - startedAtMillis)
+        clock.currentMono = 140_000L
+        clock.currentEpoch = fixedEpoch + 40_000L
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.RUNNING,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 10,
+            lastRunningStartMillis = null // Missing
+        )
+
+        assertEquals(CookingSessionStatus.RUNNING, restored.status)
+        // Fallback: max(10s accumulated, 40s wall elapsed) = 40s total
+        assertEquals(40, restored.elapsedSeconds)
+
+        // Advancing clock 5s should advance elapsed to 45s
+        clock.currentMono = 145_000L
+        clock.currentEpoch = fixedEpoch + 45_000L
+        assertEquals(45, controller.current().elapsedSeconds)
+    }
+
+    @Test
+    fun `RUNNING with neither timestamp available preserves only accumulated`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 120))
+
+        // Neither lastRunningStartMillis nor startedAtMillis usable
+        clock.currentMono = 140_000L
+        clock.currentEpoch = fixedEpoch + 40_000L
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.RUNNING,
+            startedAtMillis = 0L, // Invalid
+            accumulatedElapsedSeconds = 10,
+            lastRunningStartMillis = 0L // Invalid
+        )
+
+        assertEquals(CookingSessionStatus.RUNNING, restored.status)
+        // Only accumulated preserved
+        assertEquals(10, restored.elapsedSeconds)
+
+        // Advancing clock 5s should advance elapsed to 15s
+        clock.currentMono = 145_000L
+        clock.currentEpoch = fixedEpoch + 45_000L
+        assertEquals(15, controller.current().elapsedSeconds)
+    }
+
+    @Test
+    fun `negative wall clock movement is clamped to zero`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 120))
+
+        // lastRunningStartMillis is in the future relative to epochNow
+        clock.currentMono = 140_000L
+        clock.currentEpoch = fixedEpoch + 5_000L // Earlier than lastRunningStartMillis (fixedEpoch + 10_000L)
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.RUNNING,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 10,
+            lastRunningStartMillis = fixedEpoch + 10_000L
+        )
+
+        assertEquals(CookingSessionStatus.RUNNING, restored.status)
+        // deadMillis clamped to 0, so only accumulated preserved
+        assertEquals(10, restored.elapsedSeconds)
+    }
+
+    @Test
+    fun `PAUSED with valid pausedAtMillis remains frozen`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 120))
+
+        // Paused with 15s elapsed, app died. Relaunch 50s later.
+        clock.currentMono = 150_000L
+        clock.currentEpoch = fixedEpoch + 50_000L
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.PAUSED,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 15,
+            pausedAtMillis = fixedEpoch + 15_000L // Valid but ignored for elapsed
+        )
+
+        assertEquals(CookingSessionStatus.PAUSED, restored.status)
+        assertEquals(15, restored.elapsedSeconds)
+
+        // Time passes while still paused -> remains frozen at 15s
+        clock.currentMono = 180_000L
+        clock.currentEpoch = fixedEpoch + 80_000L
+        assertEquals(15, controller.current().elapsedSeconds)
+    }
+
+    @Test
+    fun `PAUSED with future pausedAtMillis remains frozen`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 120))
+
+        // pausedAtMillis is in the future (malformed) - should not affect elapsed
+        clock.currentMono = 150_000L
+        clock.currentEpoch = fixedEpoch + 50_000L
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.PAUSED,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 15,
+            pausedAtMillis = fixedEpoch + 100_000L // Future - malformed
+        )
+
+        assertEquals(CookingSessionStatus.PAUSED, restored.status)
+        assertEquals(15, restored.elapsedSeconds)
+
+        // Time passes -> remains frozen
+        clock.currentMono = 180_000L
+        clock.currentEpoch = fixedEpoch + 80_000L
+        assertEquals(15, controller.current().elapsedSeconds)
+    }
+
+    @Test
+    fun `resume after restored PAUSED state establishes fresh monotonic segment`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 120))
+
+        // Restore PAUSED
+        clock.currentMono = 150_000L
+        clock.currentEpoch = fixedEpoch + 50_000L
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.PAUSED,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 15,
+            pausedAtMillis = fixedEpoch + 15_000L
+        )
+        assertEquals(CookingSessionStatus.PAUSED, restored.status)
+        assertEquals(15, restored.elapsedSeconds)
+
+        // Resume at 180,000L -> status becomes RUNNING, continues from 15s
+        clock.currentMono = 180_000L
+        clock.currentEpoch = fixedEpoch + 80_000L
+        val resumed = controller.resume()
+        assertEquals(CookingSessionStatus.RUNNING, resumed.status)
+        assertEquals(15, resumed.elapsedSeconds)
+
+        // Advance 10s -> becomes 25s
+        clock.currentMono = 190_000L
+        clock.currentEpoch = fixedEpoch + 90_000L
+        assertEquals(25, controller.current().elapsedSeconds)
+    }
+
+    @Test
+    fun `READY restoration`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 60))
+
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.READY,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 0
+        )
+
+        assertEquals(CookingSessionStatus.READY, restored.status)
+        assertEquals("Soup", restored.recipeName)
+        assertEquals(0, restored.elapsedSeconds)
+    }
+
+    @Test
+    fun `COMPLETED restoration`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 60))
+
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.COMPLETED,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 60,
+            completed = setOf("a"),
+            skipped = emptySet()
+        )
+
+        assertEquals(CookingSessionStatus.COMPLETED, restored.status)
+        assertTrue(restored.completed.contains("a"))
+        assertEquals(0, restored.elapsedSeconds) // COMPLETED has no active elapsed
+    }
+
+    @Test
+    fun `ENDED restoration`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 60))
+
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.ENDED,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 60
+        )
+
+        assertEquals(CookingSessionStatus.ENDED, restored.status)
+        assertTrue(restored.active.isEmpty())
+        assertTrue(restored.upcoming.isEmpty())
+    }
+
+    @Test
+    fun `completed and skipped step restoration`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 30), sampleEvent("b", 30, 60), sampleEvent("c", 60, 90))
 
         val restored = controller.restore(
             recipe = "Soup",
             schedule = events,
             status = CookingSessionStatus.RUNNING,
-            startedAtMillis = 0L, // Missing or invalid
-            accumulatedElapsedSeconds = 10,
-            lastRunningStartMillis = 0L // Missing or invalid
+            startedAtMillis = 100_000L,
+            accumulatedElapsedSeconds = 40,
+            completed = setOf("a"),
+            skipped = setOf("b")
         )
 
-        assertEquals(CookingSessionStatus.RUNNING, restored.status)
-        assertEquals(10, restored.elapsedSeconds)
+        assertTrue(restored.completed.contains("a"))
+        assertTrue(restored.skipped.contains("b"))
+        assertFalse(restored.completed.contains("b"))
+    }
+
+    @Test
+    fun `malformed schedule timestamp correctly handled on recovery`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(ScheduleEvent(
+            id = "bad",
+            startIso = "not-a-valid-timestamp",
+            endIso = "also-invalid",
+            instruction = "Bad step",
+            resource = "stove"
+        ))
+
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.RUNNING,
+            startedAtMillis = fixedEpoch,
+            accumulatedElapsedSeconds = 10
+        )
+
+        assertEquals(CookingSessionStatus.ERROR, restored.status)
+        assertNotNull(restored.error)
     }
 }

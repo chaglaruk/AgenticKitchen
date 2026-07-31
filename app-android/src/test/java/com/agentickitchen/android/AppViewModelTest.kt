@@ -16,6 +16,7 @@ import com.agentickitchen.shared.inventory.PendingRecipeUsageRecord
 import com.agentickitchen.shared.inventory.ActiveCookingSessionRecord
 import com.agentickitchen.shared.inventory.AdjustmentMode
 import com.agentickitchen.shared.inventory.AdjustmentReason
+import com.agentickitchen.shared.inventory.UnitDimension
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
@@ -24,15 +25,30 @@ import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.ScheduleEvent
 import com.agentickitchen.shared.models.ScheduleResult
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Test
 
 class AppViewModelTest {
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+    }
+
+    @org.junit.After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
     @Test
     fun initialStateAndSettingsActionsUseInjectedDependencies() {
         val preferences = FakePreferences()
@@ -261,6 +277,126 @@ class AppViewModelTest {
         assertTrue(viewModel.inventory.value.isEmpty())
     }
 
+    // ─── Consumption & Cancellation Tests ───
+
+    @Test
+    fun plannedConsumptionRemovesOnlyTargetSessionAndExposesNextPending() {
+        val inv = FakeInventoryRepository()
+        val vm = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inv)
+        val now = "2026-01-01T00:00:00Z"
+        val sidA = "A"; val sidB = "B"
+        inv.upsert(
+            PantryStockItem("i1", null, "Tomato", null, null, 1000.0, "g", UnitDimension.WEIGHT, null, false, null, "manual", now, now),
+            InventoryAdjustmentRecord("a1", "i1", 1000.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD, "test", now)
+        )
+        inv.upsert(
+            PantryStockItem("i2", null, "Onion", null, null, 500.0, "g", UnitDimension.WEIGHT, null, false, null, "manual", now, now),
+            InventoryAdjustmentRecord("a2", "i2", 500.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD, "test", now)
+        )
+        inv.reserve(listOf(PendingRecipeUsageRecord(sidA, "i1", 300.0, "g", status = "reserved", timestamp = now)))
+        inv.reserve(listOf(PendingRecipeUsageRecord(sidB, "i2", 200.0, "g", status = "reserved", timestamp = now)))
+        vm.refreshInventory()
+        vm.refreshPendingConsumptions()
+        assertEquals(2, vm.allPendingConsumptions.value.size)
+
+        vm.consumePlannedInventory(sidA)
+
+        assertEquals(700.0, vm.inventory.value.first { it.id == "i1" }.quantity, 0.0)
+        assertEquals(500.0, vm.inventory.value.first { it.id == "i2" }.quantity, 0.0)
+        assertEquals(1, vm.allPendingConsumptions.value.size)
+        assertEquals(sidB, vm.allPendingConsumptions.value.first().sessionId)
+        assertNotNull(vm.pendingConsumption.value)
+        assertEquals(sidB, vm.pendingConsumption.value!!.sessionId)
+    }
+
+    @Test
+    fun actualAmountsOverridePlannedAmounts() {
+        val inv = FakeInventoryRepository()
+        val vm = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inv)
+        val now = "2026-01-01T00:00:00Z"
+        val sid = "X"
+        inv.upsert(
+            PantryStockItem("i1", null, "Carrot", null, null, 1000.0, "g", UnitDimension.WEIGHT, null, false, null, "manual", now, now),
+            InventoryAdjustmentRecord("a1", "i1", 1000.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD, "test", now)
+        )
+        inv.reserve(listOf(PendingRecipeUsageRecord(sid, "i1", 500.0, "g", status = "reserved", timestamp = now)))
+        vm.refreshInventory(); vm.refreshPendingConsumptions()
+
+        vm.consumeActualInventory(mapOf("i1" to 300.0), sid)
+
+        assertEquals(700.0, vm.inventory.value.first { it.id == "i1" }.quantity, 0.0)
+        assertTrue(vm.allPendingConsumptions.value.isEmpty())
+    }
+
+    @Test
+    fun invalidActualAmountsDoNotMutateState() {
+        val inv = FakeInventoryRepository()
+        val vm = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inv)
+        val now = "2026-01-01T00:00:00Z"
+        val sid = "s1"
+        inv.upsert(
+            PantryStockItem("i1", null, "Rice", null, null, 1000.0, "g", UnitDimension.WEIGHT, null, false, null, "manual", now, now),
+            InventoryAdjustmentRecord("a1", "i1", 1000.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD, "test", now)
+        )
+        inv.reserve(listOf(PendingRecipeUsageRecord(sid, "i1", 300.0, "g", status = "reserved", timestamp = now)))
+        vm.refreshInventory(); vm.refreshPendingConsumptions()
+
+        for (bad in listOf(0.0, -100.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+            vm.consumeActualInventory(mapOf("i1" to bad), sid)
+            assertEquals(1000.0, vm.inventory.value.first { it.id == "i1" }.quantity, 0.0)
+            assertEquals(1, vm.allPendingConsumptions.value.size)
+        }
+    }
+
+    @Test
+    fun repositoryConsumeFailurePreservesPendingGroup() {
+        val failing = FailingConsumeInventory()
+        val vm = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = failing)
+        val now = "2026-01-01T00:00:00Z"
+        val sid = "sX"
+        failing.upsert(
+            PantryStockItem("iX", null, "Flour", null, null, 1000.0, "g", UnitDimension.WEIGHT, null, false, null, "manual", now, now),
+            InventoryAdjustmentRecord("aX", "iX", 1000.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD, "test", now)
+        )
+        failing.reserve(listOf(PendingRecipeUsageRecord(sid, "iX", 300.0, "g", status = "reserved", timestamp = now)))
+        vm.refreshInventory(); vm.refreshPendingConsumptions()
+        assertEquals(1, vm.allPendingConsumptions.value.size)
+
+        vm.consumeActualInventory(mapOf("iX" to 300.0), sid)
+
+        assertEquals(1000.0, vm.inventory.value.first { it.id == "iX" }.quantity, 0.0)
+        assertEquals(1, vm.allPendingConsumptions.value.size)
+        assertEquals(sid, vm.allPendingConsumptions.value.first().sessionId)
+    }
+
+    @Test
+    fun cancellingOneSessionReleasesReservationAndExposesNextPending() {
+        val inv = FakeInventoryRepository()
+        val vm = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inv)
+        val now = "2026-01-01T00:00:00Z"
+        val sidA = "A"; val sidB = "B"
+        inv.upsert(
+            PantryStockItem("i1", null, "Basil", null, null, 1000.0, "g", UnitDimension.WEIGHT, null, false, null, "manual", now, now),
+            InventoryAdjustmentRecord("a1", "i1", 1000.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD, "test", now)
+        )
+        inv.upsert(
+            PantryStockItem("i2", null, "Oregano", null, null, 500.0, "g", UnitDimension.WEIGHT, null, false, null, "manual", now, now),
+            InventoryAdjustmentRecord("a2", "i2", 500.0, AdjustmentMode.DELTA, AdjustmentReason.MANUAL_ADD, "test", now)
+        )
+        inv.reserve(listOf(PendingRecipeUsageRecord(sidA, "i1", 300.0, "g", status = "reserved", timestamp = now)))
+        inv.reserve(listOf(PendingRecipeUsageRecord(sidB, "i2", 200.0, "g", status = "reserved", timestamp = now)))
+        vm.refreshInventory(); vm.refreshPendingConsumptions()
+        assertEquals(2, vm.allPendingConsumptions.value.size)
+
+        vm.cancelInventoryConsumption(sidA)
+
+        assertEquals(1000.0, vm.inventory.value.first { it.id == "i1" }.quantity, 0.0)
+        assertEquals(1, vm.allPendingConsumptions.value.size)
+        assertEquals(sidB, vm.allPendingConsumptions.value.first().sessionId)
+        assertNotNull(vm.pendingConsumption.value)
+        assertEquals(sidB, vm.pendingConsumption.value!!.sessionId)
+    }
+
     private fun newViewModel(
         preferences: FakePreferences,
         history: FakeHistoryRepository,
@@ -318,6 +454,7 @@ class AppViewModelTest {
         private val items = linkedMapOf<String, PantryStockItem>()
         private val adjustments = mutableListOf<InventoryAdjustmentRecord>()
         private val pending = mutableListOf<PendingRecipeUsageRecord>()
+        private val activeSessions = mutableMapOf<String, ActiveCookingSessionRecord>()
 
         override fun getAll() = items.values.toList()
         override fun upsert(item: PantryStockItem, adjustment: InventoryAdjustmentRecord) {
@@ -375,7 +512,6 @@ class AppViewModelTest {
             deleteActiveSession(sessionId)
             return true
         }
-        private val activeSessions = mutableMapOf<String, ActiveCookingSessionRecord>()
         override fun saveActiveSession(session: ActiveCookingSessionRecord) {
             activeSessions[session.sessionId] = session
         }
@@ -421,5 +557,9 @@ class AppViewModelTest {
         }
 
         override fun close() = Unit
+    }
+
+    private class FailingConsumeInventory : PantryInventoryRepository by FakeInventoryRepository() {
+        override fun consume(sessionId: String, actualQuantities: Map<String, Double>): Boolean = false
     }
 }

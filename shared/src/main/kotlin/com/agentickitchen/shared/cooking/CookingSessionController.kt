@@ -8,6 +8,23 @@ interface ClockDomain {
     fun monotonicMillis(): Long
     fun epochMillis(): Long
 }
+
+/**
+ * Persisted-time field semantics (all values are epoch milliseconds, NOT monotonic):
+ *
+ * - startedAtMillis: epoch milliseconds corresponding to the session's original effective start.
+ *   Used as the baseline for legacy RUNNING fallback when lastRunningStartMillis is unavailable.
+ *
+ * - accumulatedElapsedSeconds: authoritative elapsed duration recorded at the last persistence point.
+ *   This is the ground-truth duration that must never be double-counted.
+ *
+ * - lastRunningStartMillis: epoch milliseconds at which the current running segment began.
+ *   When valid, elapsed = accumulated + max(0, epochNow - lastRunningStartMillis).
+ *   Do NOT describe monotonic values as persistable across process death.
+ *
+ * - pausedAtMillis: epoch milliseconds at which the persisted paused state was recorded.
+ *   For PAUSED sessions, elapsed remains frozen at accumulatedElapsedSeconds regardless of wall-clock movement.
+ */
 enum class CookingSessionStatus { READY, RUNNING, PAUSED, COMPLETED, ENDED, ERROR }
 data class LiveOperation(val event: ScheduleEvent, val remainingSeconds: Long)
 data class CookingSessionState(val recipeName: String = "", val status: CookingSessionStatus = CookingSessionStatus.READY, val active: List<LiveOperation> = emptyList(), val upcoming: List<ScheduleEvent> = emptyList(), val completed: Set<String> = emptySet(), val skipped: Set<String> = emptySet(), val elapsedSeconds: Long = 0, val error: String? = null)
@@ -84,10 +101,18 @@ class CookingSessionController(
         when (status) {
             CookingSessionStatus.RUNNING -> {
                 val epochNow = clock.epochMillis()
-                val deadMillis = if (lastRunningStartMillis != null && lastRunningStartMillis > 0 && epochNow >= lastRunningStartMillis) {
-                    epochNow - lastRunningStartMillis
+                var deadMillis = 0L
+                if (lastRunningStartMillis != null && lastRunningStartMillis > 0 && epochNow >= lastRunningStartMillis) {
+                    // Normal case: lastRunningStartMillis is valid
+                    deadMillis = epochNow - lastRunningStartMillis
+                } else if (startedAtMillis > 0 && epochNow >= startedAtMillis) {
+                    // Legacy fallback: no valid lastRunningStartMillis but startedAtMillis is available
+                    // Use non-double-counting fallback: max(accumulated, epochNow - startedAtMillis)
+                    val fallbackElapsedMs = epochNow - startedAtMillis
+                    deadMillis = (fallbackElapsedMs - clampedAccumulatedMs).coerceAtLeast(0)
                 } else {
-                    0L
+                    // Neither timestamp is usable - preserve only accumulated duration
+                    deadMillis = 0L
                 }
                 val totalElapsedMs = (clampedAccumulatedMs + deadMillis).coerceAtLeast(0)
                 startedAt = now - totalElapsedMs
@@ -95,6 +120,9 @@ class CookingSessionController(
                 pausedMillis = 0L
             }
             CookingSessionStatus.PAUSED -> {
+                // PAUSED sessions must remain frozen at accumulatedElapsedSeconds.
+                // Future or malformed pausedAtMillis must not advance elapsed time.
+                // We ignore pausedAtMillis entirely for elapsed computation - it's only informational.
                 pausedAt = now
                 startedAt = now - clampedAccumulatedMs
                 pausedMillis = 0L
