@@ -19,14 +19,17 @@ import kotlin.test.assertTrue
 
 class ActiveCookingSessionRecoveryTest {
 
-    private class TestClock(var current: Long = 1_000_000L) : MonotonicClock {
-        override fun nowMillis(): Long = current
+    private val fixedEpoch = 1767225600000L // 2026-01-01T00:00:00Z
+    private class TestClock(var currentMono: Long = 1_000_000L, var currentEpoch: Long = 1767225600000L) : ClockDomain {
+        override fun monotonicMillis(): Long = currentMono
+        override fun epochMillis(): Long = currentEpoch
     }
 
+    private val baseTime = java.time.Instant.parse("2026-01-01T12:00:00Z")
     private fun sampleEvent(id: String, startSec: Long, endSec: Long) = ScheduleEvent(
         id = id,
-        startIso = "2026-01-01T12:00:${startSec.toString().padStart(2, '0')}Z",
-        endIso = "2026-01-01T12:00:${endSec.toString().padStart(2, '0')}Z",
+        startIso = baseTime.plusSeconds(startSec).toString(),
+        endIso = baseTime.plusSeconds(endSec).toString(),
         instruction = "Step $id",
         resource = "stove"
     )
@@ -62,15 +65,16 @@ class ActiveCookingSessionRecoveryTest {
         val controller = CookingSessionController(clock)
         val events = listOf(sampleEvent("a", 0, 120))
 
-        // Started at 100,000, accumulated 10s, app died at 110,000. Relaunch at 140,000 (30s dead time)
-        clock.current = 140_000L
+        // Started at fixedEpoch, accumulated 10s, app died 10s later. Relaunch 40s after start (30s dead time)
+        clock.currentMono = 140_000L
+        clock.currentEpoch = fixedEpoch + 40_000L
         val restored = controller.restore(
             recipe = "Soup",
             schedule = events,
             status = CookingSessionStatus.RUNNING,
-            startedAtMillis = 100_000L,
+            startedAtMillis = fixedEpoch,
             accumulatedElapsedSeconds = 10,
-            lastRunningStartMillis = 110_000L
+            lastRunningStartMillis = fixedEpoch + 10_000L
         )
 
         assertEquals(CookingSessionStatus.RUNNING, restored.status)
@@ -78,7 +82,8 @@ class ActiveCookingSessionRecoveryTest {
         assertEquals(40, restored.elapsedSeconds)
 
         // Advancing clock 5s should advance elapsed to 45s
-        clock.current = 145_000L
+        clock.currentMono = 145_000L
+        clock.currentEpoch = fixedEpoch + 45_000L
         assertEquals(45, controller.current().elapsedSeconds)
     }
 
@@ -89,21 +94,23 @@ class ActiveCookingSessionRecoveryTest {
         val events = listOf(sampleEvent("a", 0, 120))
 
         // Paused with 15s elapsed, app died. Relaunch 50s later at 150,000L
-        clock.current = 150_000L
+        clock.currentMono = 150_000L
+        clock.currentEpoch = fixedEpoch + 50_000L
         val restored = controller.restore(
             recipe = "Soup",
             schedule = events,
             status = CookingSessionStatus.PAUSED,
-            startedAtMillis = 100_000L,
+            startedAtMillis = fixedEpoch,
             accumulatedElapsedSeconds = 15,
-            pausedAtMillis = 115_000L
+            pausedAtMillis = fixedEpoch + 15_000L
         )
 
         assertEquals(CookingSessionStatus.PAUSED, restored.status)
         assertEquals(15, restored.elapsedSeconds)
 
         // Time passes while still paused -> remains frozen at 15s
-        clock.current = 180_000L
+        clock.currentMono = 180_000L
+        clock.currentEpoch = fixedEpoch + 80_000L
         assertEquals(15, controller.current().elapsedSeconds)
 
         // Resume at 180,000L -> status becomes RUNNING, continues from 15s
@@ -112,7 +119,8 @@ class ActiveCookingSessionRecoveryTest {
         assertEquals(15, resumed.elapsedSeconds)
 
         // Advance 10s -> becomes 25s
-        clock.current = 190_000L
+        clock.currentMono = 190_000L
+        clock.currentEpoch = fixedEpoch + 90_000L
         assertEquals(25, controller.current().elapsedSeconds)
     }
 
@@ -293,5 +301,24 @@ class ActiveCookingSessionRecoveryTest {
         assertEquals(2, repository.adjustments(item.id).size)
 
         driver.close()
+    }
+
+    @Test
+    fun `malformed timestamp correctly handled on recovery`() {
+        val clock = TestClock(100_000L)
+        val controller = CookingSessionController(clock)
+        val events = listOf(sampleEvent("a", 0, 120))
+
+        val restored = controller.restore(
+            recipe = "Soup",
+            schedule = events,
+            status = CookingSessionStatus.RUNNING,
+            startedAtMillis = 0L, // Missing or invalid
+            accumulatedElapsedSeconds = 10,
+            lastRunningStartMillis = 0L // Missing or invalid
+        )
+
+        assertEquals(CookingSessionStatus.RUNNING, restored.status)
+        assertEquals(10, restored.elapsedSeconds)
     }
 }

@@ -13,6 +13,9 @@ import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
 import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.PendingRecipeUsageRecord
+import com.agentickitchen.shared.inventory.ActiveCookingSessionRecord
+import com.agentickitchen.shared.inventory.AdjustmentMode
+import com.agentickitchen.shared.inventory.AdjustmentReason
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto

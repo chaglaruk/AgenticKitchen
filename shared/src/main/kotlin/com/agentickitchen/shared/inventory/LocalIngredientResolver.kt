@@ -83,7 +83,7 @@ object LocalIngredientResolver {
 
     fun localizeUnit(unit: String, isTr: Boolean): String = when (unit.trim().lowercase()) {
         "count", "adet", "piece", "pieces", "pcs" -> if (isTr) "adet" else "pieces"
-        "package", "paket", "pack", "packs" -> if (isTr) "paket" else "packages"
+        "package", "paket", "pack", "packs", "packages" -> if (isTr) "paket" else "packages"
         "bunch", "demet", "bunches" -> if (isTr) "demet" else "bunches"
         else -> unit.trim()
     }

@@ -950,7 +950,7 @@ class AppViewModel(
             emitUiEvent(if (L.isTr) "Kullanılan miktarlar sıfırdan büyük olmalı." else "Used amounts must be greater than zero.")
             return
         }
-        if (!inventoryRepository.consume(pending.sessionId, actualQuantities)) {
+        if (!inventoryRepository.consume(sessionId, actualQuantities)) {
             emitUiEvent(if (L.isTr) "Stok miktarları uygulanamadı." else "The pantry amounts could not be applied.")
             return
         }

@@ -74,7 +74,7 @@ jobs:
         with:
           name: unit-test-reports
           path: '**/build/reports/tests/**'
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload lint report
         if: always()
@@ -82,7 +82,7 @@ jobs:
         with:
           name: lint-report
           path: '**/build/reports/lint-results-*.html'
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload debug APK
         if: always()
@@ -90,4 +90,4 @@ jobs:
         with:
           name: debug-apk
           path: app-android/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error

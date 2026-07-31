@@ -2,6 +2,7 @@ package com.agentickitchen.shared.inventory
 
 import com.agentickitchen.shared.ai.ShoppingCandidate
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
+import kotlinx.serialization.Serializable
 import java.text.Normalizer
 import java.util.Locale
 
@@ -12,6 +13,7 @@ data class InventoryImportPlan(
     val conflicts: List<String>
 )
 
+@Serializable
 data class PlannedPantryUsage(
     val itemId: String,
     val itemName: String,
