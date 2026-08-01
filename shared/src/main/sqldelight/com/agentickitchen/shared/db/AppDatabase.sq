@@ -51,6 +51,9 @@ insertRecipe:
 INSERT OR REPLACE INTO RecipeHistory(id, name, ingredients, timestamp, status)
 VALUES (?, ?, ?, ?, ?);
 
+updateRecipeStatus:
+UPDATE RecipeHistory SET status = ? WHERE id = ?;
+
 deleteRecipe:
 DELETE FROM RecipeHistory WHERE id = ?;
 
