@@ -2,11 +2,13 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="agentic_prefs.xml"/>
+        <exclude domain="sharedpref" path="agentic_secure_credentials_v2.xml"/>
         <exclude domain="file" path="agentic_log.txt"/>
         <exclude domain="file" path="files/"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="agentic_prefs.xml"/>
+        <exclude domain="sharedpref" path="agentic_secure_credentials_v2.xml"/>
         <exclude domain="file" path="agentic_log.txt"/>
         <exclude domain="file" path="files/"/>
     </device-transfer>
