@@ -44,7 +44,7 @@ class AppContainer(private val app: Application) : Closeable {
     )
 
     val pantryIntelAgent: SimplePantryIntelAgent = SimplePantryIntelAgent()
-    val providerFactory: AiProviderFactory = DefaultAiProviderFactory()
+    val providerFactory: AiProviderFactory = DefaultAiProviderFactory(enforceVisionSafety = true)
 
     override fun close() {
         providerFactory.close()
