@@ -1,24 +1,21 @@
 package com.agentickitchen.android.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
-import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -26,7 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Card
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Divider
@@ -47,12 +46,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -60,7 +58,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.agentickitchen.android.L
 
-private enum class CameraModalPhase { Idle, Scanning, Results, Error }
+private enum class CameraModalPhase { Consent, Idle, Scanning, Results, Error }
 
 @Composable
 fun CameraModal(
@@ -69,62 +67,51 @@ fun CameraModal(
     onAcceptScan: (List<String>) -> Unit,
     onImageCaptured: (Bitmap) -> Unit
 ) {
-    var scanState by remember { mutableStateOf(CameraModalPhase.Idle) }
+    var scanState by remember { mutableStateOf(CameraModalPhase.Consent) }
+    var localScanned by remember { mutableStateOf<List<String>>(emptyList()) }
     val context = LocalContext.current
 
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap: Bitmap? ->
+    fun showSafeError(messageTr: String, messageEn: String) {
+        Toast.makeText(context, if (L.isTr) messageTr else messageEn, Toast.LENGTH_SHORT).show()
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
         if (bitmap != null) {
             scanState = CameraModalPhase.Scanning
             onImageCaptured(bitmap)
         }
     }
 
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
         if (uri != null) {
             try {
+                val bitmap = loadBitmap(context, uri)
                 scanState = CameraModalPhase.Scanning
-                val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
-                    android.graphics.ImageDecoder.decodeBitmap(source)
-                } else {
-                    @Suppress("DEPRECATION")
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-                }
                 onImageCaptured(bitmap)
-            } catch (e: Exception) {
-                scanState = CameraModalPhase.Idle
-                Toast.makeText(
-                    context,
-                    if (L.isTr) "Görsel yüklenemedi: ${e.localizedMessage}" else "Could not load image: ${e.localizedMessage}",
-                    Toast.LENGTH_SHORT
-                ).show()
+            } catch (_: Exception) {
+                scanState = CameraModalPhase.Error
+                showSafeError("Görsel güvenli biçimde yüklenemedi.", "The image could not be loaded safely.")
             }
         }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            try {
-                cameraLauncher.launch(null)
-            } catch (e: Exception) {
-                Toast.makeText(
-                    context,
-                    if (L.isTr) "Kamera başlatılamadı: ${e.localizedMessage}" else "Could not open camera: ${e.localizedMessage}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+    ) { granted ->
+        if (granted) {
+            runCatching { cameraLauncher.launch(null) }
+                .onFailure {
+                    scanState = CameraModalPhase.Error
+                    showSafeError("Kamera başlatılamadı.", "The camera could not be opened.")
+                }
         } else {
-            Toast.makeText(
-                context,
-                if (L.isTr) "Kamera izni reddedildi." else "Camera permission was denied.",
-                Toast.LENGTH_SHORT
-            ).show()
+            showSafeError("Kamera izni reddedildi.", "Camera permission was denied.")
         }
     }
-
-    var localScanned by remember { mutableStateOf<List<String>>(emptyList()) }
 
     LaunchedEffect(scannedIngredients) {
         if (scannedIngredients != null && scanState == CameraModalPhase.Scanning) {
@@ -137,57 +124,67 @@ fun CameraModal(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         CameraModalContent(
             phase = scanState,
             localScanned = localScanned,
             onDismiss = onDismiss,
+            onConsent = { scanState = CameraModalPhase.Idle },
             onTakePhoto = {
-                try {
+                if (scanState != CameraModalPhase.Idle && scanState != CameraModalPhase.Error) return@CameraModalContent
+                runCatching {
                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                         cameraLauncher.launch(null)
                     } else {
                         permissionLauncher.launch(Manifest.permission.CAMERA)
                     }
-                } catch (e: Exception) {
-                    Toast.makeText(
-                        context,
-                        if (L.isTr) "Kamera veya galeri başlatılamadı: ${e.localizedMessage}" else "Could not open camera or gallery: ${e.localizedMessage}",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                }.onFailure {
+                    scanState = CameraModalPhase.Error
+                    showSafeError("Kamera başlatılamadı.", "The camera could not be opened.")
                 }
             },
             onChooseGallery = {
-                try {
-                    galleryLauncher.launch("image/*")
-                } catch (e: Exception) {
-                    Toast.makeText(
-                        context,
-                        if (L.isTr) "Kamera veya galeri başlatılamadı: ${e.localizedMessage}" else "Could not open camera or gallery: ${e.localizedMessage}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                if (scanState != CameraModalPhase.Idle && scanState != CameraModalPhase.Error) return@CameraModalContent
+                runCatching { galleryLauncher.launch("image/*") }
+                    .onFailure {
+                        scanState = CameraModalPhase.Error
+                        showSafeError("Galeri başlatılamadı.", "The gallery could not be opened.")
+                    }
             },
             onRemoveIngredient = { ingredient ->
-                localScanned = localScanned.filter { it != ingredient }
+                localScanned = localScanned.filterNot { it == ingredient }
             },
-            onAccept = { onAcceptScan(localScanned) }
+            onAccept = {
+                if (localScanned.isNotEmpty()) onAcceptScan(localScanned)
+            }
         )
     }
 }
+
+@Suppress("DEPRECATION")
+private fun loadBitmap(context: android.content.Context, uri: Uri): Bitmap =
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+        android.graphics.ImageDecoder.decodeBitmap(source)
+    } else {
+        MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+    }
 
 @Composable
 private fun CameraModalContent(
     phase: CameraModalPhase,
     localScanned: List<String>,
     onDismiss: () -> Unit,
+    onConsent: () -> Unit,
     onTakePhoto: () -> Unit,
     onChooseGallery: () -> Unit,
     onRemoveIngredient: (String) -> Unit,
     onAccept: () -> Unit
 ) {
     val colors = LocalAppColors.current
-    val closeLabel = if (L.isTr) "Kapat" else "Close"
     val maxDialogHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
 
     Card(
@@ -198,43 +195,92 @@ private fun CameraModalContent(
         border = BorderStroke(1.dp, colors.divider)
     ) {
         Column(modifier = Modifier.padding(top = 20.dp, bottom = 12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    text = if (L.isTr) "GÖRSEL MALZEME TARAMASI" else "VISUAL INGREDIENT SCAN",
-                    color = colors.primary,
-                    style = MaterialTheme.typography.overline,
-                    letterSpacing = 1.2.sp,
-                    modifier = Modifier.weight(1f).padding(top = 10.dp)
-                )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(48.dp).semantics { contentDescription = closeLabel }
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub)
-                }
-            }
-            Spacer(Modifier.height(10.dp))
+            CameraModalHeader(onDismiss)
             Divider(color = colors.divider)
-
             when (phase) {
-                CameraModalPhase.Idle -> CameraIdleContent(
-                    onTakePhoto = onTakePhoto,
-                    onChooseGallery = onChooseGallery
-                )
+                CameraModalPhase.Consent -> CameraConsentContent(onConsent, onDismiss)
+                CameraModalPhase.Idle -> CameraIdleContent(onTakePhoto, onChooseGallery)
                 CameraModalPhase.Scanning -> CameraScanningContent()
                 CameraModalPhase.Results -> CameraResultsContent(
                     localScanned = localScanned,
                     onDismiss = onDismiss,
                     onRemoveIngredient = onRemoveIngredient,
-                    onAccept = onAccept,
-                    modifier = Modifier.weight(1f, fill = false)
+                    onAccept = onAccept
                 )
                 CameraModalPhase.Error -> CameraErrorContent(onTakePhoto, onChooseGallery, onDismiss)
             }
         }
+    }
+}
+
+@Composable
+private fun CameraModalHeader(onDismiss: () -> Unit) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = if (L.isTr) "GÖRSEL MALZEME TARAMASI" else "VISUAL INGREDIENT SCAN",
+            color = colors.primary,
+            style = MaterialTheme.typography.overline,
+            letterSpacing = 1.2.sp,
+            modifier = Modifier.weight(1f).padding(top = 10.dp)
+        )
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.size(48.dp).semantics {
+                contentDescription = if (L.isTr) "Kapat" else "Close"
+            }
+        ) {
+            Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub)
+        }
+    }
+}
+
+@Composable
+private fun CameraConsentContent(onConsent: () -> Unit, onDismiss: () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
+        Text(
+            text = if (L.isTr) "Fotoğrafını göndermeden önce" else "Before sending your photo",
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h2
+        )
+        Spacer(Modifier.height(12.dp))
+        ConsentLine(if (L.isTr) "Seçtiğin fotoğraf, analiz için etkin AI sağlayıcısına bir kez gönderilir." else "The selected photo is sent once to the active AI provider for analysis.")
+        ConsentLine(if (L.isTr) "Uygulama fotoğrafı dosyaya veya veritabanına kaydetmez." else "The app does not save the photo to a file or database.")
+        ConsentLine(if (L.isTr) "AI yanlış malzeme tanıyabilir; sonuçları eklemeden önce sen kontrol etmelisin." else "AI can identify ingredients incorrectly; you must review the results before adding them.")
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+            ) {
+                Text(if (L.isTr) "İptal" else "Cancel", color = colors.onSurfaceSub)
+            }
+            TextButton(
+                onClick = onConsent,
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .background(colors.primary, RoundedCornerShape(12.dp))
+                    .semantics {
+                        contentDescription = if (L.isTr) "Anladım, devam et" else "I understand, continue"
+                    }
+            ) {
+                Text(if (L.isTr) "Anladım" else "I understand", color = colors.onPrimary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConsentLine(text: String) {
+    val colors = LocalAppColors.current
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text("•", color = colors.primary, modifier = Modifier.width(20.dp))
+        Text(text, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
     }
 }
 
@@ -250,9 +296,9 @@ private fun CameraIdleContent(onTakePhoto: () -> Unit, onChooseGallery: () -> Un
         Spacer(Modifier.height(8.dp))
         Text(
             text = if (L.isTr) {
-                "Bir fotoğraf çek veya galerinden seç. Bulunan malzemeleri listeye eklemeden önce gözden geçirebilirsin."
+                "Bir fotoğraf çek veya galerinden seç. Bulunan malzemeleri eklemeden önce gözden geçireceksin."
             } else {
-                "Take a photo or choose one from your gallery. You can review detected ingredients before adding them."
+                "Take a photo or choose one from your gallery. You will review detected ingredients before adding them."
             },
             color = colors.onSurfaceSub,
             style = MaterialTheme.typography.body1
@@ -305,27 +351,14 @@ private fun EditorialCaptureAction(
 private fun CameraScanningContent() {
     val colors = LocalAppColors.current
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 32.dp)
-            .semantics {
-                contentDescription = if (L.isTr) "Fotoğraf inceleniyor, işlem sürüyor" else "Reviewing the photo, processing in progress"
-            },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         CircularProgressIndicator(color = colors.primary, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
         Spacer(Modifier.height(18.dp))
-        Text(
-            text = if (L.isTr) "Fotoğraf inceleniyor" else "Reviewing the photo",
-            color = colors.onSurface,
-            style = MaterialTheme.typography.h2
-        )
+        Text(if (L.isTr) "Fotoğraf inceleniyor" else "Reviewing the photo", color = colors.onSurface, style = MaterialTheme.typography.h2)
         Spacer(Modifier.height(6.dp))
-        Text(
-            text = if (L.isTr) "Malzemeler belirleniyor." else "Identifying the ingredients.",
-            color = colors.onSurfaceSub,
-            style = MaterialTheme.typography.body1
-        )
+        Text(if (L.isTr) "Malzemeler belirleniyor." else "Identifying the ingredients.", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
     }
 }
 
@@ -333,42 +366,14 @@ private fun CameraScanningContent() {
 private fun CameraErrorContent(onTakePhoto: () -> Unit, onChooseGallery: () -> Unit, onDismiss: () -> Unit) {
     val colors = LocalAppColors.current
     Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
-        Text(
-            text = if (L.isTr) "Fotoğraf incelenemedi" else "Could not review the photo",
-            color = colors.onSurface,
-            style = MaterialTheme.typography.h2
-        )
+        Text(if (L.isTr) "Fotoğraf incelenemedi" else "Could not review the photo", color = colors.onSurface, style = MaterialTheme.typography.h2)
         Spacer(Modifier.height(8.dp))
-        Text(
-            text = if (L.isTr) {
-                "Başka bir fotoğraf çekebilir veya galerinden seçebilirsin."
-            } else {
-                "You can take another photo or choose one from your gallery."
-            },
-            color = colors.onSurfaceSub,
-            style = MaterialTheme.typography.body1
-        )
+        Text(if (L.isTr) "Başka bir fotoğrafla tekrar deneyebilirsin." else "You can try again with another photo.", color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
         Spacer(Modifier.height(20.dp))
-        EditorialCaptureAction(
-            icon = Icons.Filled.PhotoCamera,
-            title = if (L.isTr) "Fotoğraf çek" else "Take a photo",
-            subtitle = if (L.isTr) "Yeni bir fotoğrafla tekrar dene." else "Try again with a new photo.",
-            onClick = onTakePhoto
-        )
+        EditorialCaptureAction(Icons.Filled.PhotoCamera, if (L.isTr) "Fotoğraf çek" else "Take a photo", if (L.isTr) "Yeni fotoğrafla dene." else "Try a new photo.", onTakePhoto)
         Divider(color = colors.divider)
-        EditorialCaptureAction(
-            icon = Icons.Filled.Image,
-            title = if (L.isTr) "Galeriden seç" else "Choose from gallery",
-            subtitle = if (L.isTr) "Başka bir görsel seç." else "Choose a different image.",
-            onClick = onChooseGallery
-        )
-        TextButton(
-            onClick = onDismiss,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .semantics { contentDescription = if (L.isTr) "İptal" else "Cancel" }
-        ) {
+        EditorialCaptureAction(Icons.Filled.Image, if (L.isTr) "Galeriden seç" else "Choose from gallery", if (L.isTr) "Başka bir görsel seç." else "Choose another image.", onChooseGallery)
+        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(if (L.isTr) "İptal" else "Cancel", color = colors.onSurfaceSub)
         }
     }
@@ -379,181 +384,64 @@ private fun CameraResultsContent(
     localScanned: List<String>,
     onDismiss: () -> Unit,
     onRemoveIngredient: (String) -> Unit,
-    onAccept: () -> Unit,
-    modifier: Modifier = Modifier
+    onAccept: () -> Unit
 ) {
     val colors = LocalAppColors.current
     val scrollState = rememberScrollState()
-    Column(modifier = modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
-        Text(
-            text = if (L.isTr) "Bulunan malzemeler" else "Detected ingredients",
-            color = colors.onSurface,
-            style = MaterialTheme.typography.h2
-        )
+    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
+        Text(if (L.isTr) "Bulunan malzemeler" else "Detected ingredients", color = colors.onSurface, style = MaterialTheme.typography.h2)
         Spacer(Modifier.height(8.dp))
         Text(
-            text = if (L.isTr) {
-                "Listeye eklemeden önce bulunanları gözden geçir ve istemediklerini çıkar."
-            } else {
-                "Review the detected ingredients and remove anything you do not want before adding them."
-            },
+            if (L.isTr) "Yanlış veya istemediğin sonuçları çıkar; yalnızca doğruladıklarını ekle." else "Remove incorrect or unwanted results and add only what you verified.",
             color = colors.onSurfaceSub,
             style = MaterialTheme.typography.body1
         )
         Spacer(Modifier.height(16.dp))
-
-        Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(scrollState)) {
+        Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(scrollState)) {
             if (localScanned.isEmpty()) {
-                Text(
-                    text = if (L.isTr) "Bu listede malzeme kalmadı." else "There are no ingredients left in this list.",
-                    color = colors.onSurfaceSub,
-                    style = MaterialTheme.typography.body1,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
+                Text(if (L.isTr) "Doğrulanacak malzeme kalmadı." else "No ingredients remain to verify.", color = colors.onSurfaceSub)
             } else {
                 localScanned.forEachIndexed { index, ingredient ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 52.dp)
-                            .semantics { contentDescription = "${index + 1}. $ingredient" }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "%02d".format(index + 1),
-                            color = colors.success,
-                            style = MaterialTheme.typography.h6,
-                            modifier = Modifier.width(34.dp)
-                        )
-                        Text(
-                            text = ingredient,
-                            color = colors.onSurface,
-                            style = MaterialTheme.typography.body1,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(
-                            onClick = { onRemoveIngredient(ingredient) },
-                            modifier = Modifier.size(48.dp).semantics {
-                                contentDescription = if (L.isTr) "$ingredient malzemesini kaldır" else "Remove $ingredient"
-                            }
-                        ) {
-                            Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
-                        }
-                    }
+                    IngredientResultRow(index, ingredient) { onRemoveIngredient(ingredient) }
                     Divider(color = colors.divider)
                 }
             }
         }
-
         Spacer(Modifier.height(20.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = if (L.isTr) "İptal" else "Cancel" }
-            ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(onClick = onDismiss, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                 Text(if (L.isTr) "İptal" else "Cancel", color = colors.onSurfaceSub)
             }
             TextButton(
                 onClick = onAccept,
+                enabled = localScanned.isNotEmpty(),
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 48.dp)
                     .background(colors.primary, RoundedCornerShape(12.dp))
-                    .semantics { contentDescription = if (L.isTr) "Listeye ekle" else "Add to list" }
             ) {
-                Text(
-                    text = if (L.isTr) "Listeye ekle" else "Add to list",
-                    color = colors.onPrimary,
-                    style = MaterialTheme.typography.button
-                )
+                Text(if (L.isTr) "Doğruladıklarımı ekle" else "Add verified items", color = colors.onPrimary)
             }
         }
     }
 }
 
-@Preview(showBackground = true)
 @Composable
-private fun EditorialCameraIdlePreview() {
-    AgenticTheme("editorial") {
-        CameraModalContent(
-            phase = CameraModalPhase.Idle,
-            localScanned = emptyList(),
-            onDismiss = {},
-            onTakePhoto = {},
-            onChooseGallery = {},
-            onRemoveIngredient = {},
-            onAccept = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun EditorialCameraScanningPreview() {
-    AgenticTheme("editorial") {
-        CameraModalContent(
-            phase = CameraModalPhase.Scanning,
-            localScanned = emptyList(),
-            onDismiss = {},
-            onTakePhoto = {},
-            onChooseGallery = {},
-            onRemoveIngredient = {},
-            onAccept = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun EditorialCameraResultsPreview() {
-    AgenticTheme("editorial") {
-        CameraModalContent(
-            phase = CameraModalPhase.Results,
-            localScanned = listOf("Domates", "Soğan", "Tavuk", "Fesleğen"),
-            onDismiss = {},
-            onTakePhoto = {},
-            onChooseGallery = {},
-            onRemoveIngredient = {},
-            onAccept = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun EditorialCameraErrorPreview() {
-    AgenticTheme("editorial") {
-        CameraModalContent(
-            phase = CameraModalPhase.Error,
-            localScanned = emptyList(),
-            onDismiss = {},
-            onTakePhoto = {},
-            onChooseGallery = {},
-            onRemoveIngredient = {},
-            onAccept = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, heightDp = 760)
-@Composable
-private fun EditorialCameraLongResultsPreview() {
-    AgenticTheme("editorial") {
-        CameraModalContent(
-            phase = CameraModalPhase.Results,
-            localScanned = listOf("Domates", "Soğan", "Tavuk", "Fesleğen", "Makarna", "Krema", "Sarımsak", "Peynir", "Zeytinyağı", "Karabiber", "Limon", "Mantar"),
-            onDismiss = {},
-            onTakePhoto = {},
-            onChooseGallery = {},
-            onRemoveIngredient = {},
-            onAccept = {}
-        )
+private fun IngredientResultRow(index: Int, ingredient: String, onRemove: () -> Unit) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("%02d".format(index + 1), color = colors.success, style = MaterialTheme.typography.h6, modifier = Modifier.width(34.dp))
+        Text(ingredient, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.size(48.dp).semantics {
+                contentDescription = if (L.isTr) "$ingredient malzemesini kaldır" else "Remove $ingredient"
+            }
+        ) {
+            Icon(Icons.Filled.Close, contentDescription = null, tint = colors.onSurfaceSub, modifier = Modifier.size(18.dp))
+        }
     }
 }
