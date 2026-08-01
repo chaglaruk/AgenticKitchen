@@ -38,7 +38,7 @@ class SafetyEnforcingAiProvider(
                     AiResult.Failure(
                         AiFailureType.InvalidResponse,
                         retryable = true,
-                        userMessageRes = AiFailureType.InvalidResponse.userMessageRes,
+                        userMessage = AiFailureType.InvalidResponse.userMessageRes,
                         technicalMessage = "low_confidence_vision"
                     )
                 } else {
@@ -55,7 +55,7 @@ class SafetyEnforcingAiProvider(
                     AiResult.Failure(
                         AiFailureType.InvalidResponse,
                         retryable = true,
-                        userMessageRes = AiFailureType.InvalidResponse.userMessageRes,
+                        userMessage = AiFailureType.InvalidResponse.userMessageRes,
                         technicalMessage = "unsafe_vision_response"
                     )
                 } else {
