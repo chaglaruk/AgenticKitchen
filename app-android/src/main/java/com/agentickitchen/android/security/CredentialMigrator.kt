@@ -17,10 +17,13 @@ internal class CredentialMigrator(
             val legacyValue = legacySource.read(key) ?: return@forEach
             when {
                 legacyValue.isBlank() -> removable += key
-                secureStore.hasCredential(key) -> removable += key
+                runCatching { secureStore.hasCredential(key) }.getOrDefault(false) -> removable += key
                 else -> {
-                    secureStore.saveCredential(key, legacyValue)
-                    if (secureStore.getCredential(key) == legacyValue) {
+                    val roundTripSucceeded = runCatching {
+                        secureStore.saveCredential(key, legacyValue)
+                        secureStore.getCredential(key) == legacyValue
+                    }.getOrDefault(false)
+                    if (roundTripSucceeded) {
                         migrated += key
                         removable += key
                     }
@@ -29,9 +32,7 @@ internal class CredentialMigrator(
         }
 
         if (removable.isNotEmpty()) {
-            check(legacySource.remove(removable)) {
-                "Legacy credential plaintext could not be removed"
-            }
+            runCatching { legacySource.remove(removable) }
         }
         return migrated
     }
