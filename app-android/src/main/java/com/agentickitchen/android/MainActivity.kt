@@ -4,14 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import com.agentickitchen.android.app.AgenticKitchenApp
-import com.agentickitchen.android.app.AppViewModelFactory
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Scaffold
 import androidx.compose.material.SnackbarResult
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PendingActions
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.RestaurantMenu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,24 +28,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PendingActions
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.RestaurantMenu
-import androidx.compose.material.icons.filled.Settings
+import com.agentickitchen.android.app.AgenticKitchenApp
+import com.agentickitchen.android.app.AppViewModelFactory
 import com.agentickitchen.android.ui.AgenticTheme
 import com.agentickitchen.android.ui.ApiKeyOnboardingDialog
-import com.agentickitchen.android.ui.HomeScreen
-import com.agentickitchen.android.ui.LocalAppColors
-import com.agentickitchen.android.ui.OptionsScreen
-import com.agentickitchen.android.ui.OperationsScreen
-import com.agentickitchen.android.ui.SettingsScreen
-import com.agentickitchen.android.ui.SetupScreen
 import com.agentickitchen.android.ui.EditorialBottomBar
 import com.agentickitchen.android.ui.EditorialNavItem
+import com.agentickitchen.android.ui.HistoryScreen
+import com.agentickitchen.android.ui.HomeScreen
+import com.agentickitchen.android.ui.LocalAppColors
+import com.agentickitchen.android.ui.OperationsScreen
+import com.agentickitchen.android.ui.OptionsScreen
+import com.agentickitchen.android.ui.SettingsScreen
+import com.agentickitchen.android.ui.SetupScreen
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: AppViewModel by viewModels { AppViewModelFactory.from((application as AgenticKitchenApp).container) }
+    private val viewModel: AppViewModel by viewModels {
+        AppViewModelFactory.from((application as AgenticKitchenApp).container)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +81,10 @@ sealed class Screen(val route: String, val icon: ImageVector) {
 
     data object Operations : Screen("operations", Icons.Filled.PendingActions) {
         override fun title() = if (L.isTr) "Pişir" else "Cook"
+    }
+
+    data object History : Screen("history", Icons.Filled.History) {
+        override fun title() = if (L.isTr) "Geçmiş" else "History"
     }
 
     data object Settings : Screen("settings", Icons.Filled.Settings) {
@@ -152,6 +160,7 @@ fun AppNavigation(viewModel: AppViewModel) {
     val planState by viewModel.planState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
     val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsState()
+    val history by viewModel.history.collectAsState()
 
     val theme by viewModel.theme.collectAsState()
     val diet by viewModel.dietSettings.collectAsState()
@@ -171,7 +180,13 @@ fun AppNavigation(viewModel: AppViewModel) {
         if (pendingConsumption != null) currentScreen = Screen.Operations
     }
 
-    val screens = listOf(Screen.Intelligence, Screen.Options, Screen.Operations, Screen.Settings)
+    val screens = listOf(
+        Screen.Intelligence,
+        Screen.Options,
+        Screen.Operations,
+        Screen.History,
+        Screen.Settings
+    )
     val colors = LocalAppColors.current
     val scaffoldState = rememberScaffoldState()
     LaunchedEffect(Unit) {
@@ -196,7 +211,9 @@ fun AppNavigation(viewModel: AppViewModel) {
         backgroundColor = colors.background,
         bottomBar = {
             EditorialBottomBar(screens.map { screen ->
-                EditorialNavItem(screen.title(), screen.icon, currentScreen == screen) { currentScreen = screen }
+                EditorialNavItem(screen.title(), screen.icon, currentScreen == screen) {
+                    currentScreen = screen
+                }
             })
         }
     ) { padding ->
@@ -238,7 +255,9 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onStart = viewModel::startSession,
                     onRefresh = viewModel::refreshSession,
                     onUseOffline = viewModel::useOfflineMode,
-                    onSelectOption = { option, selection -> viewModel.selectRecipeOption(option, selection) },
+                    onSelectOption = { option, selection ->
+                        viewModel.selectRecipeOption(option, selection)
+                    },
                     onBackToOptions = viewModel::backToOptions
                 )
 
@@ -265,6 +284,8 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onConsumeActual = viewModel::consumeActualInventory,
                     onCancelConsumption = viewModel::cancelInventoryConsumption
                 )
+
+                Screen.History -> HistoryScreen(history)
 
                 Screen.Settings -> SettingsScreen(
                     hw = hw,
