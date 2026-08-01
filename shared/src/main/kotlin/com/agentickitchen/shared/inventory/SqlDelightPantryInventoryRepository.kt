@@ -189,35 +189,47 @@ class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : P
     }
 
     override fun saveActiveSession(session: ActiveCookingSessionRecord) {
-        queries.upsertActiveCookingSession(
-            sessionId = session.sessionId,
-            recipeOptionId = session.recipeOptionId,
-            recipeName = session.recipeName,
-            recipeType = session.recipeType,
-            description = session.description,
-            sourceLabel = session.sourceLabel,
-            servings = session.servings.toLong(),
-            resolvedReadyTimeIso = session.resolvedReadyTimeIso,
-            cookingPlanJson = session.cookingPlanJson,
-            eventsJson = session.eventsJson,
-            plannedUsageJson = session.plannedUsageJson,
-            status = session.status,
-            startedAtMillis = session.startedAtMillis,
-            accumulatedElapsedSeconds = session.accumulatedElapsedSeconds,
-            lastRunningStartMillis = session.lastRunningStartMillis,
-            pausedAtMillis = session.pausedAtMillis,
-            completedStepIds = session.completedStepIdsJson,
-            skippedStepIds = session.skippedStepIdsJson,
-            recentChatTurnsJson = session.recentChatTurnsJson,
-            updatedAtIso = session.updatedAtIso
-        )
+        database.transaction {
+            // The app exposes one active cooking flow. Replacing the canonical record prevents
+            // a superseded READY/ENDED session from being restored after the newer session is consumed.
+            queries.clearActiveCookingSessions()
+            queries.upsertActiveCookingSession(
+                sessionId = session.sessionId,
+                recipeOptionId = session.recipeOptionId,
+                recipeName = session.recipeName,
+                recipeType = session.recipeType,
+                description = session.description,
+                sourceLabel = session.sourceLabel,
+                servings = session.servings.toLong(),
+                resolvedReadyTimeIso = session.resolvedReadyTimeIso,
+                cookingPlanJson = session.cookingPlanJson,
+                eventsJson = session.eventsJson,
+                plannedUsageJson = session.plannedUsageJson,
+                status = session.status,
+                startedAtMillis = session.startedAtMillis,
+                accumulatedElapsedSeconds = session.accumulatedElapsedSeconds,
+                lastRunningStartMillis = session.lastRunningStartMillis,
+                pausedAtMillis = session.pausedAtMillis,
+                completedStepIds = session.completedStepIdsJson,
+                skippedStepIds = session.skippedStepIdsJson,
+                recentChatTurnsJson = session.recentChatTurnsJson,
+                updatedAtIso = session.updatedAtIso
+            )
+        }
     }
 
     override fun getActiveSession(sessionId: String): ActiveCookingSessionRecord? =
         queries.selectActiveCookingSession(sessionId).executeAsOneOrNull()?.let(::activeSessionRecord)
 
-    override fun getAllActiveSessions(): List<ActiveCookingSessionRecord> =
-        queries.selectAllActiveCookingSessions().executeAsList().map(::activeSessionRecord)
+    override fun getAllActiveSessions(): List<ActiveCookingSessionRecord> {
+        val rows = queries.selectAllActiveCookingSessions().executeAsList()
+        if (rows.size > 1) {
+            database.transaction {
+                rows.drop(1).forEach { queries.deleteActiveCookingSession(it.sessionId) }
+            }
+        }
+        return rows.take(1).map(::activeSessionRecord)
+    }
 
     override fun deleteActiveSession(sessionId: String) {
         queries.deleteActiveCookingSession(sessionId)
