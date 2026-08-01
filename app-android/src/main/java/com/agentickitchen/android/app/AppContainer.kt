@@ -15,21 +15,23 @@ import com.agentickitchen.shared.agents.SimplePantryIntelAgent
 import com.agentickitchen.shared.agents.SimpleTimingAgent
 import com.agentickitchen.shared.db.AppDatabase
 import com.agentickitchen.shared.db.HistoryRepository
+import com.agentickitchen.shared.inventory.HistoryTrackingPantryInventoryRepository
+import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.SqlDelightPantryInventoryRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import java.io.Closeable
 
 class AppContainer(private val app: Application) : Closeable {
-
     val credentialStore: CredentialStore = SecureCredentialStore(app)
     val preferences: AppPreferences = PreferencesManager(app, credentialStore)
 
     private val sqlDriver: SqlDriver = AndroidSqliteDriver(AppDatabase.Schema, app, "agentic.db")
-
     val database: AppDatabase = AppDatabase(sqlDriver)
 
     val historyRepository: HistoryRepository = HistoryRepository(database)
-    val pantryInventoryRepository = SqlDelightPantryInventoryRepository(database)
+    private val pantryStorage = SqlDelightPantryInventoryRepository(database)
+    val pantryInventoryRepository: PantryInventoryRepository =
+        HistoryTrackingPantryInventoryRepository(pantryStorage, historyRepository)
 
     val targetTimeResolver: TargetTimeResolver = TargetTimeResolver()
 
