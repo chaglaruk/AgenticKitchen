@@ -10,30 +10,34 @@ interface AiProviderFactory : Closeable {
 
 class DefaultAiProviderFactory(
     private val geminiFactory: (String) -> KitchenAiProvider = ::GeminiProvider,
-    offlineProvider: KitchenAiProvider = LocalRecipeProvider()
+    private val offlineProvider: KitchenAiProvider = LocalRecipeProvider(),
+    private val enforceVisionSafety: Boolean = false
 ) : AiProviderFactory {
     private var geminiKey: String? = null
     private var geminiProvider: KitchenAiProvider? = null
-    private val safeOfflineProvider: KitchenAiProvider = SafetyEnforcingAiProvider(offlineProvider)
+    private val runtimeOfflineProvider: KitchenAiProvider = protect(offlineProvider)
 
     override fun provider(settings: HardwareSettings): KitchenAiProvider? = when (settings.aiProvider) {
         "GEMINI" -> settings.geminiApiKey.takeIf(String::isNotBlank)?.let { key ->
             if (key != geminiKey) {
                 closeProvider(geminiProvider)
                 geminiKey = key
-                geminiProvider = SafetyEnforcingAiProvider(geminiFactory(key))
+                geminiProvider = protect(geminiFactory(key))
             }
             geminiProvider
         }
-        "FREE" -> safeOfflineProvider
+        "FREE" -> runtimeOfflineProvider
         else -> null
     }
 
     override fun close() {
         closeProvider(geminiProvider)
-        closeProvider(safeOfflineProvider)
+        closeProvider(runtimeOfflineProvider)
         geminiProvider = null
     }
+
+    private fun protect(provider: KitchenAiProvider): KitchenAiProvider =
+        if (enforceVisionSafety) SafetyEnforcingAiProvider(provider) else provider
 
     private fun closeProvider(provider: KitchenAiProvider?) {
         (provider as? Closeable)?.close()
