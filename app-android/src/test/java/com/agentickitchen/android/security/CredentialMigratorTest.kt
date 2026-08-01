@@ -43,6 +43,17 @@ class CredentialMigratorTest {
         assertEquals("secret", legacy.values["gemini_api_key"])
     }
 
+    @Test
+    fun keystoreFailureDoesNotCrashOrDeletePlaintext() {
+        val legacy = FakeLegacySource(mutableMapOf("gemini_api_key" to "secret"))
+        val secure = FakeCredentialStore(throwOnWrite = true)
+
+        val migrated = CredentialMigrator(secure, legacy).migrate(setOf("gemini_api_key"))
+
+        assertTrue(migrated.isEmpty())
+        assertEquals("secret", legacy.values["gemini_api_key"])
+    }
+
     private class FakeLegacySource(
         val values: MutableMap<String, String>
     ) : LegacyCredentialSource {
@@ -55,11 +66,13 @@ class CredentialMigratorTest {
     }
 
     private class FakeCredentialStore(
-        private val persistWrites: Boolean = true
+        private val persistWrites: Boolean = true,
+        private val throwOnWrite: Boolean = false
     ) : CredentialStore {
         private val values = mutableMapOf<String, String>()
 
         override fun saveCredential(key: String, value: String) {
+            if (throwOnWrite) error("Keystore unavailable")
             if (persistWrites) values[key] = value
         }
 
