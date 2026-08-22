@@ -10,7 +10,7 @@ interface AiProviderFactory : Closeable {
 
 class DefaultAiProviderFactory(
     private val geminiFactory: (String) -> KitchenAiProvider = ::GeminiProvider,
-    private val offlineProvider: KitchenAiProvider = LocalRecipeProvider(),
+    private val offlineProvider: KitchenAiProvider = InventoryAwareOfflineProvider(),
     private val enforceVisionSafety: Boolean = false
 ) : AiProviderFactory {
     private var geminiKey: String? = null
