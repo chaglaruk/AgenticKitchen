@@ -5,24 +5,8 @@ import com.agentickitchen.shared.db.AppDatabase
 class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : PantryInventoryRepository {
     private val queries = database.appDatabaseQueries
 
-    override fun getAll(): List<PantryStockItem> = queries.selectAllPantryItems().executeAsList().map {
-        PantryStockItem(
-            id = it.id,
-            canonicalIngredientId = it.canonicalIngredientId,
-            originalName = it.originalName,
-            displayNameTr = it.displayNameTr,
-            displayNameEn = it.displayNameEn,
-            quantity = it.quantity,
-            unit = it.unit,
-            unitDimension = UnitDimension.valueOf(it.unitDimension),
-            packageLabel = it.packageLabel,
-            isEstimated = it.isEstimated != 0L,
-            confidence = it.confidence,
-            source = it.source,
-            createdAt = it.createdAt,
-            updatedAt = it.updatedAt
-        )
-    }
+    override fun getAll(): List<PantryStockItem> =
+        queries.selectAllPantryItems().executeAsList().map(::pantryItem)
 
     override fun upsert(item: PantryStockItem, adjustment: InventoryAdjustmentRecord) {
         database.transaction {
@@ -140,7 +124,14 @@ class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : P
                     throw InventoryConflict()
                 }
                 val now = java.time.Instant.now().toString()
-                upsertItem(item.copy(quantity = available.quantity - consumed.quantity, unit = available.unit, updatedAt = now))
+                upsertItem(
+                    item.copy(
+                        quantity = available.quantity - consumed.quantity,
+                        unit = available.unit,
+                        unitDimension = available.dimension,
+                        updatedAt = now
+                    )
+                )
                 insertAdjustment(
                     InventoryAdjustmentRecord(
                         id = "$sessionId:${usage.itemId}:consumption",
@@ -277,22 +268,26 @@ class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : P
         )
     }
 
-    private fun pantryItem(it: com.agentickitchen.shared.db.PantryItem) = PantryStockItem(
-        id = it.id,
-        canonicalIngredientId = it.canonicalIngredientId,
-        originalName = it.originalName,
-        displayNameTr = it.displayNameTr,
-        displayNameEn = it.displayNameEn,
-        quantity = it.quantity,
-        unit = it.unit,
-        unitDimension = UnitDimension.valueOf(it.unitDimension),
-        packageLabel = it.packageLabel,
-        isEstimated = it.isEstimated != 0L,
-        confidence = it.confidence,
-        source = it.source,
-        createdAt = it.createdAt,
-        updatedAt = it.updatedAt
-    )
+    private fun pantryItem(it: com.agentickitchen.shared.db.PantryItem): PantryStockItem {
+        val normalized = InventoryUnits.normalize(it.quantity, it.unit)
+        val legacyCountUnit = it.unit.trim() == "1"
+        return PantryStockItem(
+            id = it.id,
+            canonicalIngredientId = it.canonicalIngredientId,
+            originalName = it.originalName,
+            displayNameTr = it.displayNameTr,
+            displayNameEn = it.displayNameEn,
+            quantity = if (legacyCountUnit) normalized.quantity else it.quantity,
+            unit = if (legacyCountUnit) normalized.unit else it.unit,
+            unitDimension = if (legacyCountUnit) normalized.dimension else UnitDimension.valueOf(it.unitDimension),
+            packageLabel = it.packageLabel,
+            isEstimated = it.isEstimated != 0L,
+            confidence = it.confidence,
+            source = it.source,
+            createdAt = it.createdAt,
+            updatedAt = it.updatedAt
+        )
+    }
 
     private fun pendingRecord(it: com.agentickitchen.shared.db.PendingRecipeUsage) =
         PendingRecipeUsageRecord(
