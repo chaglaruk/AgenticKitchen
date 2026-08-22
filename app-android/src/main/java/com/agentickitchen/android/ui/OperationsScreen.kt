@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import android.app.Activity
@@ -724,6 +725,7 @@ private fun KitchenAssistantSection(
     val colors = LocalAppColors.current
     var question by remember { mutableStateOf("") }
     var inputFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
     ) { bitmap: android.graphics.Bitmap? -> if (bitmap != null) onCheckPan(bitmap) }
@@ -732,6 +734,7 @@ private fun KitchenAssistantSection(
         if (trimmed.isNotEmpty()) {
             onAskAgent(trimmed)
             question = ""
+            focusManager.clearFocus(force = true)
         }
     }
 
