@@ -269,7 +269,6 @@ class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : P
     }
 
     private fun pantryItem(it: com.agentickitchen.shared.db.PantryItem): PantryStockItem {
-        val normalized = InventoryUnits.normalize(it.quantity, it.unit)
         val legacyCountUnit = it.unit.trim() == "1"
         return PantryStockItem(
             id = it.id,
@@ -277,9 +276,9 @@ class SqlDelightPantryInventoryRepository(private val database: AppDatabase) : P
             originalName = it.originalName,
             displayNameTr = it.displayNameTr,
             displayNameEn = it.displayNameEn,
-            quantity = if (legacyCountUnit) normalized.quantity else it.quantity,
-            unit = if (legacyCountUnit) normalized.unit else it.unit,
-            unitDimension = if (legacyCountUnit) normalized.dimension else UnitDimension.valueOf(it.unitDimension),
+            quantity = it.quantity,
+            unit = if (legacyCountUnit) "adet" else it.unit,
+            unitDimension = if (legacyCountUnit) UnitDimension.COUNT else UnitDimension.valueOf(it.unitDimension),
             packageLabel = it.packageLabel,
             isEstimated = it.isEstimated != 0L,
             confidence = it.confidence,
