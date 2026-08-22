@@ -39,7 +39,7 @@ class LocalRecipeProviderTest {
     fun defaultFactoryUsesTheLocalKeylessProvider() {
         val factory = DefaultAiProviderFactory()
 
-        assertTrue(factory.provider(HardwareSettings(aiProvider = "FREE")) is LocalRecipeProvider)
+        assertTrue(factory.provider(HardwareSettings(aiProvider = "FREE")) is InventoryAwareOfflineProvider)
 
         factory.close()
     }
