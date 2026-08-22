@@ -88,6 +88,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalTime
+import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -178,6 +179,16 @@ internal fun exactTargetTimeChoice(value: String): TargetTimeChoice.Exact? {
 internal fun recipeRequestSelection(servings: Int, targetTime: TargetTimeChoice) =
     RecipeRequestSelection(servings = servings.coerceIn(1, 12), targetTime = targetTime)
 
+internal fun recipeTypeLabel(type: String, isTurkish: Boolean): String {
+    val normalized = type.trim()
+    return when (normalized.lowercase(Locale.ROOT)) {
+        "easy" -> if (isTurkish) "KOLAY" else "EASY"
+        "medium" -> if (isTurkish) "ORTA" else "MEDIUM"
+        "hard" -> if (isTurkish) "ZOR" else "HARD"
+        else -> normalized.uppercase(if (isTurkish) Locale.forLanguageTag("tr-TR") else Locale.ROOT)
+    }
+}
+
 @Composable
 private fun EditorialRecipeDetailOverlay(
     recipe: RecipeOption,
@@ -252,7 +263,7 @@ private fun EditorialRecipeDetailContent(
                     IngredientArtwork(recipe.name, Modifier.size(176.dp))
                 }
                 Spacer(Modifier.height(20.dp))
-                Text(recipe.type.uppercase(), color = colors.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp)
+                Text(recipeTypeLabel(recipe.type, L.isTr), color = colors.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp)
                 Spacer(Modifier.height(10.dp))
                 Text(recipe.name, color = colors.onSurface, style = MaterialTheme.typography.h1)
                 Spacer(Modifier.height(12.dp))
@@ -547,7 +558,7 @@ private fun EditorialRecipeRow(
                 Text(option.name, color = colors.onSurface, style = MaterialTheme.typography.h6)
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    listOfNotNull(option.type.uppercase(), option.sourceLabel).joinToString(" · "),
+                    listOfNotNull(recipeTypeLabel(option.type, L.isTr), option.sourceLabel).joinToString(" · "),
                     color = colors.primary,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
