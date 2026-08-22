@@ -43,4 +43,12 @@ class TargetTimeChoiceTest {
         )
         assertEquals(12, recipeRequestSelection(99, TargetTimeChoice.Flexible).servings)
     }
+
+    @Test fun localizesKnownRecipeDifficultyLabels() {
+        assertEquals("KOLAY", recipeTypeLabel("EASY", isTurkish = true))
+        assertEquals("ORTA", recipeTypeLabel("medium", isTurkish = true))
+        assertEquals("ZOR", recipeTypeLabel("Hard", isTurkish = true))
+        assertEquals("EASY", recipeTypeLabel("easy", isTurkish = false))
+        assertEquals("TAVA YEMEĞİ", recipeTypeLabel("Tava Yemeği", isTurkish = true))
+    }
 }
