@@ -27,6 +27,44 @@ class PantryInventoryTest {
     }
 
     @Test
+    fun legacyNumericCountUnitNormalizesToCanonicalCount() {
+        assertEquals(
+            NormalizedAmount(1.0, "adet", UnitDimension.COUNT),
+            InventoryUnits.normalize(1.0, "1")
+        )
+    }
+
+    @Test
+    fun repositoryCanonicalizesLegacyNumericCountUnitOnRead() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        AppDatabase.Schema.create(driver)
+        val database = AppDatabase(driver)
+        database.appDatabaseQueries.upsertPantryItem(
+            id = "legacy-count",
+            canonicalIngredientId = null,
+            originalName = "Legacy cheese",
+            displayNameTr = null,
+            displayNameEn = null,
+            quantity = 1.0,
+            unit = "1",
+            unitDimension = UnitDimension.UNKNOWN.name,
+            packageLabel = null,
+            isEstimated = 0L,
+            confidence = null,
+            source = "restore",
+            createdAt = "now",
+            updatedAt = "now"
+        )
+
+        val restored = SqlDelightPantryInventoryRepository(database).getAll().single()
+
+        assertEquals(1.0, restored.quantity)
+        assertEquals("adet", restored.unit)
+        assertEquals(UnitDimension.COUNT, restored.unitDimension)
+        driver.close()
+    }
+
+    @Test
     fun migrationAddsInventoryTablesWithoutRecreatingHistory() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(
