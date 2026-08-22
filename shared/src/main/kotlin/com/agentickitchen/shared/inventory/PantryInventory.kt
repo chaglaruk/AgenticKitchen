@@ -95,7 +95,7 @@ object InventoryUnits {
             "g", "gram", "gr" -> NormalizedAmount(quantity, "g", UnitDimension.WEIGHT)
             "l", "litre", "liter", "litreler" -> NormalizedAmount(quantity * 1_000, "ml", UnitDimension.VOLUME)
             "ml", "millilitre", "milliliter" -> NormalizedAmount(quantity, "ml", UnitDimension.VOLUME)
-            "count", "adet", "piece", "pieces", "pcs" -> NormalizedAmount(quantity, "adet", UnitDimension.COUNT)
+            "1", "count", "adet", "piece", "pieces", "pcs" -> NormalizedAmount(quantity, "adet", UnitDimension.COUNT)
             "package", "paket", "pack", "packs" -> NormalizedAmount(quantity, "paket", UnitDimension.PACKAGE)
             "bunch", "demet" -> NormalizedAmount(quantity, "demet", UnitDimension.BUNCH)
             else -> NormalizedAmount(quantity, unit.trim().ifBlank { "birim" }, UnitDimension.UNKNOWN)
