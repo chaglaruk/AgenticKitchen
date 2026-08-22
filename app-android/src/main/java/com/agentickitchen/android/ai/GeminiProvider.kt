@@ -347,7 +347,7 @@ Include exact proposedIngredients for every option. Never exceed available quant
 
     companion object {
         const val MODEL = "gemini-3.6-flash"
-        const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
+        const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta2/interactions"
         const val MAX_REQUEST_BYTES = 20 * 1024 * 1024
         const val MAX_INLINE_IMAGE_BYTES = 14 * 1024 * 1024
 
