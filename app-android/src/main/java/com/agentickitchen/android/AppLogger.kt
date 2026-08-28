@@ -14,6 +14,9 @@ import java.util.concurrent.ConcurrentLinkedQueue
  *
  * User content, prompts, AI responses, ingredients, questions, image data, credentials,
  * exception messages, stack traces, file paths, and payload lengths are deliberately discarded.
+ * Provider diagnostics retain only a whitelisted feature code, HTTP status, and outcome category
+ * so physical QA can distinguish real-provider success from fallback/error paths without exposing
+ * request or response content.
  */
 object AppLogger {
     private const val TAG = "AK"
@@ -24,6 +27,35 @@ object AppLogger {
     private var enabled = false
     private val ringBuffer = ConcurrentLinkedQueue<String>()
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+
+    private val providerFeaturePattern = Regex("(?:^|\\s)feature=([A-Za-z0-9_-]+)")
+    private val providerStatusPattern = Regex("(?:^|\\s)status=([A-Za-z0-9_-]+)")
+    private val providerCategoryPattern = Regex("(?:^|\\s)category=([A-Za-z0-9_-]+)")
+
+    private val providerFeatureCodes = mapOf(
+        "connection_test" to "CONNECTION",
+        "recipe_options" to "RECIPE_OPTIONS",
+        "cooking_plan" to "COOKING_PLAN",
+        "shopping_text" to "SHOPPING_TEXT",
+        "shopping_photo" to "SHOPPING_PHOTO",
+        "shopping_photo_generate_content" to "SHOPPING_PHOTO_FALLBACK",
+        "cooking_photo" to "COOKING_PHOTO",
+        "cooking_chat" to "COOKING_CHAT"
+    )
+
+    private val providerCategoryCodes = mapOf(
+        "SUCCESS" to "SUCCESS",
+        "MISSINGCREDENTIAL" to "MISSING_CREDENTIAL",
+        "UNAUTHORIZED" to "UNAUTHORIZED",
+        "RATELIMITED" to "RATE_LIMITED",
+        "QUOTAEXCEEDED" to "QUOTA_EXCEEDED",
+        "NETWORKUNAVAILABLE" to "NETWORK_UNAVAILABLE",
+        "TIMEOUT" to "TIMEOUT",
+        "PROVIDERUNAVAILABLE" to "PROVIDER_UNAVAILABLE",
+        "INVALIDRESPONSE" to "INVALID_RESPONSE",
+        "SAFETYBLOCKED" to "SAFETY_BLOCKED",
+        "UNKNOWN" to "UNKNOWN"
+    )
 
     fun init(context: Context) {
         enabled = runCatching {
@@ -75,7 +107,28 @@ object AppLogger {
         runCatching { logFile?.readText().orEmpty() }.getOrDefault("(log unavailable)")
     }
 
+    internal fun providerDiagnosticEventCode(message: String): String {
+        val featureRaw = providerFeaturePattern.find(message)?.groupValues?.getOrNull(1)
+        val feature = providerFeatureCodes[featureRaw?.lowercase(Locale.US)] ?: "PROVIDER_EVENT"
+
+        val statusRaw = providerStatusPattern.find(message)?.groupValues?.getOrNull(1)
+        val status = when {
+            statusRaw.equals("none", ignoreCase = true) -> "NONE"
+            statusRaw?.matches(Regex("[1-5][0-9]{2}")) == true -> statusRaw
+            else -> "NONE"
+        }
+
+        val categoryRaw = providerCategoryPattern.find(message)?.groupValues?.getOrNull(1)
+        val categoryKey = categoryRaw
+            ?.uppercase(Locale.US)
+            ?.replace(Regex("[^A-Z0-9]"), "")
+        val category = providerCategoryCodes[categoryKey] ?: "EVENT"
+
+        return "${feature}_${status}_${category}"
+    }
+
     private fun eventCode(component: String, message: String): String = when {
+        component == "Gemini" || component == "GeminiFallback" -> providerDiagnosticEventCode(message)
         component.startsWith("AI-") -> "AI_REQUEST_FAILED"
         component == "Recovery" -> "SESSION_RESTORE_FAILED"
         component == "Setup" -> "SETUP_COMPLETED"
