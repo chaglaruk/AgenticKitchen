@@ -125,20 +125,22 @@ fun OperationsScreen(
         val recipeName = cookingState.recipeName.ifBlank {
             (planState as? PlanState.RecipeActive)?.recipe?.name.orEmpty()
         }
-        EditorialCookingHeader(recipeName)
-        Spacer(Modifier.height(18.dp))
-        EditorialLiveCooking(
-            state = cookingState,
-            recipeName = recipeName,
-            activePlan = planState as? PlanState.RecipeActive,
-            onStart = onStartCooking,
-            onPause = onPauseCooking,
-            onResume = onResumeCooking,
-            onComplete = onCompleteCookingStep,
-            onSkip = onSkipCookingStep,
-            onEnd = onEndCooking
-        )
-        Spacer(Modifier.height(18.dp))
+        if (shouldShowCookingPanel(cookingState.status, recipeName, planState is PlanState.RecipeActive)) {
+            EditorialCookingHeader(recipeName)
+            Spacer(Modifier.height(18.dp))
+            EditorialLiveCooking(
+                state = cookingState,
+                recipeName = recipeName,
+                activePlan = planState as? PlanState.RecipeActive,
+                onStart = onStartCooking,
+                onPause = onPauseCooking,
+                onResume = onResumeCooking,
+                onComplete = onCompleteCookingStep,
+                onSkip = onSkipCookingStep,
+                onEnd = onEndCooking
+            )
+            Spacer(Modifier.height(18.dp))
+        }
         when (planState) {
             is PlanState.RecipeActive -> {
                 Spacer(Modifier.height(24.dp))
@@ -963,7 +965,7 @@ private fun ParallelCookingPreview() = CookingPreview(
         recipeName = "Kremalı Tavuklu Makarna",
         status = CookingSessionStatus.RUNNING,
         active = listOf(
-            LiveOperation(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop"), 272),
+            LiveOperation(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop"), 272)),
             LiveOperation(previewCookingEvent("pasta", "Makarnayı süz.", "stovetop"), 90)
         ),
         upcoming = listOf(previewCookingEvent("serve", "Tabağa al.", "stovetop")),
