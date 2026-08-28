@@ -7,7 +7,7 @@ class GeminiEndpointContractTest {
     @Test
     fun interactionsEndpointUsesCurrentBetaVersion() {
         assertEquals(
-            "https://generativelanguage.googleapis.com/v1beta2/interactions",
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
             GeminiProvider.ENDPOINT
         )
     }
