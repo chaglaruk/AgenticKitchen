@@ -965,7 +965,7 @@ private fun ParallelCookingPreview() = CookingPreview(
         recipeName = "Kremalı Tavuklu Makarna",
         status = CookingSessionStatus.RUNNING,
         active = listOf(
-            LiveOperation(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop"), 272)),
+            LiveOperation(previewCookingEvent("cream", "Kremayı ekle ve ateşi azalt.", "stovetop"), 272),
             LiveOperation(previewCookingEvent("pasta", "Makarnayı süz.", "stovetop"), 90)
         ),
         upcoming = listOf(previewCookingEvent("serve", "Tabağa al.", "stovetop")),
