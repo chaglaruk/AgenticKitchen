@@ -125,7 +125,7 @@ fun OperationsScreen(
         val recipeName = cookingState.recipeName.ifBlank {
             (planState as? PlanState.RecipeActive)?.recipe?.name.orEmpty()
         }
-        if (shouldShowCookingPanel(cookingState.status, recipeName, planState is PlanState.RecipeActive)) {
+        if (shouldShowCookingPanel(cookingState.status, planState is PlanState.RecipeActive)) {
             EditorialCookingHeader(recipeName)
             Spacer(Modifier.height(18.dp))
             EditorialLiveCooking(
