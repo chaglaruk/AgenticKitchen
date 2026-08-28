@@ -107,9 +107,10 @@ class ResilientGeminiProviderTest {
         assertEquals("image/jpeg", inline["mimeType"]!!.jsonPrimitive.content)
         assertEquals("AQID", inline["data"]!!.jsonPrimitive.content)
         assertTrue(parts[1].jsonObject["text"]!!.jsonPrimitive.content.contains("visibly supported"))
-        val responseFormat = request["generationConfig"]!!.jsonObject["responseFormat"]!!.jsonObject
-        assertEquals("application/json", responseFormat["text"]!!.jsonObject["mimeType"]!!.jsonPrimitive.content)
-        assertNotNull(responseFormat["text"]!!.jsonObject["schema"])
+        val generationConfig = request["generationConfig"]!!.jsonObject
+        assertEquals("application/json", generationConfig["responseMimeType"]!!.jsonPrimitive.content)
+        assertNotNull(generationConfig["responseJsonSchema"])
+        assertFalse("responseFormat" in generationConfig)
         assertEquals("SUCCESS", diagnostics.single().category)
     }
 
