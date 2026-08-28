@@ -195,12 +195,8 @@ internal class GenerateContentShoppingPhotoFallback(
             })
         })
         put("generationConfig", buildJsonObject {
-            put("responseFormat", buildJsonObject {
-                put("text", buildJsonObject {
-                    put("mimeType", "application/json")
-                    put("schema", shoppingSchema)
-                })
-            })
+            put("responseMimeType", "application/json")
+            put("responseJsonSchema", shoppingSchema)
         })
     }
 
