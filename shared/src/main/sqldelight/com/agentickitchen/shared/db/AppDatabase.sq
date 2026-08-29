@@ -23,6 +23,14 @@ CREATE TABLE PantryItem (
     updatedAt TEXT NOT NULL
 );
 
+CREATE TABLE PantryItemMetadata (
+    itemId TEXT NOT NULL PRIMARY KEY,
+    location TEXT NOT NULL DEFAULT 'PANTRY',
+    customLocationLabel TEXT,
+    bestBefore TEXT,
+    useBy TEXT
+);
+
 CREATE TABLE InventoryAdjustment (
     id TEXT NOT NULL PRIMARY KEY,
     itemId TEXT NOT NULL,
@@ -75,6 +83,17 @@ INSERT OR REPLACE INTO PantryItem(
 
 deletePantryItem:
 DELETE FROM PantryItem WHERE id = ?;
+
+selectPantryItemMetadata:
+SELECT * FROM PantryItemMetadata WHERE itemId = ?;
+
+upsertPantryItemMetadata:
+INSERT OR REPLACE INTO PantryItemMetadata(
+    itemId, location, customLocationLabel, bestBefore, useBy
+) VALUES (?, ?, ?, ?, ?);
+
+deletePantryItemMetadata:
+DELETE FROM PantryItemMetadata WHERE itemId = ?;
 
 insertInventoryAdjustment:
 INSERT INTO InventoryAdjustment(id, itemId, amount, mode, reason, source, timestamp)

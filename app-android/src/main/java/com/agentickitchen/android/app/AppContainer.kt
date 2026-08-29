@@ -17,6 +17,7 @@ import com.agentickitchen.shared.agents.SimpleTimingAgent
 import com.agentickitchen.shared.db.AppDatabase
 import com.agentickitchen.shared.db.HistoryRepository
 import com.agentickitchen.shared.inventory.HistoryTrackingPantryInventoryRepository
+import com.agentickitchen.shared.inventory.MetadataPantryInventoryRepository
 import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.SqlDelightPantryInventoryRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
@@ -30,7 +31,10 @@ class AppContainer(private val app: Application) : Closeable {
     val database: AppDatabase = AppDatabase(sqlDriver)
 
     val historyRepository: HistoryRepository = HistoryRepository(database)
-    private val pantryStorage = SqlDelightPantryInventoryRepository(database)
+    private val pantryStorage = MetadataPantryInventoryRepository(
+        SqlDelightPantryInventoryRepository(database),
+        database
+    )
     val pantryInventoryRepository: PantryInventoryRepository =
         HistoryTrackingPantryInventoryRepository(pantryStorage, historyRepository)
 

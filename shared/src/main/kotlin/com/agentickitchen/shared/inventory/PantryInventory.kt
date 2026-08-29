@@ -3,6 +3,7 @@ package com.agentickitchen.shared.inventory
 import kotlinx.serialization.Serializable
 
 enum class UnitDimension { WEIGHT, VOLUME, COUNT, PACKAGE, BUNCH, UNKNOWN }
+enum class PantryLocation { FRIDGE, FREEZER, PANTRY, COUNTER, OTHER }
 enum class AdjustmentMode { DELTA, REPLACE }
 enum class AdjustmentReason {
     MANUAL_ADD,
@@ -29,7 +30,11 @@ data class PantryStockItem(
     val confidence: Double? = null,
     val source: String,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
+    val location: PantryLocation = PantryLocation.PANTRY,
+    val customLocationLabel: String? = null,
+    val bestBefore: String? = null,
+    val useBy: String? = null
 )
 
 data class InventoryAdjustmentRecord(
