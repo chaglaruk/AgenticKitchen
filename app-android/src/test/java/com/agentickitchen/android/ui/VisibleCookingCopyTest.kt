@@ -24,6 +24,7 @@ class VisibleCookingCopyTest {
         assertNull(cookingDependencyLabel(0, true))
         assertNull(cookingDependencyLabel(-1, false))
     }
+
     @Test
     fun `plan units are localized before reaching visible cooking UI`() {
         assertEquals("adet", localizedPlanUnit("piece", true))
@@ -35,7 +36,9 @@ class VisibleCookingCopyTest {
         assertEquals("yemek kaşığı", localizedPlanUnit("tbsp", true))
         assertEquals("su bardağı", localizedPlanUnit("cup", true))
         assertEquals("piece", localizedPlanUnit("adet", false))
+        assertEquals("package", localizedPlanUnit("paket", false))
         assertEquals("g", localizedPlanUnit("g", true))
+        assertEquals("ml", localizedPlanUnit("ml", true))
+        assertEquals("kg", localizedPlanUnit(" kg. ", true))
     }
-
 }
