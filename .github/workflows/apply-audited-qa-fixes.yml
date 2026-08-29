@@ -1,0 +1,108 @@
+name: Apply audited QA fixes
+
+on:
+  push:
+    branches: ['refactor/agentic-kitchen-production-foundation']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: apply audited qa fixes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v6
+        with:
+          ref: refactor/agentic-kitchen-production-foundation
+          fetch-depth: 0
+
+      - name: Apply deterministic audited fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          home = 'app-android/src/main/java/com/agentickitchen/android/ui/HomeScreen.kt'
+          replace_once(
+              home,
+              '''        horizontalArrangement = Arrangement.spacedBy(9.dp),\n        verticalArrangement = Arrangement.spacedBy(9.dp)\n    ) {''',
+              '''        horizontalArrangement = Arrangement.spacedBy(9.dp),\n        verticalArrangement = Arrangement.spacedBy(9.dp),\n        userScrollEnabled = homeScrollEnabled(expandedAuto)\n    ) {'''
+          )
+
+          Path('app-android/src/main/java/com/agentickitchen/android/ui/HomeScrollPolicy.kt').write_text('''package com.agentickitchen.android.ui\n\ninternal fun homeScrollEnabled(autocompleteExpanded: Boolean): Boolean = !autocompleteExpanded\n''', encoding='utf-8')
+          Path('app-android/src/test/java/com/agentickitchen/android/ui/HomeScrollPolicyTest.kt').write_text('''package com.agentickitchen.android.ui\n\nimport org.junit.Assert.assertFalse\nimport org.junit.Assert.assertTrue\nimport org.junit.Test\n\nclass HomeScrollPolicyTest {\n    @Test\n    fun `home stops scrolling while autocomplete is expanded`() {\n        assertFalse(homeScrollEnabled(autocompleteExpanded = true))\n        assertTrue(homeScrollEnabled(autocompleteExpanded = false))\n    }\n}\n''', encoding='utf-8')
+
+          app = 'app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt'
+          replace_once(
+              app,
+              '''    fun selectRecipeOption(option: RecipeOption, selection: RecipeRequestSelection) {\n        viewModelScope.launch {\n            _planState.value = PlanState.Loading''',
+              '''    fun selectRecipeOption(option: RecipeOption, selection: RecipeRequestSelection) {\n        if (!canReplacePreparedRecipe(_cookingState.value.status)) {\n            emitUiEvent(\n                if (L.isTr) \"Devam eden pişirmeyi bitirmeden yeni bir tarif hazırlayamazsın.\"\n                else \"Finish the current cooking session before preparing another recipe.\"\n            )\n            return\n        }\n        viewModelScope.launch {\n            _planState.value = PlanState.Loading'''
+          )
+          replace_once(
+              app,
+              '''                    loadHistory()\n                    _planState.value = activeRecipeState(''',
+              '''                    loadHistory()\n                    cookingTicker?.cancel()\n                    recentCookingTurns.clear()\n                    _cookingState.value = preparedCookingState(option.name)\n                    _planState.value = activeRecipeState('''
+          )
+
+          Path('app-android/src/main/java/com/agentickitchen/android/PreparedCookingState.kt').write_text('''package com.agentickitchen.android\n\nimport com.agentickitchen.shared.cooking.CookingSessionState\nimport com.agentickitchen.shared.cooking.CookingSessionStatus\n\ninternal fun canReplacePreparedRecipe(status: CookingSessionStatus): Boolean =\n    status !in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)\n\ninternal fun preparedCookingState(recipeName: String): CookingSessionState = CookingSessionState(\n    recipeName = recipeName,\n    status = CookingSessionStatus.READY\n)\n''', encoding='utf-8')
+          Path('app-android/src/test/java/com/agentickitchen/android/PreparedCookingStateTest.kt').write_text('''package com.agentickitchen.android\n\nimport com.agentickitchen.shared.cooking.CookingSessionStatus\nimport org.junit.Assert.assertEquals\nimport org.junit.Assert.assertFalse\nimport org.junit.Assert.assertTrue\nimport org.junit.Test\n\nclass PreparedCookingStateTest {\n    @Test\n    fun `new prepared recipe discards terminal state from previous recipe`() {\n        val state = preparedCookingState(\"Pirinç ve Soğan Tavası\")\n        assertEquals(\"Pirinç ve Soğan Tavası\", state.recipeName)\n        assertEquals(CookingSessionStatus.READY, state.status)\n        assertTrue(state.completed.isEmpty())\n        assertTrue(state.skipped.isEmpty())\n        assertEquals(0L, state.elapsedSeconds)\n    }\n\n    @Test\n    fun `running or paused cooking cannot be silently replaced`() {\n        assertFalse(canReplacePreparedRecipe(CookingSessionStatus.RUNNING))\n        assertFalse(canReplacePreparedRecipe(CookingSessionStatus.PAUSED))\n        assertTrue(canReplacePreparedRecipe(CookingSessionStatus.READY))\n        assertTrue(canReplacePreparedRecipe(CookingSessionStatus.COMPLETED))\n    }\n}\n''', encoding='utf-8')
+
+          art = 'app-android/src/main/java/com/agentickitchen/android/ui/IngredientArtwork.kt'
+          replace_once(
+              art,
+              '''        matches(\"domates\", \"tomato\", \"biber\", \"pepper\", \"havuç\", \"carrot\", \"patlican\", \"eggplant\", \"kabak\", \"zucchini\") -> IngredientVisualKind.TOMATO\n        matches(\"ispanak\", \"spinach\", \"marul\", \"lettuce\", \"roka\", \"arugula\", \"brokoli\", \"broccoli\") -> IngredientVisualKind.LEAFY\n        matches(\"sogan\", \"onion\", \"sarimsak\", \"garlic\") -> IngredientVisualKind.ONION\n        matches(\"tavuk\", \"chicken\", \"et\", \"beef\", \"meat\", \"kofte\", \"lamb\") -> IngredientVisualKind.MEAT''',
+              '''        matches(\"mantar\", \"mushroom\") -> IngredientVisualKind.MUSHROOM\n        matches(\"patates\", \"potato\") -> IngredientVisualKind.POTATO\n        matches(\"domates\", \"tomato\", \"biber\", \"pepper\", \"havuç\", \"carrot\", \"patlican\", \"eggplant\", \"kabak\", \"zucchini\") -> IngredientVisualKind.TOMATO\n        matches(\"ispanak\", \"spinach\", \"marul\", \"lettuce\", \"roka\", \"arugula\", \"brokoli\", \"broccoli\") -> IngredientVisualKind.LEAFY\n        matches(\"sogan\", \"onion\", \"sarimsak\", \"garlic\") -> IngredientVisualKind.ONION\n        matches(\"tavuk\", \"chicken\") -> IngredientVisualKind.CHICKEN\n        matches(\"hindi\", \"turkey\") -> IngredientVisualKind.TURKEY\n        matches(\"et\", \"beef\", \"meat\", \"kofte\", \"lamb\") -> IngredientVisualKind.RED_MEAT'''
+          )
+          Path('app-android/src/test/java/com/agentickitchen/android/ui/IngredientArtworkTest.kt').write_text('''package com.agentickitchen.android.ui\n\nimport org.junit.Assert.assertEquals\nimport org.junit.Test\n\nclass IngredientArtworkTest {\n    @Test\n    fun `generic Turkish ingredients keep semantically correct artwork`() {\n        assertEquals(IngredientVisualKind.CHICKEN, ingredientVisualFor(\"Tavuk\"))\n        assertEquals(IngredientVisualKind.MUSHROOM, ingredientVisualFor(\"Mantar\"))\n        assertEquals(IngredientVisualKind.POTATO, ingredientVisualFor(\"Patates\"))\n        assertEquals(IngredientVisualKind.FISH, ingredientVisualFor(\"Balık\"))\n    }\n}\n''', encoding='utf-8')
+
+          local = 'app-android/src/main/java/com/agentickitchen/android/ai/LocalRecipeProvider.kt'
+          replacements = {
+              '''            SAUTE -> \"$primary malzemesini $secondary ile tavada katmanlı biçimde pişiren hızlı bir yemek.\"''': '''            SAUTE -> \"$primary ve $secondary ile tavada hızlıca hazırlanan pratik bir yemek.\"''',
+              '''            STEW -> \"$primary ve eldeki sebzeleri yavaşça yumuşatan sulu bir tencere yemeği.\"''': '''            STEW -> \"$primary ve eldeki sebzelerle hazırlanan sıcak, doyurucu bir tencere yemeği.\"''',
+              '''            WARM_BOWL -> \"$primary, $secondary ve sıcak kiler malzemelerini ayrı dokularla buluşturan bir kase.\"''': '''            WARM_BOWL -> \"$primary ve $secondary ile hazırlanan sıcak, dengeli bir kase.\"''',
+              '''            PASTA -> \"$primary ile sosu makarnaya bağlayan pratik bir tabak.\"''': '''            PASTA -> \"$primary ile hazırlanan, sosu makarnaya iyice geçen pratik bir tabak.\"''',
+              '''            SOUP -> \"$primary ve $secondary malzemelerini yumuşak, sıcak bir çorbada birleştirir.\"''': '''            SOUP -> \"$primary ve $secondary ile hazırlanan sıcak, yumuşak içimli bir çorba.\"''',
+              '''            OVEN_TRAY -> \"$primary ve $secondary malzemelerini tek tepside eşitçe kızartır.\"''': '''            OVEN_TRAY -> \"$primary ve $secondary tek tepside birlikte kızarıp lezzetlenir.\"''',
+              '''            OVEN_PARCEL -> \"$primary ve $secondary aromalarını pişirme kâğıdında nemli tutar.\"''': '''            OVEN_PARCEL -> \"$primary ve $secondary pişirme kâğıdında kendi buharıyla yumuşak kalır.\"''',
+              '''            OVEN_ROAST -> \"$secondary malzemesini kızartıp $primary ile dengeler.\"''': '''            OVEN_ROAST -> \"$primary, fırında kızaran $secondary ile dengeli bir tabak oluşturur.\"''',
+              '''            AIRFRYER_ROAST -> \"$primary ve $secondary malzemelerini az yağla kızartır.\"''': '''            AIRFRYER_ROAST -> \"$primary ve $secondary hava fritözünde az yağla kızarıp hazırlanır.\"''',
+              '''            AIRFRYER_CRISP -> \"$primary için çıtır dış, sulu iç doku hedefler.\"''': '''            AIRFRYER_CRISP -> \"$primary dışı çıtır, içi yumuşak kalacak şekilde hazırlanır.\"''',
+              '''            AIRFRYER_BOWL -> \"Hava fritözünde pişen $primary ile taze $secondary malzemesini birleştirir.\"''': '''            AIRFRYER_BOWL -> \"Hava fritözünde pişen $primary, taze $secondary ile sıcak bir kasede buluşur.\"''',
+              '''            COLD_SALAD -> \"$primary ve $secondary malzemelerini taze, asitli bir salatada birleştirir.\"''': '''            COLD_SALAD -> \"$primary ve $secondary ile ferah, taze bir salata hazırlanır.\"''',
+              '''            COLD_PLATE -> \"$primary ve $secondary için pişirmesiz, soslu bir soğuk tabak.\"''': '''            COLD_PLATE -> \"$primary ve $secondary ile pişirmeden hazırlanan hafif bir soğuk tabak.\"''',
+              '''            OPEN_SANDWICH -> \"$primary ve $secondary malzemelerini katmanlı bir açık sandviçte kullanır.\"''': '''            OPEN_SANDWICH -> \"$primary ve $secondary ile bol malzemeli açık bir sandviç hazırlanır.\"''',
+              '''            SAUTE -> \"A quick layered sauté of $primary with $secondary.\"''': '''            SAUTE -> \"A quick pan-cooked dish with $primary and $secondary.\"''',
+              '''            STEW -> \"A gentle stovetop stew that softens $primary with the available vegetables.\"''': '''            STEW -> \"A warm, hearty stew with $primary and the vegetables you have on hand.\"''',
+              '''            WARM_BOWL -> \"A warm bowl that keeps $primary and $secondary in distinct textures.\"''': '''            WARM_BOWL -> \"A balanced warm bowl built around $primary and $secondary.\"''',
+              '''            PASTA -> \"A practical pasta dish that binds $primary into the sauce.\"''': '''            PASTA -> \"A simple pasta dish with $primary and a well-coated sauce.\"'''
+          }
+          for old, new in replacements.items():
+              replace_once(local, old, new)
+
+          Path('.github/workflows/apply-audited-qa-fixes.yml').unlink()
+          PY
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          git status --short
+          test ! -e .github/workflows/apply-audited-qa-fixes.yml
+
+      - name: Commit and push audited fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: close audited physical qa regressions"
+          git push origin HEAD:refactor/agentic-kitchen-production-foundation
