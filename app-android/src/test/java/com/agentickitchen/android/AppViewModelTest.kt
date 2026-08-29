@@ -131,6 +131,17 @@ class AppViewModelTest {
     }
 
     @Test
+    fun savingVerifiedGeminiKeyAlsoSelectsGeminiProvider() {
+        val preferences = FakePreferences()
+        val viewModel = newViewModel(preferences, FakeHistoryRepository())
+
+        viewModel.saveApiKey("test-key")
+
+        assertEquals("test-key", preferences.hardware.geminiApiKey)
+        assertEquals(CookingProviderSelection.Gemini, preferences.hardware.aiProvider)
+    }
+
+    @Test
     fun aiFailuresUseReaderSafeMessages() {
         L.applyLanguage(L.English)
         assertEquals("The selected provider is missing its credential. Add it in Settings.", readerSafeAiError(Exception("API_KEY_MISSING")))

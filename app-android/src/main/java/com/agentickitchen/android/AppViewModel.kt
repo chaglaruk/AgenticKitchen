@@ -1344,7 +1344,12 @@ class AppViewModel(
     }
 
     fun saveApiKey(key: String) {
-        saveHardwareSettings(_hw.value.copy(geminiApiKey = key))
+        saveHardwareSettings(
+            _hw.value.copy(
+                geminiApiKey = key,
+                aiProvider = CookingProviderSelection.Gemini
+            )
+        )
     }
 
     fun testAiConnection(settings: HardwareSettings = _hw.value) {
