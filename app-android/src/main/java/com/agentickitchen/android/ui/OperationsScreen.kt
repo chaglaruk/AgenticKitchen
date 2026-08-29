@@ -448,6 +448,12 @@ private fun EditorialPlanRow(leading: String, title: String, detail: String?) {
     }
 }
 
+internal fun cookingDependencyLabel(dependencyCount: Int, isTurkish: Boolean): String? = when {
+    dependencyCount == 1 -> if (isTurkish) "Önceki adımın ardından" else "After the previous step"
+    dependencyCount > 1 -> if (isTurkish) "Önceki adımlar tamamlanınca" else "After the previous steps"
+    else -> null
+}
+
 @Composable
 private fun EditorialPlanStep(number: Int, step: CookingStepDto) {
     val meta = buildList {
@@ -455,12 +461,7 @@ private fun EditorialPlanStep(number: Int, step: CookingStepDto) {
         add(formatCookingDuration(step.durationSeconds.toLong()))
         step.targetTemperatureC?.let { add("$it°C") }
         step.powerLevel?.let { add(if (L.isTr) "Seviye $it" else "Level $it") }
-        if (step.dependsOn.isNotEmpty()) {
-            add(
-                if (L.isTr) "${step.dependsOn.joinToString()} sonrasında"
-                else "after ${step.dependsOn.joinToString()}"
-            )
-        }
+        cookingDependencyLabel(step.dependsOn.size, L.isTr)?.let(::add)
     }.joinToString(" · ")
     EditorialPlanRow(
         leading = number.toString().padStart(2, '0'),

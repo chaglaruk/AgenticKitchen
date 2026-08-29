@@ -179,6 +179,12 @@ internal fun exactTargetTimeChoice(value: String): TargetTimeChoice.Exact? {
 internal fun recipeRequestSelection(servings: Int, targetTime: TargetTimeChoice) =
     RecipeRequestSelection(servings = servings.coerceIn(1, 12), targetTime = targetTime)
 
+internal fun localizedRecipeSourceLabel(sourceLabel: String?, isTurkish: Boolean): String? = when {
+    sourceLabel.isNullOrBlank() -> null
+    sourceLabel.equals("Offline", ignoreCase = true) -> if (isTurkish) "ÇEVRİMDIŞI" else "OFFLINE"
+    else -> sourceLabel
+}
+
 internal fun recipeTypeLabel(type: String, isTurkish: Boolean): String {
     val normalized = type.trim()
     return when (normalized.lowercase(Locale.ROOT)) {
@@ -558,7 +564,7 @@ private fun EditorialRecipeRow(
                 Text(option.name, color = colors.onSurface, style = MaterialTheme.typography.h6)
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    listOfNotNull(recipeTypeLabel(option.type, L.isTr), option.sourceLabel).joinToString(" · "),
+                    listOfNotNull(recipeTypeLabel(option.type, L.isTr), localizedRecipeSourceLabel(option.sourceLabel, L.isTr)).joinToString(" · "),
                     color = colors.primary,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
