@@ -26,10 +26,10 @@ private fun parseShoppingLine(line: String, isTurkish: Boolean): ShoppingCandida
             name = "$possibleUnit $name".trim()
             unit = "piece"
         }
-        val ingredient = resolveShoppingIngredient(name) ?: return null
+        val ingredient = resolveShoppingIngredient(name, isTurkish) ?: return null
         return ShoppingCandidate(
-            canonicalIngredientId = ingredient.id,
-            displayName = ingredient.name(isTurkish),
+            canonicalIngredientId = ingredient.canonicalIngredientId,
+            displayName = ingredient.displayName,
             quantity = quantity,
             unit = unit,
             unitDimension = shoppingUnitDimension(unit),
@@ -38,10 +38,10 @@ private fun parseShoppingLine(line: String, isTurkish: Boolean): ShoppingCandida
         )
     }
 
-    val ingredient = resolveShoppingIngredient(trimmed) ?: return null
+    val ingredient = resolveShoppingIngredient(trimmed, isTurkish) ?: return null
     return ShoppingCandidate(
-        canonicalIngredientId = ingredient.id,
-        displayName = ingredient.name(isTurkish),
+        canonicalIngredientId = ingredient.canonicalIngredientId,
+        displayName = ingredient.displayName,
         quantity = null,
         unit = null,
         unitDimension = "unknown",
@@ -55,7 +55,12 @@ private fun parseShoppingLine(line: String, isTurkish: Boolean): ShoppingCandida
     )
 }
 
-private fun resolveShoppingIngredient(name: String): IngredientDefinition? {
+private data class ShoppingIngredientResolution(
+    val canonicalIngredientId: String?,
+    val displayName: String
+)
+
+private fun resolveShoppingIngredient(name: String, isTurkish: Boolean): ShoppingIngredientResolution? {
     val candidates = buildList {
         add(name)
         add(name.removeSuffix("s"))
@@ -63,7 +68,19 @@ private fun resolveShoppingIngredient(name: String): IngredientDefinition? {
         add(name.removeSuffix("lar"))
         add(name.removeSuffix("ler"))
     }
-    return candidates.firstNotNullOfOrNull(::catalogIngredientForName)
+    return candidates.firstNotNullOfOrNull { candidate ->
+        catalogIngredientForName(candidate)?.let { ingredient ->
+            ShoppingIngredientResolution(
+                canonicalIngredientId = ingredient.id,
+                displayName = ingredient.name(isTurkish)
+            )
+        } ?: genericIngredientName(candidate, isTurkish)?.let { genericName ->
+            ShoppingIngredientResolution(
+                canonicalIngredientId = null,
+                displayName = genericName
+            )
+        }
+    }
 }
 
 private fun shoppingUnit(raw: String): String? = when (raw.trim().lowercase(Locale.ROOT).removeSuffix(".")) {
