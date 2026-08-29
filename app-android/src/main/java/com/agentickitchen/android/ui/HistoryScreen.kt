@@ -147,7 +147,7 @@ private fun HistoryEntryCard(entry: RecipeHistory, onReuseIngredients: (List<Str
                 Text(if (L.isTr) "Malzemeler" else "Ingredients", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = entry.ingredients,
+                    text = localizeHistoryIngredients(entry.ingredients, L.isTr),
                     color = colors.onSurfaceSub,
                     style = MaterialTheme.typography.body2,
                     maxLines = Int.MAX_VALUE
@@ -198,11 +198,56 @@ internal fun normalizeLegacyRecipeName(name: String, isTurkish: Boolean): String
     return if (isTurkish) "$firstLocalized ve $secondLocalized Tavası" else "$firstLocalized and $secondLocalized Sauté"
 }
 
+internal fun localizeHistoryIngredients(value: String, isTurkish: Boolean): String = value.split(',')
+    .joinToString(", ") { rawItem ->
+        val item = rawItem.trim()
+        val match = HISTORY_INGREDIENT_LINE.matchEntire(item) ?: return@joinToString item
+        val quantity = match.groupValues[1]
+        val unit = localizedHistoryUnit(match.groupValues[2], isTurkish)
+        val name = match.groupValues[3].trim()
+        "$quantity $unit $name"
+    }
+
+private fun localizedHistoryUnit(unit: String, isTurkish: Boolean): String {
+    val normalized = unit.trim().lowercase(Locale.ROOT).removeSuffix(".")
+    return if (isTurkish) {
+        when (normalized) {
+            "count", "adet", "piece", "pieces", "pcs" -> "adet"
+            "clove", "cloves", "diş", "dis" -> "diş"
+            "slice", "slices", "dilim" -> "dilim"
+            "pinch", "pinches", "tutam" -> "tutam"
+            "package", "packages", "pack", "packs", "paket" -> "paket"
+            "bunch", "bunches", "demet" -> "demet"
+            "tsp", "teaspoon", "teaspoons", "çay kaşığı", "cay kasigi" -> "çay kaşığı"
+            "tbsp", "tablespoon", "tablespoons", "yemek kaşığı", "yemek kasigi" -> "yemek kaşığı"
+            "cup", "cups", "bardak", "su bardağı", "su bardagi" -> "su bardağı"
+            "unit", "units", "birim" -> "birim"
+            else -> unit.trim()
+        }
+    } else {
+        when (normalized) {
+            "count", "adet", "piece", "pieces", "pcs" -> "piece"
+            "clove", "cloves", "diş", "dis" -> "clove"
+            "slice", "slices", "dilim" -> "slice"
+            "pinch", "pinches", "tutam" -> "pinch"
+            "package", "packages", "pack", "packs", "paket" -> "package"
+            "bunch", "bunches", "demet" -> "bunch"
+            "tsp", "teaspoon", "teaspoons", "çay kaşığı", "cay kasigi" -> "tsp"
+            "tbsp", "tablespoon", "tablespoons", "yemek kaşığı", "yemek kasigi" -> "tbsp"
+            "cup", "cups", "bardak", "su bardağı", "su bardagi" -> "cup"
+            "unit", "units", "birim" -> "unit"
+            else -> unit.trim()
+        }
+    }
+}
+
 internal fun historyIngredientsForReuse(value: String): List<String> = value.split(',')
     .map { item ->
         item.trim().replace(
-            Regex("""^\d+(?:[.,]\d+)?\s+(?:g|kg|ml|l|tsp|tbsp|cup|piece|pieces|slice|slices|clove|pinch|unit|adet|diş|dilim|tutam)\s+""", RegexOption.IGNORE_CASE),
+            Regex("""^\d+(?:[.,]\d+)?\s+(?:g|kg|ml|l|tsp|tbsp|cup|piece|pieces|pcs|count|slice|slices|clove|cloves|pinch|pinches|unit|units|package|packages|pack|packs|bunch|bunches|adet|diş|dis|dilim|tutam|paket|demet)\s+""", RegexOption.IGNORE_CASE),
             ""
         ).trim()
     }
     .filter(String::isNotBlank)
+
+private val HISTORY_INGREDIENT_LINE = Regex("""^(\d+(?:[.,]\d+)?)\s+(\S+)\s+(.+)$""")

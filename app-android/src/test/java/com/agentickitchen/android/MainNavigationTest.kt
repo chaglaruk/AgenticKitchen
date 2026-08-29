@@ -1,5 +1,6 @@
 package com.agentickitchen.android
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -11,6 +12,14 @@ class MainNavigationTest {
         assertFalse(shouldHandleSetupBack(setupDone = false, isEditingSetup = true))
         assertFalse(shouldHandleSetupBack(setupDone = true, isEditingSetup = false))
         assertTrue(shouldHandleSetupBack(setupDone = true, isEditingSetup = true))
+    }
+
+    @Test
+    fun completedSetupUsesAnOverlaySoNavigationStateStaysMountedDuringEditing() {
+        assertEquals(SetupPresentation.INITIAL, setupPresentation(setupDone = false, isEditingSetup = false))
+        assertEquals(SetupPresentation.INITIAL, setupPresentation(setupDone = false, isEditingSetup = true))
+        assertEquals(SetupPresentation.HIDDEN, setupPresentation(setupDone = true, isEditingSetup = false))
+        assertEquals(SetupPresentation.EDIT_OVERLAY, setupPresentation(setupDone = true, isEditingSetup = true))
     }
 
     @Test

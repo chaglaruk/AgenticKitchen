@@ -93,6 +93,18 @@ sealed class Screen(val route: String, val icon: ImageVector) {
     }
 }
 
+internal enum class SetupPresentation {
+    INITIAL,
+    EDIT_OVERLAY,
+    HIDDEN
+}
+
+internal fun setupPresentation(setupDone: Boolean, isEditingSetup: Boolean): SetupPresentation = when {
+    !setupDone -> SetupPresentation.INITIAL
+    isEditingSetup -> SetupPresentation.EDIT_OVERLAY
+    else -> SetupPresentation.HIDDEN
+}
+
 internal fun shouldHandleSetupBack(setupDone: Boolean, isEditingSetup: Boolean): Boolean =
     setupDone && isEditingSetup
 
@@ -114,6 +126,7 @@ fun AppRoot(viewModel: AppViewModel) {
     var apiKeySkipped by remember { mutableStateOf(false) }
 
     val needsApiKey = CookingProviderSelection.needsApiKey(hw)
+    val presentation = setupPresentation(setupDone, isEditingSetup)
 
     LaunchedEffect(setupDone, hw.aiProvider, hw.geminiApiKey, hw.hfApiKey) {
         if (setupDone && needsApiKey && !apiKeySkipped) {
@@ -121,25 +134,46 @@ fun AppRoot(viewModel: AppViewModel) {
         }
     }
 
-    if (!setupDone || isEditingSetup) {
-        BackHandler(enabled = shouldHandleSetupBack(setupDone, isEditingSetup)) {
-            viewModel.cancelEditingSetup()
-        }
+    if (presentation == SetupPresentation.INITIAL) {
         SetupScreen(
             initialHw = hw,
             initialEquipment = selectedEquipment,
-            canGoBack = setupDone,
-            onBack = { viewModel.cancelEditingSetup() },
+            canGoBack = false,
+            onBack = {},
             onComplete = { equipment, updatedHw ->
                 viewModel.completeSetup(equipment, updatedHw)
             }
         )
-    } else {
-        AppNavigation(viewModel, onConfigureGemini = {
-            apiKeySkipped = false
-            showApiKeyDialog = true
-        })
+        return
+    }
 
+    Box(modifier = Modifier.fillMaxSize()) {
+        AppNavigation(
+            viewModel = viewModel,
+            onConfigureGemini = {
+                apiKeySkipped = false
+                showApiKeyDialog = true
+            },
+            backEnabled = presentation != SetupPresentation.EDIT_OVERLAY
+        )
+
+        if (presentation == SetupPresentation.EDIT_OVERLAY) {
+            BackHandler(enabled = shouldHandleSetupBack(setupDone, isEditingSetup)) {
+                viewModel.cancelEditingSetup()
+            }
+            SetupScreen(
+                initialHw = hw,
+                initialEquipment = selectedEquipment,
+                canGoBack = true,
+                onBack = { viewModel.cancelEditingSetup() },
+                onComplete = { equipment, updatedHw ->
+                    viewModel.completeSetup(equipment, updatedHw)
+                }
+            )
+        }
+    }
+
+    if (presentation == SetupPresentation.HIDDEN) {
         val aiError by viewModel.aiError.collectAsState()
         if (aiError != null && !showApiKeyDialog) {
             if (aiError == "API_KEY_MISSING") {
@@ -168,7 +202,11 @@ fun AppRoot(viewModel: AppViewModel) {
 }
 
 @Composable
-fun AppNavigation(viewModel: AppViewModel, onConfigureGemini: () -> Unit = {}) {
+fun AppNavigation(
+    viewModel: AppViewModel,
+    onConfigureGemini: () -> Unit = {},
+    backEnabled: Boolean = true
+) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Intelligence) }
 
     val chips by viewModel.chips.collectAsState()
@@ -199,7 +237,7 @@ fun AppNavigation(viewModel: AppViewModel, onConfigureGemini: () -> Unit = {}) {
         if (pendingConsumption != null) currentScreen = Screen.Operations
     }
 
-    BackHandler(enabled = currentScreen != Screen.Intelligence) {
+    BackHandler(enabled = backEnabled && currentScreen != Screen.Intelligence) {
         currentScreen = backDestination(currentScreen, planState is PlanState.RecipeActive)
     }
 

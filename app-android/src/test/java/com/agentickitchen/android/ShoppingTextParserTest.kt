@@ -10,7 +10,8 @@ class ShoppingTextParserTest {
         val items = requireNotNull(parseShoppingTextLocally("2 paket makarna, 1 kilo tavuk ve 12 yumurta", true))
         assertEquals(listOf("Makarna", "Tavuk", "Yumurta"), items.map { it.displayName })
         assertEquals(listOf("pasta", null, "egg"), items.map { it.canonicalIngredientId })
-        assertEquals(listOf("package", "kg", "piece"), items.map { it.unit })
+        assertEquals(listOf("paket", "kg", "adet"), items.map { it.unit })
+        assertEquals(listOf("package", "weight", "count"), items.map { it.unitDimension })
     }
 
     @Test fun parsesEnglishNewlineListInEnglish() {
@@ -69,7 +70,8 @@ class ShoppingTextParserTest {
         assertNull(items[1].quantity)
         assertNull(items[1].unit)
         assertEquals(2.0, items[2].quantity)
-        assertEquals("piece", items[2].unit)
+        assertEquals("adet", items[2].unit)
+        assertEquals("count", items[2].unitDimension)
     }
 
     @Test fun returnsNullWhenAnyLineNeedsProviderInterpretation() {
