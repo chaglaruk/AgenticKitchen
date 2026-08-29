@@ -182,6 +182,39 @@ internal fun formatCookingDuration(totalSeconds: Long): String {
     return if (hours > 0) "%02d:%02d:%02d".format(hours, minutes, remainder) else "%02d:%02d".format(minutes, remainder)
 }
 
+internal fun localizedPlanUnit(unit: String, isTurkish: Boolean): String {
+    val normalized = unit.trim().lowercase(Locale.ROOT).removeSuffix(".")
+    return if (isTurkish) {
+        when (normalized) {
+            "count", "adet", "piece", "pieces", "pcs" -> "adet"
+            "clove", "cloves", "diş", "dis" -> "diş"
+            "slice", "slices", "dilim" -> "dilim"
+            "pinch", "pinches", "tutam" -> "tutam"
+            "package", "packages", "pack", "packs", "paket" -> "paket"
+            "bunch", "bunches", "demet" -> "demet"
+            "tsp", "teaspoon", "teaspoons", "çay kaşığı", "cay kasigi" -> "çay kaşığı"
+            "tbsp", "tablespoon", "tablespoons", "yemek kaşığı", "yemek kasigi" -> "yemek kaşığı"
+            "cup", "cups", "bardak", "su bardağı", "su bardagi" -> "su bardağı"
+            "unit", "units", "birim" -> "birim"
+            else -> unit.trim()
+        }
+    } else {
+        when (normalized) {
+            "count", "adet", "piece", "pieces", "pcs" -> "piece"
+            "clove", "cloves", "diş", "dis" -> "clove"
+            "slice", "slices", "dilim" -> "slice"
+            "pinch", "pinches", "tutam" -> "pinch"
+            "package", "packages", "pack", "packs", "paket" -> "package"
+            "bunch", "bunches", "demet" -> "bunch"
+            "tsp", "teaspoon", "teaspoons", "çay kaşığı", "cay kasigi" -> "tsp"
+            "tbsp", "tablespoon", "tablespoons", "yemek kaşığı", "yemek kasigi" -> "tbsp"
+            "cup", "cups", "bardak", "su bardağı", "su bardagi" -> "cup"
+            "unit", "units", "birim" -> "unit"
+            else -> unit.trim()
+        }
+    }
+}
+
 @Composable
 private fun ConsumptionConfirmationDialog(
     pending: PendingConsumption,
@@ -216,11 +249,12 @@ private fun ConsumptionConfirmationDialog(
             Spacer(Modifier.height(12.dp))
             pending.usages.forEach { usage ->
                 val name = inventory.firstOrNull { it.id == usage.itemId }?.originalName ?: usage.itemId
+                val displayUnit = localizedPlanUnit(usage.unit, L.isTr)
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(name, color = colors.onSurface, style = MaterialTheme.typography.body1)
                         Text(
-                            if (L.isTr) "Plan: ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit}" else "Plan: ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit}",
+                            "Plan: ${formatPlanQuantity(usage.plannedQuantity)} $displayUnit",
                             color = colors.onSurfaceSub,
                             style = MaterialTheme.typography.caption
                         )
@@ -229,7 +263,7 @@ private fun ConsumptionConfirmationDialog(
                         value = actual[usage.itemId].orEmpty(),
                         onValueChange = { actual = actual + (usage.itemId to it) },
                         modifier = Modifier.width(104.dp),
-                        label = { Text(usage.unit) },
+                        label = { Text(displayUnit) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true
                     )
@@ -385,20 +419,21 @@ private fun PlanReview(active: PlanState.RecipeActive) {
             EditorialPlanRow(
                 leading = "•",
                 title = ingredient.name,
-                detail = "${formatPlanQuantity(ingredient.quantity)} ${ingredient.unit}"
+                detail = "${formatPlanQuantity(ingredient.quantity)} ${localizedPlanUnit(ingredient.unit, L.isTr)}"
             )
         }
         if (active.plannedUsage.isNotEmpty()) {
             Spacer(Modifier.height(24.dp))
             PlanReviewSectionTitle(if (L.isTr) "Stoktan ayrılacak" else "Planned pantry use")
             active.plannedUsage.forEach { usage ->
+                val displayUnit = localizedPlanUnit(usage.unit, L.isTr)
                 EditorialPlanRow(
                     leading = "−",
                     title = usage.itemName,
                     detail = if (L.isTr) {
-                        "Mevcut ${formatPlanQuantity(usage.currentQuantity)} ${usage.unit} · kullanılacak ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit} · kalacak ${formatPlanQuantity(usage.remainingQuantity)} ${usage.unit}"
+                        "Mevcut ${formatPlanQuantity(usage.currentQuantity)} $displayUnit · kullanılacak ${formatPlanQuantity(usage.plannedQuantity)} $displayUnit · kalacak ${formatPlanQuantity(usage.remainingQuantity)} $displayUnit"
                     } else {
-                        "Current ${formatPlanQuantity(usage.currentQuantity)} ${usage.unit} · planned ${formatPlanQuantity(usage.plannedQuantity)} ${usage.unit} · remaining ${formatPlanQuantity(usage.remainingQuantity)} ${usage.unit}"
+                        "Current ${formatPlanQuantity(usage.currentQuantity)} $displayUnit · planned ${formatPlanQuantity(usage.plannedQuantity)} $displayUnit · remaining ${formatPlanQuantity(usage.remainingQuantity)} $displayUnit"
                     }
                 )
             }
