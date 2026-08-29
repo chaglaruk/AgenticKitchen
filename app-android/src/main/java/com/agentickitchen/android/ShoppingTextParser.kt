@@ -21,18 +21,18 @@ private fun parseShoppingLine(line: String, isTurkish: Boolean): ShoppingCandida
         val quantity = quantified.groupValues[1].replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 } ?: return null
         val possibleUnit = quantified.groupValues[2].trim()
         var name = quantified.groupValues[3].trim().removePrefix("of ").trim()
-        var unit = shoppingUnit(possibleUnit)
-        if (unit == null) {
+        var canonicalUnit = shoppingUnit(possibleUnit)
+        if (canonicalUnit == null) {
             name = "$possibleUnit $name".trim()
-            unit = "piece"
+            canonicalUnit = "piece"
         }
         val ingredient = resolveShoppingIngredient(name, isTurkish) ?: return null
         return ShoppingCandidate(
             canonicalIngredientId = ingredient.canonicalIngredientId,
             displayName = ingredient.displayName,
             quantity = quantity,
-            unit = unit,
-            unitDimension = shoppingUnitDimension(unit),
+            unit = localizedShoppingUnit(canonicalUnit, isTurkish),
+            unitDimension = shoppingUnitDimension(canonicalUnit),
             confidence = 1.0,
             estimated = false
         )
@@ -92,6 +92,13 @@ private fun shoppingUnit(raw: String): String? = when (raw.trim().lowercase(Loca
     "demet", "bunch", "bunches" -> "bunch"
     "adet", "piece", "pieces", "pcs", "count", "" -> "piece"
     else -> null
+}
+
+private fun localizedShoppingUnit(unit: String, isTurkish: Boolean): String = when (unit) {
+    "package" -> if (isTurkish) "paket" else "package"
+    "bunch" -> if (isTurkish) "demet" else "bunch"
+    "piece" -> if (isTurkish) "adet" else "piece"
+    else -> unit
 }
 
 private fun shoppingUnitDimension(unit: String): String = when (unit) {
