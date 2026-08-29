@@ -1,32 +1,60 @@
 # Project State
 
-Last reconciled against PR #1 after the dependency-ownership slice on 2026-07-26.
+Last reconciled against PR #1 during the managed Firebase AI foundation work on 2026-08-29.
 
 ## Implemented and integrated
 
-- The Android runtime presents setup, ingredient, options, operations, and settings screens.
-- `AgenticKitchenApp` owns one `AppContainer`; `MainActivity` uses its `AppViewModelFactory` to inject the ViewModel.
-- Typed `AppPreferences`, the single SQLDelight driver/database, `RecipeHistoryRepository`, deterministic agents, and legacy provider factory are the runtime dependency path.
-- Existing provider calls, legacy prompt construction, and legacy recipe parsing are still the active AI path.
+- `AgenticKitchenApp` owns one `AppContainer`; `MainActivity` receives an injected `AppViewModel` through `AppViewModelFactory`.
+- Typed preferences, the single SQLDelight database, pantry inventory, recipe history, active cooking-session persistence, agents, and provider factory are runtime dependency paths.
+- Android-Keystore AES-GCM credential storage is the runtime path for direct Gemini BYOK; verified legacy plaintext values migrate and are removed.
+- Typed target-time choices, structured recipe/cooking requests, `AiResult<T>`, DTO parsing, cooking-plan validation, scheduling, and reader-safe errors are in the runtime path.
+- Pantry reservation plus planned/actual consumption and cancellation flows are integrated.
+- Cooking sessions and History are integrated and have historical physical acceptance on earlier exact source SHAs.
+- Managed provider selection is integrated: `FIREBASE` for Firebase AI Logic, `GEMINI` for direct BYOK, and `FREE` for deterministic offline behaviour.
+- Managed Firebase requests are classified by task, use Remote Config-backed model names with safe built-in defaults, and provide Firebase SDK response schemas before application decode/validation.
+- App Check provider installation is build-type specific: debug provider for debug builds and Play Integrity for release builds.
 
-## Foundation only
+## Experimental / physical verification pending
 
-- `SecureCredentialStore` is not the credential runtime path. Plaintext credential compatibility remains a later security migration.
-- `AiResult<T>`, structured DTOs, `PromptFactory`, `CookingPlanValidator`, `TargetTimeChoice`, and `TargetTimeResolver` have no production call path.
-- Android string resources exist, but the runtime still uses the `L` object and hardcoded display text.
+- Managed Firebase AI Logic source integration is automated-testable without a committed Firebase config, but real managed requests and App Check still require exact-head device verification with private local Firebase configuration.
+- Ingredient and cooking-photo vision remain safety-sensitive. User review/confirmation and fail-closed safety behaviour remain mandatory.
 
-## Experimental
+## Foundation only / incomplete
 
-- Vision and free-provider paths are runtime-reachable but have not met the required privacy, confirmation, or reliability criteria.
+- Android string-resource localization is incomplete; `L` and hardcoded Compose copy remain in the runtime.
+- Cooking notifications / lock-screen controls are not yet integrated.
+- Free/Pro entitlements and application-level AI usage metering are product-roadmap work, not current runtime features.
 
-## Planned
+## Product work queued after managed-AI verification
 
-- Keystore-backed credential storage with migration, runtime AI integration and validation, complete localization, cooking sessions, history UI, and notifications.
+1. expiry/use-soon inventory and pantry locations;
+2. deterministic Ready / Missing 1 / Missing 2 recipe matching and ranking;
+3. Recipe Options and pantry UI refinement;
+4. pantry-aware structured substitutions;
+5. Smart Shopping;
+6. Home refinement and multi-photo kitchen scan;
+7. recipe import and My Recipes;
+8. Recipe Detail and Cooking Mode polish;
+9. receipt-to-pantry;
+10. small weekly planner;
+11. later hands-free/voice UX.
 
-## Verified build matrix
+The detailed feature, UI, AI-cost, and monetization decisions are recorded in `docs/ROADMAP.md`.
 
-AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3.21, Compose BOM 2026.06.00, JDK 17, `compileSdk` 36, and `targetSdk` 36. The unsupported-SDK suppression was removed. Shared tests and Android compilation/unit-test task passed on this matrix.
+## Build matrix
 
-## Lint
+AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3.21, Compose BOM 2026.06.00, JDK 17, `compileSdk` 36, and `targetSdk` 36.
 
-The old broad lint baseline was removed because it hid 52 warnings and 8 hints, while retaining eight stale entries. The current lint run reports 0 errors, 108 warnings, and 8 hints with no baseline. The warnings are visible and must be fixed or individually documented; this branch does not claim zero warnings.
+Repository verification remains:
+
+```bash
+./gradlew clean
+./gradlew :shared:test
+./gradlew :app-android:testDebugUnitTest
+./gradlew :app-android:lintDebug
+./gradlew :app-android:assembleDebug
+./gradlew build
+git diff --check origin/main...HEAD
+```
+
+Automated green status does not transfer physical VERIFIED status from an older source SHA to a newer source SHA.
