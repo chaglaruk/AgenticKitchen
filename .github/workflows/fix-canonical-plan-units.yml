@@ -1,0 +1,45 @@
+name: Fix canonical plan units
+
+on:
+  push:
+    branches:
+      - refactor/agentic-kitchen-production-foundation
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/agentic-kitchen-production-foundation
+          fetch-depth: 0
+      - name: Normalize canonical visible units
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app-android/src/main/java/com/agentickitchen/android/ui/OperationsScreen.kt')
+          text = path.read_text()
+          needle = '            "unit", "units", "birim" -> "birim"\n            else -> unit.trim()'
+          replacement = '            "unit", "units", "birim" -> "birim"\n            "g", "kg", "ml", "l" -> normalized\n            else -> unit.trim()'
+          if needle not in text:
+              raise SystemExit('Turkish canonical-unit marker not found')
+          text = text.replace(needle, replacement, 1)
+          needle = '            "unit", "units", "birim" -> "unit"\n            else -> unit.trim()'
+          replacement = '            "unit", "units", "birim" -> "unit"\n            "g", "kg", "ml", "l" -> normalized\n            else -> unit.trim()'
+          if needle not in text:
+              raise SystemExit('English canonical-unit marker not found')
+          path.write_text(text.replace(needle, replacement, 1))
+          PY
+      - name: Remove temporary workflow
+        run: git rm .github/workflows/fix-canonical-plan-units.yml
+      - name: Commit and push audited fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app-android/src/main/java/com/agentickitchen/android/ui/OperationsScreen.kt
+          git diff --cached --check
+          git commit -m "fix: normalize canonical visible plan units"
+          git push origin HEAD:refactor/agentic-kitchen-production-foundation
