@@ -16,7 +16,15 @@ class FirebaseManagedDefaultsTest {
     }
 
     @Test
-    fun `managed provider uses the audited stable model`() {
-        assertEquals("gemini-3.7-flash", FirebaseAiProvider.MODEL)
+    fun `managed provider defaults route extraction to lower cost model`() {
+        val config = StaticFirebaseAiModelConfig()
+        assertEquals("gemini-3.5-flash-lite", config.modelFor(FirebaseAiTask.EXTRACTION))
+    }
+
+    @Test
+    fun `managed provider defaults keep reasoning and vision on audited flash model`() {
+        val config = StaticFirebaseAiModelConfig()
+        assertEquals("gemini-3.7-flash", config.modelFor(FirebaseAiTask.REASONING))
+        assertEquals("gemini-3.7-flash", config.modelFor(FirebaseAiTask.VISION))
     }
 }
