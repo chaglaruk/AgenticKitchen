@@ -99,6 +99,7 @@ fun AppRoot(viewModel: AppViewModel) {
     val isEditingSetup by viewModel.isEditingSetup.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
     val selectedEquipment by viewModel.selectedEquipment.collectAsState()
+    val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsState()
 
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var apiKeySkipped by remember { mutableStateOf(false) }
@@ -122,7 +123,10 @@ fun AppRoot(viewModel: AppViewModel) {
             }
         )
     } else {
-        AppNavigation(viewModel)
+        AppNavigation(viewModel, onConfigureGemini = {
+            apiKeySkipped = false
+            showApiKeyDialog = true
+        })
 
         val aiError by viewModel.aiError.collectAsState()
         if (aiError != null && !showApiKeyDialog) {
@@ -136,6 +140,8 @@ fun AppRoot(viewModel: AppViewModel) {
         if (showApiKeyDialog) {
             ApiKeyOnboardingDialog(
                 aiProvider = hw.aiProvider,
+                connectionStatus = aiConnectionStatus,
+                onTest = { key -> viewModel.testAiConnection(hw.copy(geminiApiKey = key, aiProvider = CookingProviderSelection.Gemini)) },
                 onSave = { key ->
                     viewModel.saveApiKey(key)
                     showApiKeyDialog = false
@@ -150,7 +156,7 @@ fun AppRoot(viewModel: AppViewModel) {
 }
 
 @Composable
-fun AppNavigation(viewModel: AppViewModel) {
+fun AppNavigation(viewModel: AppViewModel, onConfigureGemini: () -> Unit = {}) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Intelligence) }
 
     val chips by viewModel.chips.collectAsState()
@@ -251,6 +257,7 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onImportShoppingPhoto = viewModel::importShoppingPhoto,
                     onConfirmShoppingImport = viewModel::confirmShoppingImport,
                     onClearShoppingImport = viewModel::clearShoppingImport,
+                    onConfigureGemini = onConfigureGemini,
                     onStartInventorySession = { request ->
                         currentScreen = Screen.Options
                         viewModel.startInventorySession(request)
@@ -300,7 +307,10 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onCancelConsumption = viewModel::cancelInventoryConsumption
                 )
 
-                Screen.History -> HistoryScreen(history)
+                Screen.History -> HistoryScreen(history) { ingredients ->
+                    viewModel.reuseHistoryIngredients(ingredients)
+                    currentScreen = Screen.Intelligence
+                }
 
                 Screen.Settings -> SettingsScreen(
                     hw = hw,

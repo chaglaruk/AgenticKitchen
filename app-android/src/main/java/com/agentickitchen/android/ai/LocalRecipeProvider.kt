@@ -164,10 +164,11 @@ class LocalRecipeProvider internal constructor(
         )
 
     private fun recipeOptions(prompt: String): String {
-        val ingredients = prompt.lineValue("Ingredients:").csv().map(::classifyIngredient)
+        var ingredients = prompt.lineValue("Ingredients:").csv().map(::classifyIngredient)
         if (ingredients.isEmpty()) throw invalidRequest()
         val equipment = prompt.lineValue("Available equipment:").csv()
         val isTurkish = prompt.contains("Yanıtını Türkçe ver.")
+        ingredients = ingredients.map { it.localized(isTurkish) }
         checkConstraints(ingredients, prompt)
         val techniques = availableTechniques(ingredients, equipment.toSet())
         if (techniques.size < 3) throw constraintConflict()
@@ -179,7 +180,7 @@ class LocalRecipeProvider internal constructor(
 
     private fun cookingPlan(prompt: String): String {
         val recipeName = prompt.substringAfter(PLAN_MARKER, "").substringBefore('"').trim()
-        val ingredients = prompt.lineValue("Ingredients:").csv().map(::classifyIngredient)
+        var ingredients = prompt.lineValue("Ingredients:").csv().map(::classifyIngredient)
         val equipment = prompt.lineValue("Available equipment:").csv().toSet()
         val servings = prompt.lineValue("Servings:").toIntOrNull()
         if (recipeName.isBlank() || ingredients.isEmpty() || servings == null || servings <= 0) {
@@ -187,6 +188,7 @@ class LocalRecipeProvider internal constructor(
         }
 
         val isTurkish = prompt.contains("Yanıtını Türkçe ver.")
+        ingredients = ingredients.map { it.localized(isTurkish) }
         checkConstraints(ingredients, prompt)
         val stoveType = prompt.lineValue("Stove type:").lowercase()
         val stoveMax = Regex("""Electric stove maximum level: (\d+)""")
@@ -471,9 +473,9 @@ class LocalRecipeProvider internal constructor(
         val catalog = catalogIngredientForName(name)
         val role = when (catalog?.categoryId) {
             "meat_poultry" -> if (catalog.id in setOf("chicken-breast", "chicken-thigh", "chicken-wing", "turkey")) IngredientRole.POULTRY else IngredientRole.RED_MEAT
-            "fish_seafood" -> if (catalog.id in setOf("shrimp", "mussels", "squid", "octopus", "crab")) IngredientRole.SHELLFISH else IngredientRole.FISH
+            "fish_seafood" -> if (catalog.id in setOf("prawns", "mussels", "squid", "octopus", "crab", "scallops")) IngredientRole.SHELLFISH else IngredientRole.FISH
             "eggs_dairy" -> if (catalog.id == "egg") IngredientRole.EGG else IngredientRole.DAIRY
-            "vegetables" -> IngredientRole.VEGETABLE
+            "vegetables", "roots_mushrooms" -> IngredientRole.VEGETABLE
             "greens_herbs" -> if (catalog.id in herbIds) IngredientRole.HERB else IngredientRole.LEAFY_GREEN
             "fruits_citrus" -> IngredientRole.FRUIT
             "grains_bread" -> when (catalog.id) {
@@ -490,6 +492,11 @@ class LocalRecipeProvider internal constructor(
             else -> fallbackRole(name)
         }
         return LocalIngredient(name, catalog?.id, role)
+    }
+
+    private fun LocalIngredient.localized(isTurkish: Boolean): LocalIngredient {
+        val catalog = id?.let(::catalogIngredientForName) ?: catalogIngredientForName(name)
+        return if (catalog == null) this else copy(name = catalog.name(isTurkish))
     }
 
     private fun fallbackRole(name: String): IngredientRole {

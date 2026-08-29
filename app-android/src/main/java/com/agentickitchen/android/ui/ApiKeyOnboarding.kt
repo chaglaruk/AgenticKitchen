@@ -40,16 +40,18 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.agentickitchen.android.L
+import com.agentickitchen.android.AiConnectionStatus
 
 @Composable
 fun ApiKeyOnboardingDialog(
     aiProvider: String,
+    connectionStatus: AiConnectionStatus = AiConnectionStatus.NOT_CONFIGURED,
+    onTest: (String) -> Unit = {},
     onSave: (String) -> Unit,
     onSkip: () -> Unit
 ) {
@@ -58,6 +60,7 @@ fun ApiKeyOnboardingDialog(
     val clipboardManager = LocalClipboardManager.current
     var apiKey by remember { mutableStateOf("") }
     var contentVisible by remember { mutableStateOf(false) }
+    var testedKey by remember { mutableStateOf<String?>(null) }
     val isHuggingFace = aiProvider == "HUGGINGFACE"
     val providerName = if (isHuggingFace) "Hugging Face" else "Gemini"
     val title = if (isHuggingFace) {
@@ -67,15 +70,15 @@ fun ApiKeyOnboardingDialog(
     }
     val description = if (isHuggingFace) {
         if (L.isTr) {
-            "Tarif önerileri, malzeme analizi ve mutfak asistanı için bir Hugging Face tokenı gerekiyor."
+            "Hugging Face kullanmak için kişisel tokenını bağla."
         } else {
-            "A Hugging Face token enables recipe ideas, ingredient analysis, and the kitchen assistant."
+            "Connect your personal token to use Hugging Face."
         }
     } else {
         if (L.isTr) {
-            "Tarif önerileri, malzeme analizi ve mutfak asistanı için bir Gemini API anahtarı gerekiyor."
+            "Gemini kullanmak için Google AI Studio’dan kendi anahtarını bağla."
         } else {
-            "A Gemini API key enables recipe ideas, ingredient analysis, and the kitchen assistant."
+            "Connect your own key from Google AI Studio to use Gemini."
         }
     }
     val linkUrl = if (isHuggingFace) "https://huggingface.co/settings/tokens" else "https://aistudio.google.com/apikey"
@@ -98,7 +101,7 @@ fun ApiKeyOnboardingDialog(
             ) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.Start) {
                     Text(
-                        if (L.isTr) "YAPAY ZEKÂ BAĞLANTISI" else "AI CONNECTION",
+                        if (L.isTr) "BAĞLANTI KURULUMU" else "CONNECTION SETUP",
                         color = colors.primary,
                         style = MaterialTheme.typography.caption
                     )
@@ -111,11 +114,30 @@ fun ApiKeyOnboardingDialog(
                         style = MaterialTheme.typography.body1
                     )
                     Spacer(Modifier.height(20.dp))
+                    Text(if (L.isTr) "1 · AI Studio’yu aç" else "1 · Open AI Studio", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
+                    TextButton(
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(linkUrl))) },
+                        modifier = Modifier.semantics {
+                            contentDescription = if (L.isTr) "$providerName anahtarı alma sayfasını aç" else "Open $providerName credential help"
+                        }
+                    ) {
+                        Text(if (L.isTr) "Anahtar sayfasını aç" else "Open key page", color = colors.primary)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(if (L.isTr) "2 · Yeni anahtar oluştur ve kopyala" else "2 · Create a key and copy it", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
+                    Text(
+                        if (L.isTr) "Anahtarını yalnız bu cihazda saklarız; günlük kayıtlarına yazmayız." else "Your key stays on this device and is never written to app logs.",
+                        color = colors.onSurfaceSub,
+                        style = MaterialTheme.typography.body2
+                    )
+                    Spacer(Modifier.height(14.dp))
                     Divider(color = colors.divider, thickness = 1.dp)
                     Spacer(Modifier.height(18.dp))
+                    Text(if (L.isTr) "3 · Yapıştır, bağlantıyı dene ve kaydet" else "3 · Paste, test, and save", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
+                    Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         value = apiKey,
-                        onValueChange = { apiKey = it },
+                        onValueChange = { apiKey = it; testedKey = null },
                         modifier = Modifier
                             .fillMaxWidth()
                             .semantics { contentDescription = if (L.isTr) "$providerName anahtarı" else "$providerName credential" },
@@ -138,25 +160,27 @@ fun ApiKeyOnboardingDialog(
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
-                    Spacer(Modifier.height(8.dp))
-                    TextButton(
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(linkUrl)))
-                        },
-                        modifier = Modifier.semantics {
-                            contentDescription = if (L.isTr) "$providerName anahtarı alma sayfasını aç" else "Open $providerName credential help"
-                        }
-                    ) {
-                        Text(
-                            if (L.isTr) "$providerName anahtarı al" else "Get a $providerName credential",
-                            color = colors.primary,
-                            textAlign = TextAlign.Start
-                        )
+                    Spacer(Modifier.height(10.dp))
+                    val statusText = when (connectionStatus) {
+                        AiConnectionStatus.TESTING -> if (L.isTr) "Bağlantı deneniyor…" else "Testing connection…"
+                        AiConnectionStatus.CONNECTED -> if (L.isTr) "Bağlantı doğrulandı." else "Connection verified."
+                        AiConnectionStatus.INVALID_KEY -> if (L.isTr) "Anahtar geçerli değil. Yeni bir anahtar kopyalayıp tekrar dene." else "That key is not valid. Copy a new key and try again."
+                        AiConnectionStatus.QUOTA_UNAVAILABLE -> if (L.isTr) "Anahtarın kullanım kotası şu anda uygun değil." else "This key's quota is not currently available."
+                        AiConnectionStatus.NETWORK_FAILURE -> if (L.isTr) "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene." else "Could not connect. Check your internet connection and try again."
+                        AiConnectionStatus.NOT_CONFIGURED -> if (L.isTr) "Kaydetmeden önce bağlantıyı dene." else "Test the connection before saving."
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Text(statusText, color = if (connectionStatus == AiConnectionStatus.CONNECTED) colors.success else colors.onSurfaceSub, style = MaterialTheme.typography.body2)
+                    Spacer(Modifier.height(10.dp))
+                    TextButton(
+                        onClick = { apiKey.trim().takeIf(String::isNotBlank)?.let { testedKey = it; onTest(it) } },
+                        enabled = apiKey.isNotBlank() && connectionStatus != AiConnectionStatus.TESTING
+                    ) {
+                        Text(if (L.isTr) "Bağlantıyı dene" else "Test connection", color = colors.primary)
+                    }
+                    Spacer(Modifier.height(6.dp))
                     Button(
                         onClick = { if (apiKey.isNotBlank()) onSave(apiKey.trim()) },
-                        enabled = apiKey.isNotBlank(),
+                        enabled = apiKey.isNotBlank() && testedKey == apiKey.trim() && connectionStatus == AiConnectionStatus.CONNECTED,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp)
@@ -168,7 +192,7 @@ fun ApiKeyOnboardingDialog(
                         ),
                         elevation = ButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
                     ) {
-                        Text(if (L.isTr) "Kaydet ve devam et" else "Save and continue", color = colors.onPrimary)
+                        Text(if (L.isTr) "Bağlantıyı kaydet" else "Save connection", color = colors.onPrimary)
                     }
                     Spacer(Modifier.height(6.dp))
                     TextButton(

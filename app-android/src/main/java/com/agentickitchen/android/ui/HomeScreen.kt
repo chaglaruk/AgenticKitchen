@@ -149,6 +149,7 @@ fun HomeScreen(
     onImportShoppingPhoto: (Bitmap, ShoppingImportMode) -> Unit = { _, _ -> },
     onConfirmShoppingImport: (List<ShoppingCandidate>, ShoppingImportMode) -> Boolean = { _, _ -> false },
     onClearShoppingImport: () -> Unit = {},
+    onConfigureGemini: () -> Unit = {},
     onStartInventorySession: (InventoryRecipeRequest) -> Unit = {},
     onClearAll: () -> Unit,
     onStart: () -> Unit,
@@ -366,7 +367,8 @@ fun HomeScreen(
             },
             onParseText = onImportShoppingText,
             onParsePhoto = onImportShoppingPhoto,
-            onConfirm = onConfirmShoppingImport
+            onConfirm = onConfirmShoppingImport,
+            onConfigureGemini = onConfigureGemini
         )
     }
 
@@ -1388,7 +1390,8 @@ private fun ShoppingImportDialog(
     onDismiss: () -> Unit,
     onParseText: (String, ShoppingImportMode) -> Unit,
     onParsePhoto: (Bitmap, ShoppingImportMode) -> Unit,
-    onConfirm: (List<ShoppingCandidate>, ShoppingImportMode) -> Boolean
+    onConfirm: (List<ShoppingCandidate>, ShoppingImportMode) -> Boolean,
+    onConfigureGemini: () -> Unit
 ) {
     val colors = LocalAppColors.current
     val context = LocalContext.current
@@ -1479,6 +1482,9 @@ private fun ShoppingImportDialog(
                     if (state is ShoppingImportState.Error) {
                         Text(state.message, color = Color(0xFF9B3F32), style = MaterialTheme.typography.body2)
                         Spacer(Modifier.height(8.dp))
+                        TextButton(onClick = onConfigureGemini) {
+                            Text(if (L.isTr) "Gemini’yi ayarla" else "Set up Gemini", color = colors.primary)
+                        }
                     }
                     if (textMode) {
                         OutlinedTextField(

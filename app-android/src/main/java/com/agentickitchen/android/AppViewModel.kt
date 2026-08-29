@@ -684,6 +684,10 @@ class AppViewModel(
 
     fun importShoppingText(text: String, mode: ShoppingImportMode) {
         if (text.isBlank()) return
+        parseShoppingTextLocally(text, L.isTr)?.let { candidates ->
+            _shoppingImportState.value = ShoppingImportState.Review(candidates, mode, "local_text")
+            return
+        }
         viewModelScope.launch {
             _shoppingImportState.value = ShoppingImportState.Loading
             try {
@@ -744,6 +748,16 @@ class AppViewModel(
 
     fun clearShoppingImport() {
         _shoppingImportState.value = ShoppingImportState.Idle
+    }
+
+    fun reuseHistoryIngredients(names: List<String>) {
+        val localized = names.map { canonicalIngredientName(it, L.isTr) }
+            .filter(String::isNotBlank)
+            .distinctBy { it.lowercase(Locale.ROOT) }
+        if (localized.isNotEmpty()) {
+            draftOrder = localized
+            saveIngredientDraft(localized)
+        }
     }
 
     fun startSession() {

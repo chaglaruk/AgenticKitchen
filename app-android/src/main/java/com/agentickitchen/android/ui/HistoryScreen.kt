@@ -1,6 +1,7 @@
 package com.agentickitchen.android.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,12 @@ import androidx.compose.material.Card
 import androidx.compose.material.Divider
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -24,6 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agentickitchen.android.L
+import com.agentickitchen.android.canonicalIngredientName
+import com.agentickitchen.android.catalogIngredientForName
 import com.agentickitchen.shared.db.RecipeHistory
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -31,7 +39,7 @@ import java.time.format.FormatStyle
 import java.util.Locale
 
 @Composable
-fun HistoryScreen(history: List<RecipeHistory>) {
+fun HistoryScreen(history: List<RecipeHistory>, onReuseIngredients: (List<String>) -> Unit = {}) {
     val colors = LocalAppColors.current
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
@@ -64,7 +72,7 @@ fun HistoryScreen(history: List<RecipeHistory>) {
             item { EmptyHistoryState() }
         } else {
             items(history, key = RecipeHistory::id) { entry ->
-                HistoryEntryCard(entry)
+                HistoryEntryCard(entry, onReuseIngredients)
             }
         }
     }
@@ -93,12 +101,15 @@ private fun EmptyHistoryState() {
 }
 
 @Composable
-private fun HistoryEntryCard(entry: RecipeHistory) {
+private fun HistoryEntryCard(entry: RecipeHistory, onReuseIngredients: (List<String>) -> Unit) {
     val colors = LocalAppColors.current
     val status = historyStatusLabel(entry.status)
+    var expanded by remember(entry.id) { mutableStateOf(false) }
+    val reusableIngredients = historyIngredientsForReuse(entry.ingredients)
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { expanded = !expanded }
             .semantics {
                 contentDescription = "${entry.name}, $status, ${historyDateLabel(entry.timestamp)}"
             },
@@ -109,7 +120,7 @@ private fun HistoryEntryCard(entry: RecipeHistory) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    text = entry.name,
+                    text = normalizeLegacyRecipeName(entry.name, L.isTr),
                     color = colors.onSurface,
                     style = MaterialTheme.typography.h6,
                     modifier = Modifier.weight(1f),
@@ -129,17 +140,31 @@ private fun HistoryEntryCard(entry: RecipeHistory) {
                 color = colors.onSurfaceSub,
                 style = MaterialTheme.typography.caption
             )
-            if (entry.ingredients.isNotBlank()) {
+            if (expanded && entry.ingredients.isNotBlank()) {
                 Spacer(Modifier.height(12.dp))
                 Divider(color = colors.divider)
                 Spacer(Modifier.height(12.dp))
+                Text(if (L.isTr) "Malzemeler" else "Ingredients", color = colors.onSurface, style = MaterialTheme.typography.subtitle1)
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = entry.ingredients,
                     color = colors.onSurfaceSub,
                     style = MaterialTheme.typography.body2,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = Int.MAX_VALUE
                 )
+                Spacer(Modifier.height(10.dp))
+                TextButton(
+                    onClick = { onReuseIngredients(reusableIngredients) },
+                    enabled = reusableIngredients.isNotEmpty()
+                ) {
+                    Text(
+                        if (L.isTr) "Bu malzemelerle yeniden bak" else "Use these ingredients again",
+                        color = colors.primary
+                    )
+                }
+            } else if (!expanded && entry.ingredients.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(if (L.isTr) "Ayrıntılar için dokun" else "Tap for details", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
             }
         }
     }
@@ -158,3 +183,26 @@ internal fun historyDateLabel(timestamp: String): String = runCatching {
             .withLocale(if (L.isTr) Locale.forLanguageTag("tr-TR") else Locale.UK)
     )
 }.getOrElse { timestamp }
+
+internal fun normalizeLegacyRecipeName(name: String, isTurkish: Boolean): String {
+    val patterns = listOf(
+        Regex("""^(.+?) ve (.+?) Tavası$""", RegexOption.IGNORE_CASE),
+        Regex("""^(.+?) and (.+?) Sauté$""", RegexOption.IGNORE_CASE)
+    )
+    val match = patterns.firstNotNullOfOrNull { it.matchEntire(name.trim()) } ?: return name
+    val first = match.groupValues[1].trim()
+    val second = match.groupValues[2].trim()
+    if (catalogIngredientForName(first) == null || catalogIngredientForName(second) == null) return name
+    val firstLocalized = canonicalIngredientName(first, isTurkish)
+    val secondLocalized = canonicalIngredientName(second, isTurkish)
+    return if (isTurkish) "$firstLocalized ve $secondLocalized Tavası" else "$firstLocalized and $secondLocalized Sauté"
+}
+
+internal fun historyIngredientsForReuse(value: String): List<String> = value.split(',')
+    .map { item ->
+        item.trim().replace(
+            Regex("""^\d+(?:[.,]\d+)?\s+(?:g|kg|ml|l|tsp|tbsp|cup|piece|pieces|slice|slices|clove|pinch|unit|adet|diş|dilim|tutam)\s+""", RegexOption.IGNORE_CASE),
+            ""
+        ).trim()
+    }
+    .filter(String::isNotBlank)
