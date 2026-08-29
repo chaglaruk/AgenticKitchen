@@ -10,14 +10,17 @@ interface AiProviderFactory : Closeable {
 
 class DefaultAiProviderFactory(
     private val geminiFactory: (String) -> KitchenAiProvider = ::ResilientGeminiProvider,
+    private val managedProvider: KitchenAiProvider? = null,
     private val offlineProvider: KitchenAiProvider = InventoryAwareOfflineProvider(),
     private val enforceVisionSafety: Boolean = false
 ) : AiProviderFactory {
     private var geminiKey: String? = null
     private var geminiProvider: KitchenAiProvider? = null
+    private val runtimeManagedProvider: KitchenAiProvider? = managedProvider?.let(::protect)
     private val runtimeOfflineProvider: KitchenAiProvider = protect(offlineProvider)
 
     override fun provider(settings: HardwareSettings): KitchenAiProvider? = when (settings.aiProvider) {
+        "FIREBASE" -> runtimeManagedProvider ?: runtimeOfflineProvider
         "GEMINI" -> settings.geminiApiKey.takeIf(String::isNotBlank)?.let { key ->
             if (key != geminiKey) {
                 closeProvider(geminiProvider)
@@ -32,7 +35,8 @@ class DefaultAiProviderFactory(
 
     override fun close() {
         closeProvider(geminiProvider)
-        closeProvider(runtimeOfflineProvider)
+        closeProvider(runtimeManagedProvider)
+        if (runtimeManagedProvider !== runtimeOfflineProvider) closeProvider(runtimeOfflineProvider)
         geminiProvider = null
     }
 

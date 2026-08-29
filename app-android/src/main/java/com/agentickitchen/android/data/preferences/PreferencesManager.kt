@@ -51,7 +51,7 @@ class PreferencesManager(
         powerLevel = prefs.getInt("power_level", 7),
         geminiApiKey = credentialStore.getCredential(GEMINI_API_KEY).orEmpty(),
         hfApiKey = credentialStore.getCredential(HF_API_KEY).orEmpty(),
-        aiProvider = prefs.getString("ai_provider", "FREE") ?: "FREE"
+        aiProvider = prefs.getString("ai_provider", "FIREBASE") ?: "FIREBASE"
     )
 
     override fun saveHardwareSettings(settings: HardwareSettings) {

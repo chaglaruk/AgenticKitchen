@@ -5,6 +5,7 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.agentickitchen.android.ai.AiProviderFactory
 import com.agentickitchen.android.ai.DefaultAiProviderFactory
+import com.agentickitchen.android.ai.FirebaseAiRuntime
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.data.preferences.PreferencesManager
 import com.agentickitchen.android.security.CredentialStore
@@ -44,7 +45,11 @@ class AppContainer(private val app: Application) : Closeable {
     )
 
     val pantryIntelAgent: SimplePantryIntelAgent = SimplePantryIntelAgent()
-    val providerFactory: AiProviderFactory = DefaultAiProviderFactory(enforceVisionSafety = true)
+    private val managedAiProvider = FirebaseAiRuntime.create(app)
+    val providerFactory: AiProviderFactory = DefaultAiProviderFactory(
+        managedProvider = managedAiProvider,
+        enforceVisionSafety = true
+    )
 
     override fun close() {
         providerFactory.close()

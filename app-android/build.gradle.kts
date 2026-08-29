@@ -7,6 +7,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.agentickitchen.android"
     compileSdk = 36
@@ -65,6 +69,13 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
     implementation("io.ktor:ktor-client-logging:$ktorVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+
+    val firebaseBom = platform("com.google.firebase:firebase-bom:34.18.0")
+    implementation(firebaseBom)
+    implementation("com.google.firebase:firebase-ai")
+    implementation("com.google.firebase:firebase-appcheck")
+    debugImplementation("com.google.firebase:firebase-appcheck-debug")
+    releaseImplementation("com.google.firebase:firebase-appcheck-playintegrity")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     testImplementation("junit:junit:4.13.2")

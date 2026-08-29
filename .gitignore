@@ -17,6 +17,7 @@ shared/bin/
 # Android
 **/local.properties
 **/captures/
+app-android/google-services.json
 *.apk
 *.aab
 *.dex
