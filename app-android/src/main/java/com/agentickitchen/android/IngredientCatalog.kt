@@ -57,6 +57,7 @@ private fun ingredientAliases(id: String, isTurkish: Boolean): List<String> = wh
         if (isTurkish) listOf("balık") else listOf("fish")
     "potato" -> if (isTurkish) listOf("patates") else listOf("potato", "potatoes")
     "sweet-potato" -> if (isTurkish) listOf("patates", "tatlı patates") else listOf("potato", "sweet potato", "sweet potatoes")
+    "mushroom" -> if (isTurkish) listOf("mantar") else listOf("mushroom", "mushrooms")
     "button-mushroom", "oyster-mushroom", "chestnut-mushroom" ->
         if (isTurkish) listOf("mantar") else listOf("mushroom", "mushrooms")
     "cream-cheese" -> if (isTurkish) emptyList() else listOf("cream cheese")
@@ -71,7 +72,7 @@ private fun ingredientAliases(id: String, isTurkish: Boolean): List<String> = wh
 
 private fun visualKindFor(id: String, fallback: IngredientVisualKind): IngredientVisualKind = when (id) {
     "potato", "sweet-potato", "new-potato" -> IngredientVisualKind.POTATO
-    "button-mushroom", "oyster-mushroom", "chestnut-mushroom" -> IngredientVisualKind.MUSHROOM
+    "mushroom", "button-mushroom", "oyster-mushroom", "chestnut-mushroom" -> IngredientVisualKind.MUSHROOM
     "turkey" -> IngredientVisualKind.TURKEY
     "minced-beef", "beef", "lamb", "steak" -> IngredientVisualKind.RED_MEAT
     "meatballs", "sausage", "bacon", "liver", "deli-meat" -> IngredientVisualKind.MEAT
@@ -101,6 +102,7 @@ private fun visualKindFor(id: String, fallback: IngredientVisualKind): Ingredien
 
 private val catalogGroups = listOf(
     catalogCategory("meat_poultry", "Et ve tavuk", "Meat and poultry", IngredientVisualKind.CHICKEN, """
+        chicken|Tavuk|Chicken
         chicken-breast|Tavuk göğsü|Chicken breast
         chicken-thigh|Tavuk but|Chicken thighs
         chicken-drumstick|Tavuk baget|Chicken drumsticks
@@ -118,6 +120,7 @@ private val catalogGroups = listOf(
         deli-meat|Şarküteri eti|Deli meat
     """),
     catalogCategory("fish_seafood", "Balık ve deniz ürünleri", "Fish and seafood", IngredientVisualKind.FISH, """
+        fish|Balık|Fish
         salmon|Somon|Salmon
         tuna|Ton balığı|Tuna
         anchovy|Hamsi|Anchovy
@@ -179,6 +182,7 @@ private val catalogGroups = listOf(
         potato|Patates|Potato
         sweet-potato|Tatlı patates|Sweet potato
         new-potato|Taze patates|New potatoes
+        mushroom|Mantar|Mushroom
         button-mushroom|Kültür mantarı|Button mushrooms
         oyster-mushroom|İstiridye mantarı|Oyster mushrooms
         chestnut-mushroom|Kestane mantarı|Chestnut mushrooms
@@ -347,10 +351,15 @@ private fun normalizedIngredientText(value: String): String = value.lowercase(Lo
     .replace('ö', 'o').replace('Ö', 'o').replace('ç', 'c').replace('Ç', 'c')
 
 internal fun catalogIngredientForName(name: String): IngredientDefinition? {
-    val normalizedName = normalizedIngredientText(name)
+    val normalizedName = normalizedIngredientText(name.trim())
+    val primary = INGREDIENT_CATALOG.firstOrNull { ingredient ->
+        ingredient.id.equals(name.trim(), ignoreCase = true) ||
+            normalizedIngredientText(ingredient.nameTr) == normalizedName ||
+            normalizedIngredientText(ingredient.nameEn) == normalizedName
+    }
+    if (primary != null) return primary
     return INGREDIENT_CATALOG.firstOrNull { ingredient ->
-        ingredient.id == name || listOf(ingredient.nameTr, ingredient.nameEn).plus(ingredient.aliasesTr).plus(ingredient.aliasesEn)
-            .any { normalizedIngredientText(it) == normalizedName }
+        (ingredient.aliasesTr + ingredient.aliasesEn).any { normalizedIngredientText(it) == normalizedName }
     }
 }
 
@@ -364,16 +373,24 @@ internal fun searchIngredientCatalog(query: String, alreadyAdded: Collection<Str
     if (normalizedQuery.isBlank()) return emptyList()
     val added = alreadyAdded.map(::normalizedIngredientText).toSet()
     return INGREDIENT_CATALOG.mapIndexedNotNull { index, ingredient ->
-        val currentFields = if (isTurkish) listOf(ingredient.nameTr) + ingredient.aliasesTr else listOf(ingredient.nameEn) + ingredient.aliasesEn
-        val fallbackFields = if (isTurkish) listOf(ingredient.nameEn) + ingredient.aliasesEn else listOf(ingredient.nameTr) + ingredient.aliasesTr
-        val normalizedCurrent = currentFields.map(::normalizedIngredientText)
-        val normalizedFallback = fallbackFields.map(::normalizedIngredientText)
+        val currentName = normalizedIngredientText(if (isTurkish) ingredient.nameTr else ingredient.nameEn)
+        val currentAliases = (if (isTurkish) ingredient.aliasesTr else ingredient.aliasesEn).map(::normalizedIngredientText)
+        val fallbackName = normalizedIngredientText(if (isTurkish) ingredient.nameEn else ingredient.nameTr)
+        val fallbackAliases = (if (isTurkish) ingredient.aliasesEn else ingredient.aliasesTr).map(::normalizedIngredientText)
         val alreadyPresent = listOf(ingredient.nameTr, ingredient.nameEn).map(::normalizedIngredientText).any { it in added }
         val score = when {
-            normalizedCurrent.any { it.startsWith(normalizedQuery) } -> 0
-            normalizedCurrent.any { normalizedQuery in it } -> 1
-            normalizedFallback.any { it.startsWith(normalizedQuery) } -> 2
-            normalizedFallback.any { normalizedQuery in it } -> 3
+            currentName == normalizedQuery -> 0
+            currentName.startsWith(normalizedQuery) -> 1
+            currentAliases.any { it == normalizedQuery } -> 2
+            normalizedQuery in currentName -> 3
+            currentAliases.any { it.startsWith(normalizedQuery) } -> 4
+            currentAliases.any { normalizedQuery in it } -> 5
+            fallbackName == normalizedQuery -> 6
+            fallbackName.startsWith(normalizedQuery) -> 7
+            fallbackAliases.any { it == normalizedQuery } -> 8
+            normalizedQuery in fallbackName -> 9
+            fallbackAliases.any { it.startsWith(normalizedQuery) } -> 10
+            fallbackAliases.any { normalizedQuery in it } -> 11
             else -> return@mapIndexedNotNull null
         }
         if (alreadyPresent) null else Triple(score, index, ingredient)
