@@ -1,6 +1,7 @@
 package com.agentickitchen.android.ai
 
 import com.agentickitchen.shared.ai.AiFailureType
+import com.agentickitchen.shared.ai.AiProviderId
 import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.KitchenImage
@@ -12,8 +13,12 @@ import org.junit.Test
 
 class FirebaseAiProviderTest {
     @Test
-    fun `recipe options are parsed from managed model JSON`() = runBlocking {
-        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _ -> recipeOptionsJson })
+    fun `recipe options use reasoning schema and preserve managed model attribution`() = runBlocking {
+        var responseKind: FirebaseResponseKind? = null
+        val provider = FirebaseAiProvider(FirebaseModelGateway { kind, _, _ ->
+            responseKind = kind
+            FirebaseGatewayResponse(recipeOptionsJson, "reasoning-test-model")
+        })
 
         val result = provider.generateRecipeOptions(
             RecipeOptionsRequest(
@@ -26,13 +31,21 @@ class FirebaseAiProviderTest {
         )
 
         assertTrue(result is AiResult.Success)
+        assertEquals(FirebaseResponseKind.RECIPE_OPTIONS, responseKind)
+        assertEquals(FirebaseAiTask.REASONING, responseKind?.task)
         assertEquals(3, result.getOrNull()?.options?.size)
         assertEquals("Pirinç ve Soğan Tavası", result.getOrNull()?.options?.first()?.name)
+        assertEquals(AiProviderId.FIREBASE, (result as AiResult.Success).provider)
+        assertEquals("reasoning-test-model", result.model)
     }
 
     @Test
-    fun `cooking plan is parsed from managed model JSON`() = runBlocking {
-        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _ -> cookingPlanJson })
+    fun `cooking plan uses reasoning response kind`() = runBlocking {
+        var responseKind: FirebaseResponseKind? = null
+        val provider = FirebaseAiProvider(FirebaseModelGateway { kind, _, _ ->
+            responseKind = kind
+            FirebaseGatewayResponse(cookingPlanJson, "reasoning-test-model")
+        })
 
         val result = provider.generateCookingPlan(
             CookingPlanRequest(
@@ -52,16 +65,23 @@ class FirebaseAiProviderTest {
         )
 
         assertTrue(result is AiResult.Success)
+        assertEquals(FirebaseResponseKind.COOKING_PLAN, responseKind)
+        assertEquals(FirebaseAiTask.REASONING, responseKind?.task)
         assertEquals("Pirinç ve Soğan Tavası", result.getOrNull()?.recipeName)
         assertEquals("Pirinç", result.getOrNull()?.ingredients?.first()?.name)
     }
 
     @Test
-    fun `photo request is forwarded to managed gateway`() = runBlocking {
+    fun `shopping photo uses extraction model class and forwards image`() = runBlocking {
         var imageSeen = false
-        val provider = FirebaseAiProvider(FirebaseModelGateway { _, image ->
+        var responseKind: FirebaseResponseKind? = null
+        val provider = FirebaseAiProvider(FirebaseModelGateway { kind, _, image ->
+            responseKind = kind
             imageSeen = image?.bytes?.contentEquals(byteArrayOf(1, 2, 3)) == true
-            """{"items":[{"displayName":"Domates","quantity":2.0,"unit":"adet","confidence":0.9,"estimated":false}]}"""
+            FirebaseGatewayResponse(
+                """{"items":[{"displayName":"Domates","quantity":2.0,"unit":"adet","unitDimension":"count","confidence":0.9,"estimated":false}]}""",
+                "extraction-test-model"
+            )
         })
 
         val result = provider.scanShoppingPhoto(
@@ -72,12 +92,21 @@ class FirebaseAiProviderTest {
         )
 
         assertTrue(imageSeen)
+        assertEquals(FirebaseResponseKind.SHOPPING_IMPORT, responseKind)
+        assertEquals(FirebaseAiTask.EXTRACTION, responseKind?.task)
         assertTrue(result is AiResult.Success)
     }
 
     @Test
+    fun `cooking photo uses vision model class`() {
+        assertEquals(FirebaseAiTask.VISION, FirebaseResponseKind.COOKING_PHOTO.task)
+    }
+
+    @Test
     fun `malformed JSON maps to invalid response`() = runBlocking {
-        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _ -> "not-json" })
+        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+            FirebaseGatewayResponse("not-json", "test-model")
+        })
 
         val result = provider.generateRecipeOptions(
             RecipeOptionsRequest(emptyList(), emptySet(), "none", emptySet(), "Türkçe")
@@ -88,7 +117,9 @@ class FirebaseAiProviderTest {
 
     @Test
     fun `blank managed response maps to invalid response`() = runBlocking {
-        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _ -> "" })
+        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+            FirebaseGatewayResponse("", "test-model")
+        })
         val result = provider.testConnection()
         assertEquals(AiFailureType.InvalidResponse, result.failureOrNull()?.type)
     }
@@ -96,16 +127,16 @@ class FirebaseAiProviderTest {
     private companion object {
         val recipeOptionsJson = """
             {"options":[
-              {"id":"r1","name":"Pirinç ve Soğan Tavası","summary":"Pratik tava yemeği","difficulty":"easy","estimatedMinutes":20,"requiredEquipment":["pan"],"missingIngredients":[]},
-              {"id":"r2","name":"Sebzeli Pirinç","summary":"Sebzeli sıcak kase","difficulty":"easy","estimatedMinutes":25,"requiredEquipment":["pan"],"missingIngredients":[]},
-              {"id":"r3","name":"Soğanlı Pirinç","summary":"Sade ve hızlı","difficulty":"easy","estimatedMinutes":18,"requiredEquipment":["pan"],"missingIngredients":[]}
+              {"id":"r1","name":"Pirinç ve Soğan Tavası","summary":"Pratik tava yemeği","difficulty":"easy","estimatedMinutes":20,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]},
+              {"id":"r2","name":"Sebzeli Pirinç","summary":"Sebzeli sıcak kase","difficulty":"easy","estimatedMinutes":25,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]},
+              {"id":"r3","name":"Soğanlı Pirinç","summary":"Sade ve hızlı","difficulty":"easy","estimatedMinutes":18,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]}
             ]}
         """.trimIndent()
 
         val cookingPlanJson = """
             {"recipeName":"Pirinç ve Soğan Tavası","servings":2,
              "ingredients":[{"name":"Pirinç","quantity":100.0,"unit":"g"},{"name":"Soğan","quantity":1.0,"unit":"adet"}],
-             "steps":[{"id":"step_1","type":"prep","instruction":"Pirinci yıka ve süz.","resource":"counter","durationSeconds":120}],
+             "steps":[{"id":"step_1","type":"prep","instruction":"Pirinci yıka ve süz.","resource":"counter","durationSeconds":120,"dependsOn":[],"visionCheckpointRecommended":false}],
              "safetyNotes":[]}
         """.trimIndent()
     }
