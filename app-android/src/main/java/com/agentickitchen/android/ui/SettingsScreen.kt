@@ -239,7 +239,8 @@ private fun dietSummary(diet: DietSettings): String {
 private fun EditorialSettingsMasthead() {
     val colors = LocalAppColors.current
     Column(modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 30.dp, bottom = 34.dp)) {
-        Text(if (L.isTr) "MUTFAK DEFTERİ" else "KITCHEN NOTES", color = colors.primary, style = MaterialTheme.typography.caption)
+        EditorialBrandLockup()
+        Spacer(Modifier.size(18.dp))
         Spacer(Modifier.size(10.dp))
         Text(if (L.isTr) "Ayarlar" else "Settings", color = colors.onSurface, style = MaterialTheme.typography.h1)
         Spacer(Modifier.size(10.dp))
@@ -361,7 +362,7 @@ fun HardwareDialog(
 
     EditorialDialogSurface(onDismiss) {
         EditorialDialogHeader(if (L.isTr) "Donanım profili" else "Hardware profile", onDismiss)
-        Text(if (L.isTr) "Yapay zekâ sağlayıcısı" else "AI provider", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+        Text(if (L.isTr) "Tarif sağlayıcısı" else "Recipe provider", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
         Spacer(Modifier.size(8.dp))
         listOf(
             CookingProviderSelection.Gemini to "Google Gemini",

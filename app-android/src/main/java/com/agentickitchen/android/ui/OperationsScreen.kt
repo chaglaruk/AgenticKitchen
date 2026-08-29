@@ -122,6 +122,8 @@ fun OperationsScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
+        EditorialBrandLockup()
+        Spacer(Modifier.height(20.dp))
         val recipeName = cookingState.recipeName.ifBlank {
             (planState as? PlanState.RecipeActive)?.recipe?.name.orEmpty()
         }

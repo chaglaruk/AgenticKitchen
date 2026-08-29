@@ -104,6 +104,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -213,7 +214,7 @@ fun HomeScreen(
 
         item(span = { GridItemSpan(maxLineSpan) }) {
             EditorialSectionHeading(
-                eyebrow = if (L.isTr) "TARİF TASLAĞI" else "RECIPE DRAFT",
+                eyebrow = if (L.isTr) "SEÇİMLERİN" else "YOUR PICKS",
                 title = if (L.isTr) "Seçtiğin malzemeler" else "Selected ingredients"
             )
         }
@@ -679,9 +680,11 @@ private fun EditorialHomeHeader(chips: List<String>, modifier: Modifier = Modifi
             EditorialBrandLockup()
             Spacer(Modifier.height(10.dp))
             Text(
-                if (L.isTr) "Bu akşam ne pişiriyoruz?" else "What are we cooking tonight?",
+                if (L.isTr) "Bu akşam ne pişirsek?" else "What are we cooking tonight?",
                 color = colors.onBackground,
-                style = MaterialTheme.typography.h1
+                style = MaterialTheme.typography.h1.copy(fontSize = 30.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(10.dp))
             Text(
