@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class AiProviderId(val label: String) {
+    FIREBASE("Firebase AI"),
     GEMINI("Google Gemini"),
     HUGGINGFACE("Hugging Face"),
     FREE("Offline"),
