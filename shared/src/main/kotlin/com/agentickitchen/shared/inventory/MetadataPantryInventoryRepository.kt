@@ -11,8 +11,11 @@ class MetadataPantryInventoryRepository(
     override fun getAll(): List<PantryStockItem> = delegate.getAll().map(::attachMetadata)
 
     override fun upsert(item: PantryStockItem, adjustment: InventoryAdjustmentRecord) {
+        val existingMetadata = queries.selectPantryItemMetadata(item.id).executeAsOneOrNull()
         delegate.upsert(item, adjustment)
-        upsertMetadata(item)
+        if (existingMetadata == null) {
+            upsertMetadata(item)
+        }
     }
 
     override fun delete(item: PantryStockItem, adjustment: InventoryAdjustmentRecord) {
@@ -31,8 +34,11 @@ class MetadataPantryInventoryRepository(
     override fun deletePendingUsage(sessionId: String) = delegate.deletePendingUsage(sessionId)
 
     override fun applyMutations(mutations: List<InventoryMutation>) {
+        val newIds = mutations.filter { queries.selectPantryItemMetadata(it.item.id).executeAsOneOrNull() == null }
+            .map { it.item.id }
+            .toSet()
         delegate.applyMutations(mutations)
-        mutations.forEach { upsertMetadata(it.item) }
+        mutations.filter { it.item.id in newIds }.forEach { upsertMetadata(it.item) }
     }
 
     override fun reserve(usages: List<PendingRecipeUsageRecord>): Boolean = delegate.reserve(usages)
@@ -49,6 +55,11 @@ class MetadataPantryInventoryRepository(
     override fun getAllActiveSessions(): List<ActiveCookingSessionRecord> = delegate.getAllActiveSessions()
 
     override fun deleteActiveSession(sessionId: String) = delegate.deleteActiveSession(sessionId)
+
+    override fun updateMetadata(item: PantryStockItem): Boolean = runCatching {
+        upsertMetadata(item)
+        true
+    }.getOrDefault(false)
 
     private fun attachMetadata(item: PantryStockItem): PantryStockItem {
         val metadata = queries.selectPantryItemMetadata(item.id).executeAsOneOrNull() ?: return item

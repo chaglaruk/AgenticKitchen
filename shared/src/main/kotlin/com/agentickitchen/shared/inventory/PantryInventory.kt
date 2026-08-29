@@ -131,4 +131,5 @@ interface PantryInventoryRepository {
     fun getActiveSession(sessionId: String): ActiveCookingSessionRecord?
     fun getAllActiveSessions(): List<ActiveCookingSessionRecord>
     fun deleteActiveSession(sessionId: String)
+    fun updateMetadata(item: PantryStockItem): Boolean = false
 }

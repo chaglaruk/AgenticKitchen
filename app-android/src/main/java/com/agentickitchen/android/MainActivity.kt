@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import com.agentickitchen.android.app.AgenticKitchenApp
 import com.agentickitchen.android.app.AppViewModelFactory
 import com.agentickitchen.android.ui.AgenticTheme
@@ -37,6 +38,7 @@ import com.agentickitchen.android.ui.EditorialBottomBar
 import com.agentickitchen.android.ui.EditorialNavItem
 import com.agentickitchen.android.ui.HistoryScreen
 import com.agentickitchen.android.ui.HomeScreen
+import com.agentickitchen.android.ui.KitchenHubScreen
 import com.agentickitchen.android.ui.LocalAppColors
 import com.agentickitchen.android.ui.OperationsScreen
 import com.agentickitchen.android.ui.OptionsScreen
@@ -208,6 +210,7 @@ fun AppNavigation(
     backEnabled: Boolean = true
 ) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Intelligence) }
+    val app = LocalContext.current.applicationContext as AgenticKitchenApp
 
     val chips by viewModel.chips.collectAsState()
     val inventory by viewModel.inventory.collectAsState()
@@ -285,35 +288,47 @@ fun AppNavigation(
                 .padding(padding)
         ) {
             when (currentScreen) {
-                Screen.Intelligence -> HomeScreen(
-                    chips = chips,
+                Screen.Intelligence -> KitchenHubScreen(
                     inventory = inventory,
-                    inventoryAdjustments = inventoryAdjustments,
-                    shoppingImportState = shoppingImportState,
-                    scannedIngredients = scannedIngredients,
-                    pantryIntel = pantryIntel,
-                    onScanImage = viewModel::scanIngredients,
-                    onClearScannedIngredients = viewModel::clearScannedIngredients,
-                    onAddChip = viewModel::addChip,
-                    onAddMultipleChips = viewModel::addMultipleChips,
-                    onRemoveChip = viewModel::removeChip,
                     onSaveInventoryItem = viewModel::saveInventoryItem,
                     onDeleteInventoryItem = viewModel::deleteInventoryItem,
-                    onImportShoppingText = viewModel::importShoppingText,
-                    onImportShoppingPhoto = viewModel::importShoppingPhoto,
-                    onConfirmShoppingImport = viewModel::confirmShoppingImport,
-                    onClearShoppingImport = viewModel::clearShoppingImport,
-                    onConfigureGemini = onConfigureGemini,
-                    onStartInventorySession = { request ->
-                        currentScreen = Screen.Options
-                        viewModel.startInventorySession(request)
+                    onUpdateMetadata = { item ->
+                        val updated = app.container.pantryInventoryRepository.updateMetadata(item)
+                        if (updated) viewModel.refreshInventory()
+                        updated
                     },
-                    onClearAll = viewModel::clearAll,
-                    onStart = {
-                        currentScreen = Screen.Options
-                        viewModel.startSession()
-                    },
-                    onEditSetup = viewModel::startEditingSetup
+                    homeContent = {
+                        HomeScreen(
+                            chips = chips,
+                            inventory = inventory,
+                            inventoryAdjustments = inventoryAdjustments,
+                            shoppingImportState = shoppingImportState,
+                            scannedIngredients = scannedIngredients,
+                            pantryIntel = pantryIntel,
+                            onScanImage = viewModel::scanIngredients,
+                            onClearScannedIngredients = viewModel::clearScannedIngredients,
+                            onAddChip = viewModel::addChip,
+                            onAddMultipleChips = viewModel::addMultipleChips,
+                            onRemoveChip = viewModel::removeChip,
+                            onSaveInventoryItem = viewModel::saveInventoryItem,
+                            onDeleteInventoryItem = viewModel::deleteInventoryItem,
+                            onImportShoppingText = viewModel::importShoppingText,
+                            onImportShoppingPhoto = viewModel::importShoppingPhoto,
+                            onConfirmShoppingImport = viewModel::confirmShoppingImport,
+                            onClearShoppingImport = viewModel::clearShoppingImport,
+                            onConfigureGemini = onConfigureGemini,
+                            onStartInventorySession = { request ->
+                                currentScreen = Screen.Options
+                                viewModel.startInventorySession(request)
+                            },
+                            onClearAll = viewModel::clearAll,
+                            onStart = {
+                                currentScreen = Screen.Options
+                                viewModel.startSession()
+                            },
+                            onEditSetup = viewModel::startEditingSetup
+                        )
+                    }
                 )
 
                 Screen.Options -> OptionsScreen(

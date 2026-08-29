@@ -73,6 +73,45 @@ class MetadataPantryInventoryRepositoryTest {
         assertNull(restored.useBy)
     }
 
+    @Test
+    fun regularQuantityUpsertPreservesExistingMetadata() {
+        repository.upsert(
+            item(PantryLocation.FRIDGE, bestBefore = "2026-09-02"),
+            adjustment()
+        )
+        repository.updateMetadata(
+            item(PantryLocation.FREEZER, useBy = "2026-09-01")
+        )
+
+        val quantityOnlyUpdate = item().copy(quantity = 350.0, updatedAt = "2026-08-31T00:00:00Z")
+        repository.upsert(
+            quantityOnlyUpdate,
+            adjustment(id = "adjustment-2", amount = 350.0, reason = AdjustmentReason.RECOUNT)
+        )
+
+        val restored = repository.getAll().single()
+        assertEquals(350.0, restored.quantity)
+        assertEquals(PantryLocation.FREEZER, restored.location)
+        assertNull(restored.bestBefore)
+        assertEquals("2026-09-01", restored.useBy)
+    }
+
+    @Test
+    fun explicitMetadataUpdateCanMoveItemBackToPantryAndClearDates() {
+        repository.upsert(
+            item(PantryLocation.FRIDGE, useBy = "2026-09-01"),
+            adjustment()
+        )
+
+        val changed = repository.updateMetadata(item(PantryLocation.PANTRY))
+
+        assertEquals(true, changed)
+        val restored = repository.getAll().single()
+        assertEquals(PantryLocation.PANTRY, restored.location)
+        assertNull(restored.bestBefore)
+        assertNull(restored.useBy)
+    }
+
     private fun item(
         location: PantryLocation = PantryLocation.PANTRY,
         customLocationLabel: String? = null,
@@ -93,12 +132,16 @@ class MetadataPantryInventoryRepositoryTest {
         useBy = useBy
     )
 
-    private fun adjustment() = InventoryAdjustmentRecord(
-        id = "adjustment-1",
+    private fun adjustment(
+        id: String = "adjustment-1",
+        amount: Double = 500.0,
+        reason: AdjustmentReason = AdjustmentReason.MANUAL_ADD
+    ) = InventoryAdjustmentRecord(
+        id = id,
         itemId = "item-1",
-        amount = 500.0,
+        amount = amount,
         mode = AdjustmentMode.DELTA,
-        reason = AdjustmentReason.MANUAL_ADD,
+        reason = reason,
         source = "test",
         timestamp = "2026-08-30T00:00:00Z"
     )
