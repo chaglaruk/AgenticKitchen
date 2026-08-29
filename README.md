@@ -6,43 +6,56 @@ Android smart-chef assistant built with Kotlin and Jetpack Compose.
 
 - **Implemented and integrated**: invoked by the installed application runtime.
 - **Foundation only**: contract or class exists but the runtime does not use it.
-- **Experimental**: invoked at runtime but not production-grade.
+- **Experimental**: invoked at runtime but still requires production or physical validation.
 - **Planned**: not implemented.
 
 ## Current runtime state
 
 ### Implemented and integrated
 
-- Ingredient entry, pantry analysis, setup/preferences, themes, and local Compose navigation.
-- Legacy AI-provider calls and legacy recipe-option/cooking-plan flow.
+- Ingredient entry, persistent SQLDelight pantry inventory, pantry-aware recipe requests, setup/preferences, themes, and local Compose navigation.
+- Pantry reservations plus planned/actual consumption and cancellation flows.
+- Typed recipe options and cooking plans with structured parsing, deterministic validation, target-time resolution, and scheduling.
+- Persistent cooking sessions with start/pause/resume/complete/skip/end and recovery support.
+- Cooking history and recipe reuse paths.
 - App-owned dependency injection: `AgenticKitchenApp` → `AppContainer` → `AppViewModelFactory` → `AppViewModel`.
-- Typed settings and SQLDelight recipe-history access through injected abstractions.
+- Android-Keystore AES-GCM credential storage with legacy plaintext migration for direct Gemini BYOK.
+- Provider selection with managed Firebase AI Logic, direct Gemini BYOK, and deterministic offline fallback.
+- Managed Firebase requests use task-aware model routing, Remote Config model selection, App Check integration, and SDK response schemas plus application validation.
 
-### Experimental
+### Experimental / verification pending
 
-- Camera ingredient analysis: provider reliability and user-confirmation handling are incomplete.
-- Free AI providers: availability and output reliability are not guaranteed.
+- Managed Firebase AI Logic is integrated in source, but exact-head real-device/App Check verification is still required before the managed path is labelled physically VERIFIED.
+- Camera ingredient and cooking-photo paths remain safety-sensitive and require explicit review/confirmation; vision output is not treated as authoritative food-safety or doneness evidence.
 
-### Foundation only
+### Foundation only / incomplete
 
-- `SecureCredentialStore`: credentials are still loaded from ordinary preferences; the current implementation also relies on deprecated AndroidX crypto APIs.
-- `AiResult<T>`, provider architecture, structured DTOs, `PromptFactory`, and `CookingPlanValidator`: classes exist, but the runtime still uses legacy provider and parsing paths.
-- `TargetTimeChoice` and `TargetTimeResolver`: classes and unit tests exist, but option selection still passes a string and the ViewModel parses it.
-- Android string-resource localization: resources exist, but user-visible text still uses the `L` object and hardcoded UI text.
+- Android string-resource localization remains incomplete; user-visible text still includes `L`-based and hardcoded Compose copy.
+- Notification lifecycle and lock-screen cooking controls are not yet integrated.
 
 ### Planned
 
-- Persistent cooking-session runtime, history UI, and timer notifications.
-- Keystore-backed credential encryption and plaintext migration.
-- Complete resource localization and per-app language switching.
+The product roadmap now prioritizes:
+
+- expiry/use-soon pantry state and pantry locations;
+- deterministic Ready / Missing 1 / Missing 2 recipe matching and ranking;
+- pantry-aware structured substitutions and Smart Shopping;
+- multi-photo kitchen scanning;
+- recipe import and My Recipes;
+- targeted Home, Pantry, Recipe Options, Recipe Detail, and Cooking Mode UI refinement;
+- receipt-to-pantry and a deliberately small weekly meal planner;
+- later hands-free/voice features after core reliability is proven.
+
+See [Roadmap](docs/ROADMAP.md) for execution order, AI cost controls, UI principles, and the Free + Pro monetization direction.
 
 ## Build requirements
 
-Verified matrix: AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3.21, Compose BOM 2026.06.00, JDK 17, `compileSdk` 36, and `targetSdk` 36. The unsupported-SDK suppression has been removed.
+Verified matrix: AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3.21, Compose BOM 2026.06.00, JDK 17, `compileSdk` 36, and `targetSdk` 36.
 
 ## Local verification
 
 ```bash
+./gradlew clean
 ./gradlew :shared:test
 ./gradlew :app-android:testDebugUnitTest
 ./gradlew :app-android:lintDebug
@@ -50,13 +63,17 @@ Verified matrix: AGP 8.13.2, Gradle 8.13, Kotlin and Compose compiler plugin 2.3
 ./gradlew build
 ```
 
+Passing repository automation establishes automated verification only. Source changes that affect device behaviour require appropriately scoped exact-head physical evidence before inheriting a physical VERIFIED status.
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Implementation plan and verification boundary](docs/IMPLEMENTATION_PLAN.md)
+- [Firebase AI setup](docs/FIREBASE_AI_SETUP.md)
 - [Project state](docs/PROJECT_STATE.md)
 - [Security](docs/SECURITY.md)
 - [External setup](docs/EXTERNAL_SETUP.md)
 - [Product](docs/PRODUCT.md)
 - [Roadmap](docs/ROADMAP.md)
 
-No production-food-safety certification is claimed. Do not use the experimental AI or vision output without review.
+No production-food-safety certification is claimed. AI and vision output must remain subject to application validation and user judgement.
