@@ -123,11 +123,12 @@ class AppViewModelTest {
 
         CookingProviderSelection.provider(factory, HardwareSettings(aiProvider = "DUCKDUCKGO"))
 
-        assertEquals(CookingProviderSelection.Free, factory.receivedProviderId)
+        assertEquals(CookingProviderSelection.Firebase, factory.receivedProviderId)
         assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = "DUCKDUCKGO")))
+        assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.Firebase)))
         assertTrue(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = CookingProviderSelection.Gemini)))
         assertFalse(CookingProviderSelection.needsApiKey(HardwareSettings(aiProvider = "HUGGINGFACE")))
-        assertEquals(CookingProviderSelection.Free, CookingProviderSelection.normalize("LEGACY"))
+        assertEquals(CookingProviderSelection.Firebase, CookingProviderSelection.normalize("LEGACY"))
     }
 
     @Test

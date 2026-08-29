@@ -365,7 +365,8 @@ fun HardwareDialog(
         Text(if (L.isTr) "Tarif sağlayıcısı" else "Recipe provider", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
         Spacer(Modifier.size(8.dp))
         listOf(
-            CookingProviderSelection.Gemini to "Google Gemini",
+            CookingProviderSelection.Firebase to "Firebase AI",
+            CookingProviderSelection.Gemini to if (L.isTr) "Google Gemini · kendi anahtarın" else "Google Gemini · your API key",
             CookingProviderSelection.Free to if (L.isTr) "Çevrimdışı" else "Offline"
         ).forEach { (key, label) ->
             EditorialProviderOption(
@@ -377,7 +378,13 @@ fun HardwareDialog(
 
         Spacer(Modifier.size(14.dp))
         when (aiProvider) {
-            "GEMINI" -> CredentialField(
+            CookingProviderSelection.Firebase -> Text(
+                if (L.isTr) "Yönetilen Gemini erişimi. Kişisel API anahtarı gerekmez; Firebase yapılandırması yoksa çevrimdışı moda düşer." else "Managed Gemini access. No personal API key is required; if Firebase is not configured, the app falls back offline.",
+                color = colors.success,
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+            CookingProviderSelection.Gemini -> CredentialField(
                 value = geminiKey,
                 onValueChange = { geminiKey = it },
                 label = "Gemini API Key",
@@ -393,13 +400,13 @@ fun HardwareDialog(
                 modifier = Modifier.padding(vertical = 8.dp)
             )
         }
-        if (aiProvider == CookingProviderSelection.Gemini) {
+        if (aiProvider == CookingProviderSelection.Firebase || aiProvider == CookingProviderSelection.Gemini) {
             Spacer(Modifier.height(10.dp))
             TextButton(
                 onClick = {
                     onTestConnection(
                         current.copy(
-                            aiProvider = CookingProviderSelection.Gemini,
+                            aiProvider = aiProvider,
                             geminiApiKey = geminiKey
                         )
                     )

@@ -207,16 +207,17 @@ data class HardwareSettings(
     val powerLevel: Int = 7,
     val geminiApiKey: String = "",
     val hfApiKey: String = "",
-    val aiProvider: String = "FREE"
+    val aiProvider: String = "FIREBASE"
 )
 
 object CookingProviderSelection {
+    const val Firebase = "FIREBASE"
     const val Gemini = "GEMINI"
     const val Free = "FREE"
 
-    private val supportedIds = setOf(Gemini, Free)
+    private val supportedIds = setOf(Firebase, Gemini, Free)
 
-    fun normalize(providerId: String): String = providerId.takeIf { it in supportedIds } ?: Free
+    fun normalize(providerId: String): String = providerId.takeIf { it in supportedIds } ?: Firebase
 
     fun needsApiKey(settings: HardwareSettings): Boolean = when (normalize(settings.aiProvider)) {
         Gemini -> settings.geminiApiKey.isBlank()
