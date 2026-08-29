@@ -69,7 +69,7 @@ The `1c0cb4dc440d1702c0ff986547933ad96b5c9aff` package independently established
 
 The defect was fixed by commit `b5f751b4909299eef33dd575bbfbf6e30a26de8a`. A final narrow exact-SHA evidence package, `AgenticKitchen_b5f7_idle_evidence.zip`, was independently inspected. Its screenshot and identical pre/post UIAutomator XML show package `com.agentickitchen.android`, visible idle text `Henüz pişirilen bir tarif yok.`, and absence of stale recipe/terminal/READY text including `Şimdi pişiriyoruz`, `Afiyet olsun.`, `Pişirme adımları tamamlandı.`, `Tarif hazır.`, `Adımları başlatmaya hazırsın.`, and `Pişirmeye Başla`.
 
-Therefore the **targeted physical-acceptance gate is closed for source-behavior SHA `b5f751b4909299eef33dd575bbfbf6e30a26de8a`**. The subsequent docs-only commit `b3136b91c89e3e22e80e337cb7c2f6dcd3e7a7d8` does not alter the APK/source behaviour; its push CI #253 (`33222633935`) and PR CI #254 (`33222636400`) both completed successfully.
+Therefore the **targeted physical-acceptance gate is closed for source-behavior SHA `b5f751b4909299eef33dd575bbfbf6e30a26de8a`**. The subsequent documentation-only commits do not alter APK/source behaviour. Their CI is tracked in PR metadata rather than in this document to avoid creating a self-referential documentation/CI commit loop.
 
 ## Verification required before source changes are considered complete
 
