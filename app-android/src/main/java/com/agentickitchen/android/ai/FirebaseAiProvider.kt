@@ -39,22 +39,41 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.io.IOException
 
+internal data class FirebaseGatewayResponse(
+    val text: String,
+    val modelName: String
+)
+
 internal fun interface FirebaseModelGateway {
-    suspend fun generate(prompt: String, image: KitchenImage?): String
+    suspend fun generate(
+        kind: FirebaseResponseKind,
+        prompt: String,
+        image: KitchenImage?
+    ): FirebaseGatewayResponse
 }
 
-internal class FirebaseSdkModelGateway(firebaseApp: FirebaseApp) : FirebaseModelGateway {
-    private val model = Firebase.ai(
+internal class FirebaseSdkModelGateway(
+    firebaseApp: FirebaseApp,
+    private val modelConfig: FirebaseAiModelConfig = FirebaseRemoteModelConfig(firebaseApp)
+) : FirebaseModelGateway {
+    private val ai = Firebase.ai(
         app = firebaseApp,
         backend = GenerativeBackend.googleAI()
-    ).generativeModel(
-        modelName = FirebaseAiProvider.MODEL,
-        generationConfig = generationConfig {
-            responseMimeType = "application/json"
-        }
     )
 
-    override suspend fun generate(prompt: String, image: KitchenImage?): String {
+    override suspend fun generate(
+        kind: FirebaseResponseKind,
+        prompt: String,
+        image: KitchenImage?
+    ): FirebaseGatewayResponse {
+        val modelName = modelConfig.modelFor(kind.task)
+        val model = ai.generativeModel(
+            modelName = modelName,
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                responseSchema = kind.schema
+            }
+        )
         val response = if (image == null) {
             model.generateContent(prompt)
         } else {
@@ -65,7 +84,7 @@ internal class FirebaseSdkModelGateway(firebaseApp: FirebaseApp) : FirebaseModel
                 }
             )
         }
-        return response.text.orEmpty()
+        return FirebaseGatewayResponse(response.text.orEmpty(), modelName)
     }
 }
 
@@ -77,6 +96,7 @@ class FirebaseAiProvider internal constructor(
 
     override suspend fun generateRecipeOptions(request: RecipeOptionsRequest): AiResult<RecipeOptionsResponse> =
         structured(
+            kind = FirebaseResponseKind.RECIPE_OPTIONS,
             prompt = PromptFactory.recipeOptionsPrompt(
                 request.ingredients,
                 request.equipment,
@@ -97,6 +117,7 @@ class FirebaseAiProvider internal constructor(
 
     override suspend fun generateCookingPlan(request: CookingPlanRequest): AiResult<CookingPlanResponse> =
         structured(
+            kind = FirebaseResponseKind.COOKING_PLAN,
             prompt = PromptFactory.cookingPlanPrompt(
                 request.recipeName,
                 request.ingredients,
@@ -126,6 +147,7 @@ class FirebaseAiProvider internal constructor(
 
     override suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse> =
         structured(
+            kind = FirebaseResponseKind.SHOPPING_IMPORT,
             prompt = """Parse this shopping text into only explicitly stated food items.
 Language: ${request.language}
 Text: ${request.text}
@@ -137,6 +159,7 @@ Return only valid JSON for the app's shopping import schema.""",
 
     override suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse> =
         structured(
+            kind = FirebaseResponseKind.SHOPPING_IMPORT,
             prompt = """Inspect this shopping or kitchen photo.
 Language: ${request.language}
 Return only food items visibly supported by the image.
@@ -149,6 +172,7 @@ Return only valid JSON for the app's shopping import schema.""",
 
     override suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse> =
         structured(
+            kind = FirebaseResponseKind.COOKING_PHOTO,
             prompt = cookingContext(
                 request.recipeName,
                 request.plan.toString(),
@@ -172,6 +196,7 @@ Return only valid JSON for the app's shopping import schema.""",
 
     override suspend fun askCookingAssistant(request: CookingChatRequest): AiResult<CookingChatResponse> =
         structured(
+            kind = FirebaseResponseKind.COOKING_CHAT,
             prompt = cookingContext(
                 request.recipeName,
                 request.plan.toString(),
@@ -187,21 +212,27 @@ Return only valid JSON for the app's shopping import schema.""",
             validate = { it.answer.isNotBlank() }
         )
 
-    override suspend fun testConnection(): AiResult<Unit> = when (val result = invoke("""Reply only with valid JSON: {"status":"ok"}""")) {
-        is AiResult.Success -> AiResult.Success(Unit, AiProviderId.GEMINI, MODEL)
+    override suspend fun testConnection(): AiResult<Unit> = when (
+        val result = invoke(
+            FirebaseResponseKind.CONNECTION_TEST,
+            """Reply only with valid JSON: {"status":"ok"}"""
+        )
+    ) {
+        is AiResult.Success -> AiResult.Success(Unit, AiProviderId.FIREBASE, result.model)
         is AiResult.Failure -> result
     }
 
     private suspend fun <T> structured(
+        kind: FirebaseResponseKind,
         prompt: String,
         image: KitchenImage? = null,
         decode: (String) -> T,
         validate: (T) -> Boolean
-    ): AiResult<T> = when (val result = invoke(prompt, image)) {
+    ): AiResult<T> = when (val result = invoke(kind, prompt, image)) {
         is AiResult.Failure -> result
         is AiResult.Success -> try {
             val decoded = decode(result.value)
-            if (validate(decoded)) AiResult.Success(decoded, AiProviderId.GEMINI, MODEL)
+            if (validate(decoded)) AiResult.Success(decoded, AiProviderId.FIREBASE, result.model)
             else failure(AiFailureType.InvalidResponse, false)
         } catch (_: SerializationException) {
             failure(AiFailureType.InvalidResponse, true)
@@ -210,13 +241,18 @@ Return only valid JSON for the app's shopping import schema.""",
         }
     }
 
-    private suspend fun invoke(prompt: String, image: KitchenImage? = null): AiResult<String> {
+    private suspend fun invoke(
+        kind: FirebaseResponseKind,
+        prompt: String,
+        image: KitchenImage? = null
+    ): AiResult<String> {
         if (image != null && image.bytes.size > MAX_INLINE_IMAGE_BYTES) {
             return failure(AiFailureType.InvalidResponse, false, "request_too_large")
         }
         return try {
-            gateway.generate(prompt, image).takeIf(String::isNotBlank)?.let {
-                AiResult.Success(it, AiProviderId.GEMINI, MODEL)
+            val response = gateway.generate(kind, prompt, image)
+            response.text.takeIf(String::isNotBlank)?.let {
+                AiResult.Success(it, AiProviderId.FIREBASE, response.modelName)
             } ?: failure(AiFailureType.InvalidResponse, true)
         } catch (error: CancellationException) {
             throw error
@@ -287,7 +323,6 @@ ${if (photo) "Describe only visible evidence and state uncertainty." else "Answe
 Return only valid JSON matching the app response schema."""
 
     companion object {
-        const val MODEL = "gemini-3.7-flash"
         const val MAX_INLINE_IMAGE_BYTES = 14 * 1024 * 1024
 
         private val json = Json {
