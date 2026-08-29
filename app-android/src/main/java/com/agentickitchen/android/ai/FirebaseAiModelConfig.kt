@@ -10,6 +10,18 @@ internal enum class FirebaseAiTask {
     VISION
 }
 
+internal object FirebaseAiModelDefaults {
+    const val EXTRACTION = "gemini-3.5-flash-lite"
+    const val REASONING = "gemini-3.7-flash"
+    const val VISION = "gemini-3.7-flash"
+
+    fun forTask(task: FirebaseAiTask): String = when (task) {
+        FirebaseAiTask.EXTRACTION -> EXTRACTION
+        FirebaseAiTask.REASONING -> REASONING
+        FirebaseAiTask.VISION -> VISION
+    }
+}
+
 internal interface FirebaseAiModelConfig {
     fun modelFor(task: FirebaseAiTask): String
     fun refresh()
@@ -29,9 +41,8 @@ internal class FirebaseRemoteModelConfig(firebaseApp: FirebaseApp) : FirebaseAiM
     }
 
     override fun modelFor(task: FirebaseAiTask): String {
-        val key = keyFor(task)
-        val fallback = defaultFor(task)
-        return remoteConfig.getString(key)
+        val fallback = FirebaseAiModelDefaults.forTask(task)
+        return remoteConfig.getString(keyFor(task))
             .trim()
             .takeIf(::isAllowedModelName)
             ?: fallback
@@ -47,26 +58,16 @@ internal class FirebaseRemoteModelConfig(firebaseApp: FirebaseApp) : FirebaseAiM
         const val KEY_REASONING = "firebase_ai_model_reasoning"
         const val KEY_VISION = "firebase_ai_model_vision"
 
-        const val DEFAULT_EXTRACTION = "gemini-3.5-flash-lite"
-        const val DEFAULT_REASONING = "gemini-3.7-flash"
-        const val DEFAULT_VISION = "gemini-3.7-flash"
-
         val DEFAULTS: Map<String, Any> = mapOf(
-            KEY_EXTRACTION to DEFAULT_EXTRACTION,
-            KEY_REASONING to DEFAULT_REASONING,
-            KEY_VISION to DEFAULT_VISION
+            KEY_EXTRACTION to FirebaseAiModelDefaults.EXTRACTION,
+            KEY_REASONING to FirebaseAiModelDefaults.REASONING,
+            KEY_VISION to FirebaseAiModelDefaults.VISION
         )
 
         fun keyFor(task: FirebaseAiTask): String = when (task) {
             FirebaseAiTask.EXTRACTION -> KEY_EXTRACTION
             FirebaseAiTask.REASONING -> KEY_REASONING
             FirebaseAiTask.VISION -> KEY_VISION
-        }
-
-        fun defaultFor(task: FirebaseAiTask): String = when (task) {
-            FirebaseAiTask.EXTRACTION -> DEFAULT_EXTRACTION
-            FirebaseAiTask.REASONING -> DEFAULT_REASONING
-            FirebaseAiTask.VISION -> DEFAULT_VISION
         }
 
         fun isAllowedModelName(value: String): Boolean =
@@ -77,9 +78,9 @@ internal class FirebaseRemoteModelConfig(firebaseApp: FirebaseApp) : FirebaseAiM
 }
 
 internal class StaticFirebaseAiModelConfig(
-    private val extraction: String = "gemini-3.5-flash-lite",
-    private val reasoning: String = "gemini-3.7-flash",
-    private val vision: String = "gemini-3.7-flash"
+    private val extraction: String = FirebaseAiModelDefaults.EXTRACTION,
+    private val reasoning: String = FirebaseAiModelDefaults.REASONING,
+    private val vision: String = FirebaseAiModelDefaults.VISION
 ) : FirebaseAiModelConfig {
     override fun modelFor(task: FirebaseAiTask): String = when (task) {
         FirebaseAiTask.EXTRACTION -> extraction
