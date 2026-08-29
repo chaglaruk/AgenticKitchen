@@ -26,4 +26,6 @@ class HistoryTrackingPantryInventoryRepository(
             "ENDED" -> historyRepository.updateStatus(session.sessionId, "ended")
         }
     }
+
+    override fun updateMetadata(item: PantryStockItem): Boolean = delegate.updateMetadata(item)
 }
