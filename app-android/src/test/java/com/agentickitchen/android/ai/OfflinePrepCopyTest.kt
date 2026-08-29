@@ -53,5 +53,6 @@ class OfflinePrepCopyTest {
         assertTrue(prep.contains("temizle"))
         assertFalse(prep.contains("Pirinç için gereken doğrama"))
         assertFalse(prep.contains("malzemelerini yıka; Pirinç"))
+        assertFalse(prep.contains("Pirinç: temizle"))
     }
 }
