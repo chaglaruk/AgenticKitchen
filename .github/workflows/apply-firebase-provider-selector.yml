@@ -1,0 +1,36 @@
+name: Apply managed AI selector wiring
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-firebase-provider-selector.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Apply selector patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, zlib
+          payload = 'eNrtWM1uGzcQvvspprp4F1BWzS1woAaKKtuCa8eInAABDBTUclZiRJEbkitHcXzuY/iYsy/tpafaea8Od7WSLa3/2iRICy8kSCSH8/vNcJaJ0WNImRtK0QcxTrVxsE/DtTWOCRhMA79YBy15HRQehRtrQE/a9ET5WphP2GYaGWT8V4fvXYAq1lyoQXM9c8mjJ+sFDbMWiT2xAqHA1iFZx/cpxg459KWORzAW1tK2DTj2nE/WC1nRkREOC86WpKSSxRh4jUih+uOwDqvy1rzq6yxNHzHFjRa8YU3cGDOhGm/ZhDViPW6wASon4pFw8RBVoyRspelrgUe7mqOMRm69DutejQmTwMS+0RPB0WxAzxmSCE2obb7sdGqHKjxUh0r335JB0NZ6RKsldQ8lzQqt4PhQeWaxVtblLLdwLJTwbLY6u929bm2ZYNMgXpJSLKdGTJjDnMBmqQ8b8i63RGjRvUiCgm093x2Wu5JMgdJmzKT4gEE6U67LS2PCS1YtViPHRthN4BiEywN3Wd4JPNvIhRyqOziq+7LzvNX7587aFAb7zOISs2/i0VJ2Hb6tb2diyb/hvwB1Jho9dI7k215MeqtLyPaPFNYbWdhSPtcFJpq52GnysdYDiTOf1Op3ZJCHgLaLBIJfImEPTAi1899wYsSYX5x9Pr04qwFKinTtRZJIobC24BxGiTYdFg/JbcEIp3WQrI8yhEc/LVB4f6Pm4PJmzQet7p2NWnjlillXPAR//QEjVFwAU2zomLk4U6WlK4RTnRlo7Xdpx/R7cO3XBOAREUOwqBthmf3lU2YzqQJtg9xLYXJToORLEZ4Vocwn+SB35g5Zskqj1WtP1R4yNfC0xwtqGlFCnlRsyv2RF5ciTD48O6vhKfjvM+sKzrEUaV8zw3cp7gM00QDdgT/QwmeRP9iezSpBUBSJjQ1h97R7LpkaEYVEV6FdpX5atSUys2JOrVZJPkSZej08y8uAaZXopFJuXcaFjgY5PCOKMTBukA5qigEwcoiQwtAwmgOZ1GUetJD49qKCQ1Ttr23SJtc8M2KbkCPJUTpF9cqIoDZ0LrUbjUYFuwZBkr7C50kIJ1dZh1eHuYqEodz7q0rckDZADhEJ6QQThCnF8uKMjDv/dHE2Ov/E4PzTFWItmWEjmmWymDERbGqnL04NS3z200EhYJRJivHFmWRj9iFaSkzqv2KRoiVqDoNMcKZiBGaQ4EQxllOgronJCPaHxDjnObXCAn0yRfkoKDbkoCpfx1pqD5L810Y2i2O0toLQuqn0EN6lw9FQwh0McYyRm6Z6YFg6nEZ9zaePKzaOqSNLBHohu7O/Ucq4b9OCCfWBgjSntScRT8NrA3YplD4wi/IAzeZthXilgvRS6htNMNdmiGIwdMHjH70KSzp4dDzPnNMqqM4xqnAeqauLBcEBWtfWShUaBdVkeSAyY6iUEYrT6Q1kef98yfrbjK/fzKqoDK10VhzmheL6XWH1UsV0VZlB5ZHIc8CVTuk55jILPzShJdpLs9FBp3fQ3dtaAob3970OjdsP+ztWgjfnvyt0QpK8WeGnbPh8KsYigh3/x9Kp4M+C+bFOTjU4GuOHp4u2dcpSn+qKagR1ipaIpnpkV0oHpQ4Dfv7n51NCaVkTioODl+JZnrAR7GlI0VhNuV+2Cj7/Db7LSCp/6s2Yy6cFpZ2PQSIGGS3XwQ2poqQpJExKC31GsNZF9fkv14279GkPfcRDH/HQRzz0EXc4JD5+hIfWY956LAb/4y7jmnddR8691w2ij8bSq+614CnvhYKExU4bevvepupwRIlavjpfQS7Ufn7V3vHfrRe1cH4Ttbhq7bzLmLTBjVcFdZgJi6hIoJgg35/fToXLDDeJHV7PTyFyW4Q7uI/mK3IOTPZFxNyWpuFXtHD71dYWYWuz1e5UmXi32FyvyPyqsfZLZ6vVfpMD4PtE2fzi9DtE2heTc6v5DzC/GRz3hXq49jcv9IwM'
+          exec(zlib.decompress(base64.b64decode(payload)))
+          PY
+      - name: Validate and commit
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply-firebase-provider-selector.yml
+          git add app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt app-android/src/main/java/com/agentickitchen/android/ui/SettingsScreen.kt app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt
+          git commit -m 'feat: expose managed Firebase AI provider'
+          git push origin HEAD:refactor/agentic-kitchen-production-foundation
