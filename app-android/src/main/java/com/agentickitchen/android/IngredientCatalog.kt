@@ -57,7 +57,6 @@ private fun ingredientAliases(id: String, isTurkish: Boolean): List<String> = wh
         if (isTurkish) listOf("balık") else listOf("fish")
     "potato" -> if (isTurkish) listOf("patates") else listOf("potato", "potatoes")
     "sweet-potato" -> if (isTurkish) listOf("patates", "tatlı patates") else listOf("potato", "sweet potato", "sweet potatoes")
-    "mushroom" -> if (isTurkish) listOf("mantar") else listOf("mushroom", "mushrooms")
     "button-mushroom", "oyster-mushroom", "chestnut-mushroom" ->
         if (isTurkish) listOf("mantar") else listOf("mushroom", "mushrooms")
     "cream-cheese" -> if (isTurkish) emptyList() else listOf("cream cheese")
@@ -72,7 +71,7 @@ private fun ingredientAliases(id: String, isTurkish: Boolean): List<String> = wh
 
 private fun visualKindFor(id: String, fallback: IngredientVisualKind): IngredientVisualKind = when (id) {
     "potato", "sweet-potato", "new-potato" -> IngredientVisualKind.POTATO
-    "mushroom", "button-mushroom", "oyster-mushroom", "chestnut-mushroom" -> IngredientVisualKind.MUSHROOM
+    "button-mushroom", "oyster-mushroom", "chestnut-mushroom" -> IngredientVisualKind.MUSHROOM
     "turkey" -> IngredientVisualKind.TURKEY
     "minced-beef", "beef", "lamb", "steak" -> IngredientVisualKind.RED_MEAT
     "meatballs", "sausage", "bacon", "liver", "deli-meat" -> IngredientVisualKind.MEAT
@@ -102,7 +101,6 @@ private fun visualKindFor(id: String, fallback: IngredientVisualKind): Ingredien
 
 private val catalogGroups = listOf(
     catalogCategory("meat_poultry", "Et ve tavuk", "Meat and poultry", IngredientVisualKind.CHICKEN, """
-        chicken|Tavuk|Chicken
         chicken-breast|Tavuk göğsü|Chicken breast
         chicken-thigh|Tavuk but|Chicken thighs
         chicken-drumstick|Tavuk baget|Chicken drumsticks
@@ -120,7 +118,6 @@ private val catalogGroups = listOf(
         deli-meat|Şarküteri eti|Deli meat
     """),
     catalogCategory("fish_seafood", "Balık ve deniz ürünleri", "Fish and seafood", IngredientVisualKind.FISH, """
-        fish|Balık|Fish
         salmon|Somon|Salmon
         tuna|Ton balığı|Tuna
         anchovy|Hamsi|Anchovy
@@ -182,7 +179,6 @@ private val catalogGroups = listOf(
         potato|Patates|Potato
         sweet-potato|Tatlı patates|Sweet potato
         new-potato|Taze patates|New potatoes
-        mushroom|Mantar|Mushroom
         button-mushroom|Kültür mantarı|Button mushrooms
         oyster-mushroom|İstiridye mantarı|Oyster mushrooms
         chestnut-mushroom|Kestane mantarı|Chestnut mushrooms
@@ -351,21 +347,32 @@ private fun normalizedIngredientText(value: String): String = value.lowercase(Lo
     .replace('ö', 'o').replace('Ö', 'o').replace('ç', 'c').replace('Ç', 'c')
 
 internal fun catalogIngredientForName(name: String): IngredientDefinition? {
-    val normalizedName = normalizedIngredientText(name.trim())
+    val trimmed = name.trim()
+    val normalizedName = normalizedIngredientText(trimmed)
     val primary = INGREDIENT_CATALOG.firstOrNull { ingredient ->
-        ingredient.id.equals(name.trim(), ignoreCase = true) ||
+        ingredient.id.equals(trimmed, ignoreCase = true) ||
             normalizedIngredientText(ingredient.nameTr) == normalizedName ||
             normalizedIngredientText(ingredient.nameEn) == normalizedName
     }
     if (primary != null) return primary
-    return INGREDIENT_CATALOG.firstOrNull { ingredient ->
+    val aliasMatches = INGREDIENT_CATALOG.filter { ingredient ->
         (ingredient.aliasesTr + ingredient.aliasesEn).any { normalizedIngredientText(it) == normalizedName }
     }
+    return aliasMatches.singleOrNull()
+}
+
+internal fun genericIngredientName(name: String, isTurkish: Boolean): String? = when (normalizedIngredientText(name.trim())) {
+    "tavuk", "chicken" -> if (isTurkish) "Tavuk" else "Chicken"
+    "balik", "fish" -> if (isTurkish) "Balık" else "Fish"
+    "mantar", "mushroom", "mushrooms" -> if (isTurkish) "Mantar" else "Mushroom"
+    else -> null
 }
 
 internal fun canonicalIngredientName(name: String, isTurkish: Boolean): String {
     val trimmed = name.trim()
-    return catalogIngredientForName(trimmed)?.name(isTurkish) ?: trimmed
+    return catalogIngredientForName(trimmed)?.name(isTurkish)
+        ?: genericIngredientName(trimmed, isTurkish)
+        ?: trimmed
 }
 
 internal fun searchIngredientCatalog(query: String, alreadyAdded: Collection<String>, isTurkish: Boolean, limit: Int = 5): List<IngredientDefinition> {
