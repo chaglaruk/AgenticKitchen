@@ -1,6 +1,6 @@
 # Project State
 
-Last reconciled against PR #1 during the managed Firebase AI foundation work on 2026-08-29.
+Last reconciled against PR #1 on 2026-08-30 during Smart Pantry 2.0 work.
 
 ## Implemented and integrated
 
@@ -13,10 +13,15 @@ Last reconciled against PR #1 during the managed Firebase AI foundation work on 
 - Managed provider selection is integrated: `FIREBASE` for Firebase AI Logic, `GEMINI` for direct BYOK, and `FREE` for deterministic offline behaviour.
 - Managed Firebase requests are classified by task, use Remote Config-backed model names with safe built-in defaults, and provide Firebase SDK response schemas before application decode/validation.
 - App Check provider installation is build-type specific: debug provider for debug builds and Play Integrity for release builds.
+- Managed Firebase AI Logic exact-head physical verification is CLOSED: real managed requests were observed without a personal Gemini key, recipe preparation preserved identity, managed shopping extraction was observed, and Firebase AI Logic showed App Check enforcement with verified traffic.
+- Smart Pantry 2.0 is now integrated in source: SQLDelight migration-backed pantry metadata, locations, custom location label, best-before/use-by dates, deterministic freshness states, expiry/name/quantity sorting, location filters, a `Use First` view, and dedicated pantry edit controls.
+- Phase 1 metadata is stored alongside the existing pantry model without replacing the established reservation/consumption path.
 
-## Experimental / physical verification pending
+## Automated verification complete; physical verification pending
 
-- Managed Firebase AI Logic source integration is automated-testable without a committed Firebase config, but real managed requests and App Check still require exact-head device verification with private local Firebase configuration.
+- Exact-head Phase 1 repository automation is green through whitespace check, clean, shared tests, Android unit tests, lint, debug APK assembly, full build, and artifact upload.
+- Smart Pantry 2.0 still requires exact-head in-place physical validation because it changes both persistent database schema and Android UI.
+- Required Phase 1 device checks: upgrade existing app data without uninstall/clear-data, confirm migration preserves existing stock, create/edit location and expiry metadata, verify `Use First` and filters/sorts, and run a regression cooking/consumption smoke on the same exact-head APK.
 - Ingredient and cooking-photo vision remain safety-sensitive. User review/confirmation and fail-closed safety behaviour remain mandatory.
 
 ## Foundation only / incomplete
@@ -25,14 +30,14 @@ Last reconciled against PR #1 during the managed Firebase AI foundation work on 
 - Cooking notifications / lock-screen controls are not yet integrated.
 - Free/Pro entitlements and application-level AI usage metering are product-roadmap work, not current runtime features.
 
-## Product work queued after managed-AI verification
+## Product work queued after Phase 1 physical verification
 
-1. expiry/use-soon inventory and pantry locations;
-2. deterministic Ready / Missing 1 / Missing 2 recipe matching and ranking;
-3. Recipe Options and pantry UI refinement;
-4. pantry-aware structured substitutions;
-5. Smart Shopping;
-6. Home refinement and multi-photo kitchen scan;
+1. deterministic Ready / Missing 1 / Missing 2 recipe matching and ranking;
+2. Recipe Options UI refinement;
+3. pantry-aware structured substitutions;
+4. Smart Shopping;
+5. Home refinement;
+6. multi-photo kitchen scan;
 7. recipe import and My Recipes;
 8. Recipe Detail and Cooking Mode polish;
 9. receipt-to-pantry;

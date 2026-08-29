@@ -22,10 +22,13 @@ Android smart-chef assistant built with Kotlin and Jetpack Compose.
 - Android-Keystore AES-GCM credential storage with legacy plaintext migration for direct Gemini BYOK.
 - Provider selection with managed Firebase AI Logic, direct Gemini BYOK, and deterministic offline fallback.
 - Managed Firebase requests use task-aware model routing, Remote Config model selection, App Check integration, and SDK response schemas plus application validation.
+- Managed Firebase AI Logic + App Check exact-head physical verification is closed: managed requests work without a personal Gemini key and Firebase AI Logic is enforced by App Check.
+- Smart Pantry 2.0 foundation is integrated: pantry locations, custom location labels, best-before/use-by metadata, derived freshness states, local expiry/name/quantity sorting, location filtering, a `Use First` selection, and dedicated pantry controls while preserving the existing SQLDelight inventory and cooking-consumption path.
 
-### Experimental / verification pending
+### Automated verification complete; physical verification pending
 
-- Managed Firebase AI Logic is integrated in source, but exact-head real-device/App Check verification is still required before the managed path is labelled physically VERIFIED.
+- Smart Pantry 2.0 exact-head repository automation is green, including shared tests, Android unit tests, lint, debug APK assembly, and full build.
+- Because Phase 1 changes persisted database state and Android UI, exact-head in-place device verification is still required before the new pantry migration/UI is labelled physically VERIFIED.
 - Camera ingredient and cooking-photo paths remain safety-sensitive and require explicit review/confirmation; vision output is not treated as authoritative food-safety or doneness evidence.
 
 ### Foundation only / incomplete
@@ -35,14 +38,13 @@ Android smart-chef assistant built with Kotlin and Jetpack Compose.
 
 ### Planned
 
-The product roadmap now prioritizes:
+The next roadmap priorities are:
 
-- expiry/use-soon pantry state and pantry locations;
 - deterministic Ready / Missing 1 / Missing 2 recipe matching and ranking;
 - pantry-aware structured substitutions and Smart Shopping;
 - multi-photo kitchen scanning;
 - recipe import and My Recipes;
-- targeted Home, Pantry, Recipe Options, Recipe Detail, and Cooking Mode UI refinement;
+- targeted Home, Recipe Options, Recipe Detail, and Cooking Mode UI refinement;
 - receipt-to-pantry and a deliberately small weekly meal planner;
 - later hands-free/voice features after core reliability is proven.
 
