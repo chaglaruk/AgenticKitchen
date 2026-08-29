@@ -472,7 +472,16 @@ class LocalRecipeProvider internal constructor(
     private fun classifyIngredient(name: String): LocalIngredient {
         val catalog = catalogIngredientForName(name)
         val role = when (catalog?.categoryId) {
-            "meat_poultry" -> if (catalog.id in setOf("chicken-breast", "chicken-thigh", "chicken-wing", "turkey")) IngredientRole.POULTRY else IngredientRole.RED_MEAT
+            "meat_poultry" -> if (
+                catalog.id in setOf(
+                    "chicken-breast",
+                    "chicken-thigh",
+                    "chicken-drumstick",
+                    "chicken-wing",
+                    "whole-chicken",
+                    "turkey"
+                )
+            ) IngredientRole.POULTRY else IngredientRole.RED_MEAT
             "fish_seafood" -> if (catalog.id in setOf("prawns", "mussels", "squid", "octopus", "crab", "scallops")) IngredientRole.SHELLFISH else IngredientRole.FISH
             "eggs_dairy" -> if (catalog.id == "egg") IngredientRole.EGG else IngredientRole.DAIRY
             "vegetables", "roots_mushrooms" -> IngredientRole.VEGETABLE
