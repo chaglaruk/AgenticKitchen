@@ -35,8 +35,9 @@ class FirebaseAiProviderTest {
         assertEquals(FirebaseAiTask.REASONING, responseKind?.task)
         assertEquals(3, result.getOrNull()?.options?.size)
         assertEquals("Pirinç ve Soğan Tavası", result.getOrNull()?.options?.first()?.name)
-        assertEquals(AiProviderId.FIREBASE, (result as AiResult.Success).provider)
-        assertEquals("reasoning-test-model", result.model)
+        val success = result as AiResult.Success<*>
+        assertEquals(AiProviderId.FIREBASE, success.provider)
+        assertEquals("reasoning-test-model", success.model)
     }
 
     @Test
