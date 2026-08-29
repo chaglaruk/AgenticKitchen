@@ -624,7 +624,7 @@ private fun EditorialOptionsLoading() {
         IngredientArtwork("", Modifier.size(82.dp))
         Spacer(Modifier.height(16.dp))
         Text(
-            if (L.isTr) "Şef seçenekleri hazırlıyor…" else "The chef is preparing ideas…",
+            L.thinking,
             color = colors.onSurface,
             style = MaterialTheme.typography.h6
         )

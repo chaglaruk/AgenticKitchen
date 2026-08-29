@@ -2,6 +2,7 @@ package com.agentickitchen.android
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
@@ -180,6 +181,14 @@ fun AppNavigation(viewModel: AppViewModel) {
         if (pendingConsumption != null) currentScreen = Screen.Operations
     }
 
+    BackHandler(enabled = currentScreen != Screen.Intelligence) {
+        currentScreen = when (currentScreen) {
+            Screen.Options, Screen.History, Screen.Settings -> Screen.Intelligence
+            Screen.Operations -> if (planState is PlanState.RecipeActive) Screen.Options else Screen.Intelligence
+            Screen.Intelligence -> Screen.Intelligence
+        }
+    }
+
     val screens = listOf(
         Screen.Intelligence,
         Screen.Options,
@@ -242,9 +251,15 @@ fun AppNavigation(viewModel: AppViewModel) {
                     onImportShoppingPhoto = viewModel::importShoppingPhoto,
                     onConfirmShoppingImport = viewModel::confirmShoppingImport,
                     onClearShoppingImport = viewModel::clearShoppingImport,
-                    onStartInventorySession = viewModel::startInventorySession,
+                    onStartInventorySession = { request ->
+                        currentScreen = Screen.Options
+                        viewModel.startInventorySession(request)
+                    },
                     onClearAll = viewModel::clearAll,
-                    onStart = viewModel::startSession,
+                    onStart = {
+                        currentScreen = Screen.Options
+                        viewModel.startSession()
+                    },
                     onEditSetup = viewModel::startEditingSetup
                 )
 

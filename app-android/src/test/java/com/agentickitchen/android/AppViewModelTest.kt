@@ -20,6 +20,8 @@ import com.agentickitchen.shared.inventory.UnitDimension
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
+import com.agentickitchen.shared.validator.ErrorType
+import com.agentickitchen.shared.validator.ValidationError
 import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.ScheduleEvent
@@ -147,6 +149,24 @@ class AppViewModelTest {
     }
 
     @Test
+    fun validationFailuresKeepReaderMessagesSpecificToTheirReason() {
+        L.applyLanguage(L.English)
+        assertEquals(
+            "This recipe conflicts with your diet or allergy preferences. Choose another recipe.",
+            readerSafePlanValidationError(listOf(ValidationError(ErrorType.ALLERGEN_CONFLICT, "ingredients", "unsafe detail")))
+        )
+        assertEquals(
+            "This recipe cannot be prepared safely with your kitchen setup. Choose another recipe.",
+            readerSafePlanValidationError(listOf(ValidationError(ErrorType.UNAVAILABLE_EQUIPMENT, "steps[0]", "unsafe detail")))
+        )
+        assertEquals(
+            "Some recipe quantities could not be understood. Try again.",
+            readerSafePlanValidationError(listOf(ValidationError(ErrorType.UNKNOWN_UNIT, "ingredients[0]", "unsafe detail")))
+        )
+        L.applyLanguage(L.Turkish)
+    }
+
+    @Test
     fun ingredientDraftRestoresInOrderWithoutDuplicatesAndRefreshesPantryIntel() {
         val preferences = FakePreferences().apply {
             ingredientDraftValue = listOf("Domates", "Pirinç", "domates", "Kaşar peyniri")
@@ -162,7 +182,7 @@ class AppViewModelTest {
 
     @Test
     fun ingredientDraftMutationsPersistTheirOrderedResult() {
-        val preferences = FakePreferences()
+        val preferences = FakePreferences().apply { languageValue = L.Turkish }
         val viewModel = newViewModel(preferences, FakeHistoryRepository())
 
         viewModel.addChip("Domates")

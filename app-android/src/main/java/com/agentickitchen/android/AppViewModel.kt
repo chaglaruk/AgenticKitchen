@@ -44,6 +44,9 @@ import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import com.agentickitchen.shared.validator.CookingPlanValidator
+import com.agentickitchen.shared.validator.ErrorType
+import com.agentickitchen.shared.validator.ValidationError
+import com.agentickitchen.shared.validator.normalizeCookingPlan
 import com.agentickitchen.shared.cooking.CookingSessionController
 import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
@@ -81,11 +84,11 @@ object L {
     }
 
     private fun deviceLanguage() = if (Locale.getDefault().language == "tr") Turkish else English
-    val appTagline get() = if (isTr) "Mutfağının Yapay Zekası" else "The AI of Your Kitchen"
+    val appTagline get() = if (isTr) "Mutfağında daha rahat pişir" else "Cook with more confidence"
     val addIngredient get() = if (isTr) "Malzeme ekle..." else "Type an ingredient..."
     val clearAll get() = if (isTr) "Temizle" else "Clear"
     val generatePlan get() = if (isTr) "Tarif Alternatifleri Üret" else "Generate Options"
-    val thinking get() = if (isTr) "Yapay Zeka Planlıyor..." else "AI is calculating..."
+    val thinking get() = if (isTr) "Tariflere bakıyorum…" else "Finding a few good options…"
     val noIngredientError get() = if (isTr) "Lütfen en az bir malzeme ekleyin." else "Please add at least one ingredient."
     val noEquipmentError get() = if (isTr) "Pişirme aracı seçilmedi." else "No cooking equipment selected."
     val ingredients get() = if (isTr) "Malzemeler" else "Ingredients"
@@ -304,6 +307,22 @@ internal fun readerSafeAiError(error: Throwable?): String {
 }
 
 private class AiRequestException(val failure: AiResult.Failure) : Exception(failure.type.name)
+
+private class PlanValidationException(val validationErrors: List<ValidationError>) :
+    Exception(validationErrors.joinToString(",") { it.type.name })
+
+internal fun readerSafePlanValidationError(errors: List<ValidationError>): String {
+    val types = errors.map { it.type }.toSet()
+    return when {
+        ErrorType.DIET_CONFLICT in types || ErrorType.ALLERGEN_CONFLICT in types ->
+            if (L.isTr) "Bu tarif diyet veya alerji tercihlerinle uyuşmuyor. Başka bir tarif seç." else "This recipe conflicts with your diet or allergy preferences. Choose another recipe."
+        ErrorType.UNAVAILABLE_EQUIPMENT in types || ErrorType.UNKNOWN_RESOURCE in types || ErrorType.POWER_EXCEEDS_MAXIMUM in types ->
+            if (L.isTr) "Bu tarif mutfak kurulumundaki araçlarla güvenle hazırlanamaz. Başka bir tarif seç." else "This recipe cannot be prepared safely with your kitchen setup. Choose another recipe."
+        ErrorType.UNKNOWN_UNIT in types || ErrorType.MISSING_QUANTITY in types || ErrorType.SERVING_MISMATCH in types ->
+            if (L.isTr) "Tarifteki miktarlar anlaşılamadı. Yeniden deneyebilirsin." else "Some recipe quantities could not be understood. Try again."
+        else -> if (L.isTr) "Tarif adımları güvenli bir plana dönüştürülemedi. Yeniden deneyebilirsin." else "The recipe steps could not be turned into a safe plan. Try again."
+    }
+}
 
 // ── ViewModel ─────────────────────────────────────────────────────────────
 class AppViewModel(
@@ -1009,7 +1028,7 @@ class AppViewModel(
                     } else {
                         _inventory.value.map(PantryStockItem::originalName)
                     }
-                    val plan = provider.generateCookingPlan(
+                    val plan = normalizeCookingPlan(provider.generateCookingPlan(
                         CookingPlanRequest(
                             recipeName = option.name,
                             ingredients = selectedIngredients,
@@ -1027,10 +1046,11 @@ class AppViewModel(
                                 "${it.quantity} ${it.unit} ${it.originalName}"
                             }
                         )
-                    ).requireValue()
+                    ).requireValue())
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
                     if (!validation.valid) {
-                        throw ProviderFailure("VALIDATOR", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                        AppLogger.w("PlanValidation", validation.errors.joinToString("_") { it.type.name })
+                        throw PlanValidationException(validation.errors)
                     }
                     val target = targetTimeResolver.resolve(selection.targetTime).getOrElse { throw it }
                     val readyTimeIso = target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
@@ -1065,7 +1085,7 @@ class AppViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (e: Exception) {
-                val message = readerSafeCurrentProviderError(e)
+                val message = if (e is PlanValidationException) readerSafePlanValidationError(e.validationErrors) else readerSafeCurrentProviderError(e)
                 emitUiEvent(message)
                 _planState.value = PlanState.Error(
                     message,
