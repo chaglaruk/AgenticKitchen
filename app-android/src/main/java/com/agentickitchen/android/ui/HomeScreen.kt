@@ -185,7 +185,8 @@ fun HomeScreen(
             .imePadding(),
         contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 28.dp),
         horizontalArrangement = Arrangement.spacedBy(9.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+        userScrollEnabled = homeScrollEnabled(expandedAuto)
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             EditorialHomeHeader(chips = chips, modifier = Modifier.fillMaxWidth())

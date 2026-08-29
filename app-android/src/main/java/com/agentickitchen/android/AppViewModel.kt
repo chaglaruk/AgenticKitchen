@@ -1031,6 +1031,13 @@ class AppViewModel(
     }
 
     fun selectRecipeOption(option: RecipeOption, selection: RecipeRequestSelection) {
+        if (!canReplacePreparedRecipe(_cookingState.value.status)) {
+            emitUiEvent(
+                if (L.isTr) "Devam eden pişirmeyi bitirmeden yeni bir tarif hazırlayamazsın."
+                else "Finish the current cooking session before preparing another recipe."
+            )
+            return
+        }
         viewModelScope.launch {
             _planState.value = PlanState.Loading
             try {
@@ -1085,6 +1092,9 @@ class AppViewModel(
                     val result = orchestrator.startSession(session)
                     historyRepo.insertRecipe(session.sessionId, option.name, plan.ingredients.joinToString { "${it.quantity} ${it.unit} ${it.name}" }, ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), "started")
                     loadHistory()
+                    cookingTicker?.cancel()
+                    recentCookingTurns.clear()
+                    _cookingState.value = preparedCookingState(option.name)
                     _planState.value = activeRecipeState(
                         sessionId,
                         option,

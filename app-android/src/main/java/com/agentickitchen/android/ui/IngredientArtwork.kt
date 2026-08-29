@@ -68,10 +68,14 @@ internal fun ingredientVisualFor(name: String): IngredientVisualKind {
         .replace('ı', 'i').replace('ş', 's').replace('ğ', 'g').replace('ü', 'u').replace('ö', 'o').replace('ç', 'c')
     fun matches(vararg terms: String) = terms.any(value::contains)
     return when {
+        matches("mantar", "mushroom") -> IngredientVisualKind.MUSHROOM
+        matches("patates", "potato") -> IngredientVisualKind.POTATO
         matches("domates", "tomato", "biber", "pepper", "havuç", "carrot", "patlican", "eggplant", "kabak", "zucchini") -> IngredientVisualKind.TOMATO
         matches("ispanak", "spinach", "marul", "lettuce", "roka", "arugula", "brokoli", "broccoli") -> IngredientVisualKind.LEAFY
         matches("sogan", "onion", "sarimsak", "garlic") -> IngredientVisualKind.ONION
-        matches("tavuk", "chicken", "et", "beef", "meat", "kofte", "lamb") -> IngredientVisualKind.MEAT
+        matches("tavuk", "chicken") -> IngredientVisualKind.CHICKEN
+        matches("hindi", "turkey") -> IngredientVisualKind.TURKEY
+        matches("et", "beef", "meat", "kofte", "lamb") -> IngredientVisualKind.RED_MEAT
         matches("balik", "fish", "somon", "salmon", "ton", "tuna") -> IngredientVisualKind.FISH
         matches("yumurta", "egg", "sut", "milk", "yogurt", "yoğurt", "cream", "krema", "tereyag", "butter") -> IngredientVisualKind.EGG_DAIRY
         matches("pirinc", "rice") -> IngredientVisualKind.RICE
