@@ -93,6 +93,15 @@ sealed class Screen(val route: String, val icon: ImageVector) {
     }
 }
 
+internal fun shouldHandleSetupBack(setupDone: Boolean, isEditingSetup: Boolean): Boolean =
+    setupDone && isEditingSetup
+
+internal fun backDestination(currentScreen: Screen, hasActiveRecipe: Boolean): Screen = when (currentScreen) {
+    Screen.Options, Screen.History, Screen.Settings -> Screen.Intelligence
+    Screen.Operations -> if (hasActiveRecipe) Screen.Options else Screen.Intelligence
+    Screen.Intelligence -> Screen.Intelligence
+}
+
 @Composable
 fun AppRoot(viewModel: AppViewModel) {
     val setupDone by viewModel.setupDone.collectAsState()
@@ -113,6 +122,9 @@ fun AppRoot(viewModel: AppViewModel) {
     }
 
     if (!setupDone || isEditingSetup) {
+        BackHandler(enabled = shouldHandleSetupBack(setupDone, isEditingSetup)) {
+            viewModel.cancelEditingSetup()
+        }
         SetupScreen(
             initialHw = hw,
             initialEquipment = selectedEquipment,
@@ -188,11 +200,7 @@ fun AppNavigation(viewModel: AppViewModel, onConfigureGemini: () -> Unit = {}) {
     }
 
     BackHandler(enabled = currentScreen != Screen.Intelligence) {
-        currentScreen = when (currentScreen) {
-            Screen.Options, Screen.History, Screen.Settings -> Screen.Intelligence
-            Screen.Operations -> if (planState is PlanState.RecipeActive) Screen.Options else Screen.Intelligence
-            Screen.Intelligence -> Screen.Intelligence
-        }
+        currentScreen = backDestination(currentScreen, planState is PlanState.RecipeActive)
     }
 
     val screens = listOf(
