@@ -38,6 +38,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -712,9 +716,18 @@ private fun IngredientComposer(
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(isFocused, expandedAuto) {
+        if (isFocused) {
+            delay(120)
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth()
+            .bringIntoViewRequester(bringIntoViewRequester)
             .background(colors.surfaceAlt, RoundedCornerShape(14.dp))
             .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
             .padding(12.dp)
@@ -744,15 +757,15 @@ private fun IngredientComposer(
             TextButton(onClick = onDone) { Text(if (L.isTr) "Ekle" else "Add", color = colors.primary) }
         }
         AnimatedVisibility(visible = expandedAuto) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 144.dp)
+                    .heightIn(max = 240.dp)
                     .padding(top = 4.dp)
-                    .border(1.dp, colors.divider, RoundedCornerShape(10.dp))
-                    .verticalScroll(rememberScrollState())
+                    .border(1.dp, colors.divider, RoundedCornerShape(10.dp)),
+                contentPadding = PaddingValues(vertical = 2.dp)
             ) {
-                filteredIngredients.forEach { selection ->
+                items(filteredIngredients, key = { it }) { selection ->
                     TextButton(onClick = {
                         onAddSelection(selection)
                         focusRequester.requestFocus()

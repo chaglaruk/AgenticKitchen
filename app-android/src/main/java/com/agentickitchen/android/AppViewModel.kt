@@ -514,15 +514,15 @@ class AppViewModel(
     fun startEditingSetup() { _isEditingSetup.value = true }
     fun cancelEditingSetup() { _isEditingSetup.value = false }
     fun addChip(name: String) {
-        val trimmed = name.trim()
-        if (trimmed.isNotEmpty() && !_chips.value.any { it.equals(trimmed, ignoreCase = true) }) {
-            draftOrder = draftOrder.filterNot { it.equals(trimmed, ignoreCase = true) } + trimmed
-            saveIngredientDraft(_chips.value + trimmed)
+        val canonical = canonicalIngredientName(name, L.isTr)
+        if (canonical.isNotEmpty() && !_chips.value.any { it.equals(canonical, ignoreCase = true) }) {
+            draftOrder = draftOrder.filterNot { it.equals(canonical, ignoreCase = true) } + canonical
+            saveIngredientDraft(_chips.value + canonical)
         }
     }
     fun addMultipleChips(names: List<String>) {
         val updated = _chips.value.toMutableList()
-        names.map(String::trim).filter(String::isNotEmpty).forEach { ingredient ->
+        names.map { canonicalIngredientName(it, L.isTr) }.filter(String::isNotEmpty).forEach { ingredient ->
             if (updated.none { it.equals(ingredient, ignoreCase = true) }) updated += ingredient
         }
         if (updated != _chips.value) {
