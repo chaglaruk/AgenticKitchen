@@ -215,6 +215,56 @@ class LocalRecipeProvider internal constructor(
         )
     }
 
+    private fun prepInstruction(ingredients: List<LocalIngredient>, isTurkish: Boolean): String {
+        fun namesFor(predicate: (LocalIngredient) -> Boolean): String =
+            ingredients.filter(predicate).joinToString(", ") { it.name }
+
+        val rice = namesFor { it.role == IngredientRole.RICE }
+        val grainsAndLegumes = namesFor { it.role in setOf(IngredientRole.GRAIN, IngredientRole.LEGUME) }
+        val produce = namesFor {
+            it.role in setOf(
+                IngredientRole.VEGETABLE,
+                IngredientRole.LEAFY_GREEN,
+                IngredientRole.AROMATIC,
+                IngredientRole.FRUIT,
+                IngredientRole.HERB
+            )
+        }
+        val rawProteins = namesFor { it.role.isRawProtein }
+        val handledRoles = setOf(
+            IngredientRole.RICE,
+            IngredientRole.GRAIN,
+            IngredientRole.LEGUME,
+            IngredientRole.VEGETABLE,
+            IngredientRole.LEAFY_GREEN,
+            IngredientRole.AROMATIC,
+            IngredientRole.FRUIT,
+            IngredientRole.HERB,
+            IngredientRole.POULTRY,
+            IngredientRole.RED_MEAT,
+            IngredientRole.FISH,
+            IngredientRole.SHELLFISH
+        )
+        val other = namesFor { it.role !in handledRoles }
+
+        val clauses = mutableListOf<String>()
+        if (isTurkish) {
+            if (rice.isNotBlank()) clauses += "$rice: süzgeçte duru su akana kadar yıka ve süz."
+            if (grainsAndLegumes.isNotBlank()) clauses += "$grainsAndLegumes: ayıkla; gerekiyorsa sudan geçirip süz."
+            if (produce.isNotBlank()) clauses += "$produce: temizle; gerekiyorsa tarifte kullanacağın boyutta doğra."
+            if (rawProteins.isNotBlank()) clauses += "$rawProteins: ayrı bir kesme tahtasında fazla nemini al; gerekiyorsa eşit parçalara ayır."
+            if (other.isNotBlank()) clauses += "$other: tarifte kullanacağın miktarı hazır et."
+            return clauses.joinToString(" ").ifBlank { "Malzemeleri tarifte kullanacağın şekilde hazırla." }
+        }
+
+        if (rice.isNotBlank()) clauses += "$rice: rinse in a sieve until the water runs mostly clear, then drain."
+        if (grainsAndLegumes.isNotBlank()) clauses += "$grainsAndLegumes: sort through; rinse and drain if appropriate."
+        if (produce.isNotBlank()) clauses += "$produce: clean and cut to the size needed for the recipe."
+        if (rawProteins.isNotBlank()) clauses += "$rawProteins: pat dry on a separate cutting board and portion evenly if needed."
+        if (other.isNotBlank()) clauses += "$other: measure out the amount needed and set it aside."
+        return clauses.joinToString(" ").ifBlank { "Prepare the ingredients for the recipe." }
+    }
+
     private fun cookingSteps(
         technique: Technique,
         ingredients: List<LocalIngredient>,
@@ -222,7 +272,6 @@ class LocalRecipeProvider internal constructor(
         stoveMax: Int,
         isTurkish: Boolean
     ): List<CookingStepDto> {
-        val names = ingredients.joinToString(", ") { it.name }
         val primary = ingredients.firstOrNull { it.role.isPrincipal } ?: ingredients.first()
         val aromaticNames = ingredients.filter { it.role == IngredientRole.AROMATIC }.joinToString(", ") { it.name }
         val grain = ingredients.firstOrNull { it.role in stapleRoles }
@@ -231,11 +280,7 @@ class LocalRecipeProvider internal constructor(
             CookingStepDto(
                 "step_1",
                 "prep",
-                if (isTurkish) {
-                    "$names malzemelerini yıka; ${primary.name} için gereken doğrama ve temizleme işlemlerini ayrı bir yüzeyde tamamla."
-                } else {
-                    "Wash $names; trim and prepare ${primary.name} on a separate clean surface."
-                },
+                prepInstruction(ingredients, isTurkish),
                 "counter",
                 180
             )

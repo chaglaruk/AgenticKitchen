@@ -295,6 +295,26 @@ class LocalRecipeProviderTest {
         assertTrue(turkish.contains("Simmer the rice"))
     }
 
+    @Test
+    fun turkishRicePrepNeverAsksTheUserToChopRice() = runBlocking {
+        val ingredients = listOf("Pirinç", "Domates", "Mantar")
+        val equipment = setOf("elec", "pan")
+        val recipeName = options(ingredients, equipment, language = "Türkçe").options.first().name
+        val cookingPlan = plan(
+            recipeName,
+            ingredients,
+            equipment,
+            stoveType = "electric",
+            language = "Türkçe"
+        )
+
+        val prep = cookingPlan.steps.first().instruction
+        assertTrue(prep.contains("Pirinç:"))
+        assertTrue(prep.contains("Domates"))
+        assertFalse(prep.contains("Pirinç için gereken doğrama"))
+        assertFalse(prep.contains("malzemelerini yıka; Pirinç"))
+    }
+
     private suspend fun options(
         ingredients: List<String>,
         equipment: Set<String>,
