@@ -196,6 +196,7 @@ internal fun localizedPlanUnit(unit: String, isTurkish: Boolean): String {
             "tbsp", "tablespoon", "tablespoons", "yemek kaşığı", "yemek kasigi" -> "yemek kaşığı"
             "cup", "cups", "bardak", "su bardağı", "su bardagi" -> "su bardağı"
             "unit", "units", "birim" -> "birim"
+            "g", "kg", "ml", "l" -> normalized
             else -> unit.trim()
         }
     } else {
@@ -210,6 +211,7 @@ internal fun localizedPlanUnit(unit: String, isTurkish: Boolean): String {
             "tbsp", "tablespoon", "tablespoons", "yemek kaşığı", "yemek kasigi" -> "tbsp"
             "cup", "cups", "bardak", "su bardağı", "su bardagi" -> "cup"
             "unit", "units", "birim" -> "unit"
+            "g", "kg", "ml", "l" -> normalized
             else -> unit.trim()
         }
     }
