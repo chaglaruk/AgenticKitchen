@@ -14,25 +14,44 @@ internal fun parseShoppingTextLocally(text: String, isTurkish: Boolean): List<Sh
 }
 
 private fun parseShoppingLine(line: String, isTurkish: Boolean): ShoppingCandidate? {
-    val match = Regex("""^(\d+(?:[.,]\d+)?)\s*([\p{L}.]+(?:\s+[\p{L}.]+)?)?\s+(.+)$""").matchEntire(line.trim()) ?: return null
-    val quantity = match.groupValues[1].replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 } ?: return null
-    var possibleUnit = match.groupValues[2].trim()
-    var name = match.groupValues[3].trim().removePrefix("of ").trim()
-    var unit = shoppingUnit(possibleUnit)
-    if (unit == null) {
-        name = "$possibleUnit $name".trim()
-        possibleUnit = ""
-        unit = "piece"
+    val trimmed = line.trim()
+    val quantified = Regex("""^(\d+(?:[.,]\d+)?)\s*([\p{L}.]+(?:\s+[\p{L}.]+)?)?\s+(.+)$""")
+        .matchEntire(trimmed)
+    if (quantified != null) {
+        val quantity = quantified.groupValues[1].replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 } ?: return null
+        val possibleUnit = quantified.groupValues[2].trim()
+        var name = quantified.groupValues[3].trim().removePrefix("of ").trim()
+        var unit = shoppingUnit(possibleUnit)
+        if (unit == null) {
+            name = "$possibleUnit $name".trim()
+            unit = "piece"
+        }
+        val ingredient = resolveShoppingIngredient(name) ?: return null
+        return ShoppingCandidate(
+            canonicalIngredientId = ingredient.id,
+            displayName = ingredient.name(isTurkish),
+            quantity = quantity,
+            unit = unit,
+            unitDimension = shoppingUnitDimension(unit),
+            confidence = 1.0,
+            estimated = false
+        )
     }
-    val ingredient = resolveShoppingIngredient(name) ?: return null
+
+    val ingredient = resolveShoppingIngredient(trimmed) ?: return null
     return ShoppingCandidate(
         canonicalIngredientId = ingredient.id,
         displayName = ingredient.name(isTurkish),
-        quantity = quantity,
-        unit = unit,
-        unitDimension = shoppingUnitDimension(unit),
+        quantity = null,
+        unit = null,
+        unitDimension = "unknown",
         confidence = 1.0,
-        estimated = false
+        estimated = false,
+        uncertaintyReason = if (isTurkish) {
+            "Miktar ve birimi kontrol et."
+        } else {
+            "Check the amount and unit."
+        }
     )
 }
 
