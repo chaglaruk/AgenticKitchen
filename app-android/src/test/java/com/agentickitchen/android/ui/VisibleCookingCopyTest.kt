@@ -11,6 +11,8 @@ class VisibleCookingCopyTest {
         assertEquals("OFFLINE", localizedRecipeSourceLabel("Offline", false))
         assertEquals("Google Gemini", localizedRecipeSourceLabel("Google Gemini", true))
         assertNull(localizedRecipeSourceLabel(null, true))
+        assertNull(localizedRecipeSourceLabel("", true))
+        assertNull(localizedRecipeSourceLabel("   ", false))
     }
 
     @Test
@@ -20,5 +22,6 @@ class VisibleCookingCopyTest {
         assertEquals("After the previous step", cookingDependencyLabel(1, false))
         assertEquals("After the previous steps", cookingDependencyLabel(3, false))
         assertNull(cookingDependencyLabel(0, true))
+        assertNull(cookingDependencyLabel(-1, false))
     }
 }
