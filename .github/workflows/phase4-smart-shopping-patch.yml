@@ -20,6 +20,23 @@ jobs:
           fetch-depth: 0
       - name: Apply Phase 4 source patch
         run: python3 .github/scripts/phase4_smart_shopping_patch.py
+      - name: Repair generated compile anchors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          test = Path('shared/src/test/kotlin/com/agentickitchen/shared/inventory/SmartShoppingTest.kt')
+          text = test.read_text(encoding='utf-8').replace('UnitDimension.MASS', 'UnitDimension.WEIGHT')
+          test.write_text(text, encoding='utf-8')
+
+          ops = Path('app-android/src/main/java/com/agentickitchen/android/ui/OperationsScreen.kt')
+          text = ops.read_text(encoding='utf-8')
+          if 'import androidx.compose.foundation.BorderStroke\n' not in text:
+              text = text.replace('import androidx.compose.foundation.background\n', 'import androidx.compose.foundation.BorderStroke\nimport androidx.compose.foundation.background\n', 1)
+          if 'import androidx.compose.material.OutlinedButton\n' not in text:
+              text = text.replace('import androidx.compose.material.MaterialTheme\n', 'import androidx.compose.material.MaterialTheme\nimport androidx.compose.material.OutlinedButton\n', 1)
+          ops.write_text(text, encoding='utf-8')
+          PY
       - name: Validate Phase 4 source patch
         run: |
           git diff --check
