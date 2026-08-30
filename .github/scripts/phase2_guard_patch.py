@@ -42,34 +42,6 @@ view_model = replace_once(
 view_model_path.write_text(view_model, encoding="utf-8")
 
 
-options_path = Path("app-android/src/main/java/com/agentickitchen/android/ui/OptionsScreen.kt")
-options = options_path.read_text(encoding="utf-8")
-options = replace_once(
-    options,
-    '''    val ready = options.count { it.matchTier == RecipeMatchTier.READY_NOW }
-    val one = options.count { it.matchTier == RecipeMatchTier.MISSING_ONE }
-    val two = options.count { it.matchTier == RecipeMatchTier.MISSING_TWO }
-    return if (isTurkish) {
-        "${options.size} sonuç · $ready hazır · $one tek eksik · $two iki eksik"
-    } else {
-        "${options.size} results · $ready ready · $one missing one · $two missing two"
-    }
-''',
-    '''    val ready = options.count { it.matchTier == RecipeMatchTier.READY_NOW }
-    val one = options.count { it.matchTier == RecipeMatchTier.MISSING_ONE }
-    val two = options.count { it.matchTier == RecipeMatchTier.MISSING_TWO }
-    val ai = options.count { it.matchTier == RecipeMatchTier.AI_IDEA }
-    return if (isTurkish) {
-        "${options.size} sonuç · $ready hazır · $one tek eksik · $two iki eksik · $ai AI fikri"
-    } else {
-        "${options.size} results · $ready ready · $one missing one · $two missing two · $ai AI ideas"
-    }
-''',
-    "recipe coverage summary",
-)
-options_path.write_text(options, encoding="utf-8")
-
-
 test_path = Path("app-android/src/test/java/com/agentickitchen/android/ui/RecipeOptionsUiTest.kt")
 test_path.write_text(
     '''package com.agentickitchen.android.ui
@@ -93,7 +65,7 @@ class RecipeOptionsUiTest {
             recipeCoverageSummary(options, isTurkish = false)
         )
         assertEquals(
-            "3 sonuç · 1 hazır · 1 tek eksik · 0 iki eksik · 1 AI fikri",
+            "3 sonuç · 1 hazır · 1 tek eksik · 0 iki eksik · 1 fikir",
             recipeCoverageSummary(options, isTurkish = true)
         )
     }
