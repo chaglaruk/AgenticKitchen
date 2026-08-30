@@ -1,0 +1,36 @@
+name: Phase 3 substitution patch
+
+on:
+  push:
+    branches: ['refactor/agentic-kitchen-production-foundation']
+    paths:
+      - '.github/workflows/phase3-substitution-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/agentic-kitchen-production-foundation
+          fetch-depth: 0
+      - name: Apply Phase 3 source patch
+        run: python3 .github/scripts/phase3_substitution_patch.py
+      - name: Validate Phase 3 source patch
+        run: |
+          git diff --check
+          git diff --stat
+          ./gradlew :shared:test :app-android:testDebugUnitTest :app-android:lintDebug :app-android:assembleDebug
+      - name: Commit source changes and self-clean
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/phase3-substitution-patch.yml .github/scripts/phase3_substitution_patch.py
+          git add -A
+          git diff --cached --check
+          git commit -m "feat: add pantry-aware structured substitutions"
+          git push origin HEAD:refactor/agentic-kitchen-production-foundation
