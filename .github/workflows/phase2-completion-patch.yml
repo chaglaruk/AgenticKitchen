@@ -20,21 +20,20 @@ jobs:
           ref: refactor/agentic-kitchen-production-foundation
           fetch-depth: 0
 
-      - name: Apply exact Phase 2 completion patch
+      - name: Apply exact Phase 2 provider patch
         run: python3 .github/scripts/phase2_completion_patch.py
 
-      - name: Validate Phase 2 completion
+      - name: Validate Phase 2 provider patch
         run: |
           git diff --check
           git diff --stat
           ./gradlew :shared:test :app-android:testDebugUnitTest :app-android:lintDebug :app-android:assembleDebug
 
-      - name: Commit source changes
+      - name: Commit provider changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt \
-                  app-android/src/main/java/com/agentickitchen/android/ui/HomeScreen.kt \
-                  app-android/src/main/java/com/agentickitchen/android/ui/OptionsScreen.kt
-          git commit -m "fix: complete deterministic recipe matching flow"
+          git add app-android/src/main/java/com/agentickitchen/android/ai/GeminiProvider.kt \
+                  app-android/src/main/java/com/agentickitchen/android/ai/FirebaseAiProvider.kt
+          git commit -m "fix: keep pantry comparison authoritative locally"
           git push origin HEAD:refactor/agentic-kitchen-production-foundation
