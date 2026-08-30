@@ -86,20 +86,13 @@ class GeminiProvider internal constructor(
                 request.dietType,
                 request.allergies,
                 request.language
-            ) + if (request.inventoryLines.isEmpty()) {
-                ""
-            } else {
-                """
-
-Available pantry quantities:
-${request.inventoryLines.joinToString("\n")}
-Strict stock only: ${request.strictStock}
-Maximum missing staples: ${request.maxMissingStaples}
-Servings: ${request.servings}
-Prioritize: ${request.prioritizedIngredients.joinToString(", ")}
-Include exact proposedIngredients for every option. Never exceed available quantities when strict stock only is true.
-                """.trimIndent()
-            },
+            ) + PromptFactory.inventoryRecipeOptionsContext(
+                inventoryLines = request.inventoryLines,
+                strictStock = request.strictStock,
+                maxMissingStaples = request.maxMissingStaples,
+                servings = request.servings,
+                prioritizedIngredients = request.prioritizedIngredients
+            ),
             schema = recipeOptionsSchema,
             decode = json::decodeFromString,
             validate = { response ->

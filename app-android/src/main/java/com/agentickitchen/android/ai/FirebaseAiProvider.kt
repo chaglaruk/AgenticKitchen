@@ -103,7 +103,13 @@ class FirebaseAiProvider internal constructor(
                 request.dietType,
                 request.allergies,
                 request.language
-            ) + inventoryRecipeContext(request),
+            ) + PromptFactory.inventoryRecipeOptionsContext(
+                inventoryLines = request.inventoryLines,
+                strictStock = request.strictStock,
+                maxMissingStaples = request.maxMissingStaples,
+                servings = request.servings,
+                prioritizedIngredients = request.prioritizedIngredients
+            ),
             decode = json::decodeFromString,
             validate = { response ->
                 response.options.size == 3 &&
@@ -282,18 +288,6 @@ Return only valid JSON for the app's shopping import schema.""",
             failure(AiFailureType.Unknown, true)
         }
     }
-
-    private fun inventoryRecipeContext(request: RecipeOptionsRequest): String =
-        if (request.inventoryLines.isEmpty()) "" else """
-
-Available pantry quantities:
-${request.inventoryLines.joinToString("\n")}
-Strict stock only: ${request.strictStock}
-Maximum missing staples: ${request.maxMissingStaples}
-Servings: ${request.servings}
-Prioritize: ${request.prioritizedIngredients.joinToString(", ")}
-Include exact proposedIngredients for every option. Never exceed available quantities when strict stock only is true.
-""".trimEnd()
 
     private fun inventoryPlanContext(request: CookingPlanRequest): String =
         if (request.inventoryLines.isEmpty()) ""
