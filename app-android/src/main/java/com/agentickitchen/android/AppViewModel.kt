@@ -1139,6 +1139,13 @@ class AppViewModel(
             )
             return
         }
+        if (inventoryRecipeRequest != null && !option.canPrepareFromPantry) {
+            emitUiEvent(
+                if (L.isTr) "Bu fikir mevcut stoktan hazırlanamaz. Eksikleri tamamladıktan sonra tekrar dene."
+                else "This idea cannot be prepared from the current pantry. Resolve its shortages and try again."
+            )
+            return
+        }
         viewModelScope.launch {
             _planState.value = PlanState.Loading
             try {
