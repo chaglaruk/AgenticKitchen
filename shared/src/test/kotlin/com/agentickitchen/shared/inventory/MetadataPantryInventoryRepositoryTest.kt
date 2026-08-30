@@ -74,6 +74,78 @@ class MetadataPantryInventoryRepositoryTest {
     }
 
     @Test
+    fun migrationFromVersionTwoPreservesExistingPantryRows() {
+        val legacyDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        try {
+            legacyDriver.execute(
+                null,
+                """
+                CREATE TABLE PantryItem (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    canonicalIngredientId TEXT,
+                    originalName TEXT NOT NULL,
+                    displayNameTr TEXT,
+                    displayNameEn TEXT,
+                    quantity REAL NOT NULL,
+                    unit TEXT NOT NULL,
+                    unitDimension TEXT NOT NULL,
+                    packageLabel TEXT,
+                    isEstimated INTEGER NOT NULL,
+                    confidence REAL,
+                    source TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
+                )
+                """.trimIndent(),
+                0
+            ).value
+            legacyDriver.execute(
+                null,
+                """
+                INSERT INTO PantryItem(
+                    id, canonicalIngredientId, originalName, displayNameTr, displayNameEn,
+                    quantity, unit, unitDimension, packageLabel, isEstimated, confidence,
+                    source, createdAt, updatedAt
+                ) VALUES (
+                    'legacy-item', NULL, 'Milk', NULL, NULL,
+                    500.0, 'ml', 'VOLUME', NULL, 0, NULL,
+                    'manual', '2026-08-29T00:00:00Z', '2026-08-29T00:00:00Z'
+                )
+                """.trimIndent(),
+                0
+            ).value
+
+            AppDatabase.Schema.migrate(legacyDriver, 2L, 3L)
+
+            val migratedDatabase = AppDatabase(legacyDriver)
+            val migratedRepository = MetadataPantryInventoryRepository(
+                SqlDelightPantryInventoryRepository(migratedDatabase),
+                migratedDatabase
+            )
+            val restored = migratedRepository.getAll().single()
+
+            assertEquals("legacy-item", restored.id)
+            assertEquals("Milk", restored.originalName)
+            assertEquals(500.0, restored.quantity)
+            assertEquals(PantryLocation.PANTRY, restored.location)
+            assertNull(restored.bestBefore)
+            assertNull(restored.useBy)
+
+            assertEquals(
+                true,
+                migratedRepository.updateMetadata(
+                    restored.copy(location = PantryLocation.FRIDGE, useBy = "2026-09-01")
+                )
+            )
+            val enriched = migratedRepository.getAll().single()
+            assertEquals(PantryLocation.FRIDGE, enriched.location)
+            assertEquals("2026-09-01", enriched.useBy)
+        } finally {
+            legacyDriver.close()
+        }
+    }
+
+    @Test
     fun regularQuantityUpsertPreservesExistingMetadata() {
         repository.upsert(
             item(PantryLocation.FRIDGE, bestBefore = "2026-09-02"),
