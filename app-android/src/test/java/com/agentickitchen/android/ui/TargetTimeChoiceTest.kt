@@ -18,6 +18,16 @@ class TargetTimeChoiceTest {
         assertEquals(TargetTimeChoice.Flexible, choices.getValue("flexible").choice)
     }
 
+    @Test fun mapsInventoryTargetChoicesBackToDetailSelection() {
+        assertEquals("after_20", targetTimeChoiceId(TargetTimeChoice.After(Duration.ofMinutes(20))))
+        assertEquals("after_45", targetTimeChoiceId(TargetTimeChoice.After(Duration.ofMinutes(45))))
+        assertEquals("after_60", targetTimeChoiceId(TargetTimeChoice.After(Duration.ofHours(1))))
+        assertEquals("evening", targetTimeChoiceId(TargetTimeChoice.ThisEvening))
+        assertEquals("flexible", targetTimeChoiceId(TargetTimeChoice.Flexible))
+        assertEquals("exact", targetTimeChoiceId(TargetTimeChoice.Exact(LocalTime.of(18, 45))))
+        assertEquals("flexible", targetTimeChoiceId(TargetTimeChoice.After(Duration.ofMinutes(30))))
+    }
+
     @Test fun mapsOnlyValidExactTimeInput() {
         assertEquals(TargetTimeChoice.Exact(LocalTime.MIDNIGHT), exactTargetTimeChoice("00:00"))
         assertEquals(TargetTimeChoice.Exact(LocalTime.of(9, 5)), exactTargetTimeChoice("09:05"))
