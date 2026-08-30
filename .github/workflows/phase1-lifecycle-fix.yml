@@ -1,0 +1,181 @@
+name: One-shot Phase 1 cooking lifecycle fix
+
+on:
+  push:
+    branches:
+      - refactor/agentic-kitchen-production-foundation
+    paths:
+      - .github/workflows/phase1-lifecycle-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/agentic-kitchen-production-foundation
+          fetch-depth: 0
+
+      - name: Apply exact lifecycle replacements and regression test
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          vm_path = Path('app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt')
+          text = vm_path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  '''            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
+                  startCookingTicker()
+              }
+''',
+                  '''            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
+                  startCookingTicker()
+              } else if (restoredStatus == CookingSessionStatus.RUNNING) {
+                  // Repair pre-fix RUNNING records that become terminal once wall-clock time is reconciled.
+                  persistActiveSession()
+                  exposePendingConsumption()
+              }
+'''
+              ),
+              (
+                  '''    fun backToOptions() {
+              val currentState = _planState.value
+              if (currentState is PlanState.RecipeActive) {
+                  if (lastOptions.isNotEmpty()) {
+                      _planState.value = PlanState.OptionsReady(lastOptions)
+                  } else {
+                      startSession()
+                  }
+              }
+          }
+''',
+                  '''    fun backToOptions() {
+              val currentState = _planState.value
+              if (currentState is PlanState.RecipeActive) {
+                  val status = _cookingState.value.status
+                  if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
+                      emitUiEvent(
+                          if (L.isTr) "Devam eden pişirmeyi bitirmeden tariflere dönemezsin."
+                          else "Finish the active cooking session before returning to recipes."
+                      )
+                      return
+                  }
+                  val hasPendingReconciliation = inventoryRepository.pendingUsage(currentState.sessionId)
+                      .any { it.status == "reserved" }
+                  if (hasPendingReconciliation) {
+                      exposePendingConsumption()
+                      emitUiEvent(
+                          if (L.isTr) "Önce stok kullanımını onayla veya iptal et."
+                          else "Confirm or cancel pantry usage before returning to recipes."
+                      )
+                      return
+                  }
+                  inventoryRepository.deleteActiveSession(currentState.sessionId)
+                  _cookingState.value = CookingSessionState()
+                  if (lastOptions.isNotEmpty()) {
+                      _planState.value = PlanState.OptionsReady(lastOptions)
+                  } else {
+                      startSession()
+                  }
+              }
+          }
+'''
+              ),
+              (
+                  '''        cookingTicker = viewModelScope.launch {
+              while (true) {
+                  _cookingState.value = cookingController.current()
+                  if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
+                      exposePendingConsumption()
+                      break
+                  }
+                  delay(500)
+              }
+          }
+''',
+                  '''        cookingTicker = viewModelScope.launch {
+              while (true) {
+                  _cookingState.value = cookingController.current()
+                  if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
+                      // Automatic timer completion must be persisted before reconciliation is exposed.
+                      persistActiveSession()
+                      exposePendingConsumption()
+                      break
+                  }
+                  delay(500)
+              }
+          }
+'''
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one AppViewModel replacement anchor, found {count}')
+              text = text.replace(old, new, 1)
+
+          vm_path.write_text(text, encoding='utf-8')
+
+          test_path = Path('app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt')
+          tests = test_path.read_text(encoding='utf-8')
+          test_name = 'staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan'
+          if test_name not in tests:
+              marker = '\n    private fun newViewModel('
+              if tests.count(marker) != 1:
+                  raise SystemExit('Expected one AppViewModelTest insertion marker')
+              addition = r'''
+    @Test
+    fun staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan() {
+        val inventory = FakeInventoryRepository()
+        val now = System.currentTimeMillis()
+        inventory.saveActiveSession(
+            ActiveCookingSessionRecord(
+                sessionId = "stale-session",
+                recipeOptionId = "option",
+                recipeName = "Timed recipe",
+                recipeType = "test",
+                description = "description",
+                servings = 2,
+                resolvedReadyTimeIso = "2026-08-30T12:00:00Z",
+                cookingPlanJson = """{"recipeName":"Timed recipe","servings":2,"ingredients":[],"steps":[],"safetyNotes":[]}""",
+                eventsJson = """[{"id":"step","startIso":"2026-08-30T12:00:00Z","endIso":"2026-08-30T12:00:01Z","instruction":"Wait","resource":"counter"}]""",
+                plannedUsageJson = "[]",
+                status = "RUNNING",
+                startedAtMillis = now - 120_000,
+                accumulatedElapsedSeconds = 0,
+                lastRunningStartMillis = now - 120_000,
+                pausedAtMillis = null,
+                completedStepIdsJson = "[]",
+                skippedStepIdsJson = "[]",
+                recentChatTurnsJson = "[]",
+                updatedAtIso = "2026-08-30T12:00:00Z"
+            )
+        )
+
+        newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)
+
+        assertEquals("COMPLETED", inventory.getActiveSession("stale-session")?.status)
+    }
+'''
+              tests = tests.replace(marker, addition + marker, 1)
+              test_path.write_text(tests, encoding='utf-8')
+          PY
+
+          git diff --check
+          git diff -- app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt
+
+      - name: Commit exact patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt
+          git commit -m "fix: persist terminal cooking lifecycle"
+          git push origin HEAD:refactor/agentic-kitchen-production-foundation
