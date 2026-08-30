@@ -19,110 +19,94 @@ jobs:
           ref: refactor/agentic-kitchen-production-foundation
           fetch-depth: 0
 
-      - name: Apply exact lifecycle replacements and regression tests
+      - name: Apply narrowly scoped lifecycle patch and regression tests
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           vm_path = Path('app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt')
-          text = vm_path.read_text(encoding='utf-8')
+          lines = vm_path.read_text(encoding='utf-8').splitlines()
 
-          replacements = [
-              (
-                  """            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
-                          startCookingTicker()
-                      }
-          """,
-                  """            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
-                          startCookingTicker()
-                      } else if (restoredStatus == CookingSessionStatus.RUNNING) {
-                          // Repair pre-fix RUNNING records that become terminal once wall-clock time is reconciled.
-                          persistActiveSession()
-                          exposePendingConsumption()
-                      }
-          """,
-              ),
-              (
-                  """    fun backToOptions() {
-                  val currentState = _planState.value
-                  if (currentState is PlanState.RecipeActive) {
-                      if (lastOptions.isNotEmpty()) {
-                          _planState.value = PlanState.OptionsReady(lastOptions)
-                      } else {
-                          startSession()
-                      }
-                  }
-              }
-          """,
-                  """    fun backToOptions() {
-                  val currentState = _planState.value
-                  if (currentState is PlanState.RecipeActive) {
-                      val status = _cookingState.value.status
-                      if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
-                          emitUiEvent(
-                              if (L.isTr) "Devam eden pişirmeyi bitirmeden tariflere dönemezsin."
-                              else "Finish the active cooking session before returning to recipes."
-                          )
-                          return
-                      }
-                      val hasPendingReconciliation = inventoryRepository.pendingUsage(currentState.sessionId)
-                          .any { it.status == "reserved" }
-                      if (hasPendingReconciliation) {
-                          exposePendingConsumption()
-                          emitUiEvent(
-                              if (L.isTr) "Önce stok kullanımını onayla veya iptal et."
-                              else "Confirm or cancel pantry usage before returning to recipes."
-                          )
-                          return
-                      }
-                      inventoryRepository.deleteActiveSession(currentState.sessionId)
-                      _cookingState.value = CookingSessionState()
-                      if (lastOptions.isNotEmpty()) {
-                          _planState.value = PlanState.OptionsReady(lastOptions)
-                      } else {
-                          startSession()
-                      }
-                  }
-              }
-          """,
-              ),
-              (
-                  """        cookingTicker = viewModelScope.launch {
-                  while (true) {
-                      _cookingState.value = cookingController.current()
-                      if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
-                          exposePendingConsumption()
-                          break
-                      }
-                      delay(500)
-                  }
-              }
-          """,
-                  """        cookingTicker = viewModelScope.launch {
-                  while (true) {
-                      _cookingState.value = cookingController.current()
-                      if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
-                          // Automatic timer completion must be durable before reconciliation is exposed.
-                          persistActiveSession()
-                          exposePendingConsumption()
-                          break
-                      }
-                      delay(500)
-                  }
-              }
-          """,
-              ),
+          def function_region(signature, next_signature):
+              starts = [i for i, line in enumerate(lines) if line.strip() == signature]
+              if len(starts) != 1:
+                  raise SystemExit(f'Expected one {signature}, found {len(starts)}')
+              start = starts[0]
+              ends = [i for i in range(start + 1, len(lines)) if lines[i].strip() == next_signature]
+              if len(ends) != 1:
+                  raise SystemExit(f'Expected one next boundary {next_signature}, found {len(ends)}')
+              return start, ends[0]
+
+          # 1. Repair stale persisted RUNNING records when restore() reconciles them to terminal state.
+          restore_start, restore_end = function_region('private fun restoreActiveSession() {', 'private fun persistActiveSession() {')
+          restore_region = lines[restore_start:restore_end]
+          ticker_calls = [i for i, line in enumerate(restore_region) if line.strip() == 'startCookingTicker()']
+          if len(ticker_calls) != 1:
+              raise SystemExit(f'Expected one restore ticker call, found {len(ticker_calls)}')
+          call_abs = restore_start + ticker_calls[0]
+          close_abs = call_abs + 1
+          if lines[close_abs].strip() != '}':
+              raise SystemExit('Unexpected restore ticker block shape')
+          repair_lines = [
+              '            } else if (restoredStatus == CookingSessionStatus.RUNNING) {',
+              '                // Repair pre-fix RUNNING records that become terminal after wall-clock reconciliation.',
+              '                persistActiveSession()',
+              '                exposePendingConsumption()',
           ]
+          lines[close_abs:close_abs + 1] = repair_lines + ['            }']
 
-          for old, new in replacements:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'Expected exactly one AppViewModel replacement anchor, found {count}')
-              text = text.replace(old, new, 1)
+          # 2. Make Back lifecycle-safe: active cooking cannot be abandoned and terminal reserved usage must reconcile first.
+          back_start, back_end = function_region('fun backToOptions() {', 'fun startCooking() {')
+          replacement = [
+              '    fun backToOptions() {',
+              '        val currentState = _planState.value',
+              '        if (currentState is PlanState.RecipeActive) {',
+              '            val status = _cookingState.value.status',
+              '            if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {',
+              '                emitUiEvent(',
+              '                    if (L.isTr) "Devam eden pişirmeyi bitirmeden tariflere dönemezsin."',
+              '                    else "Finish the active cooking session before returning to recipes."',
+              '                )',
+              '                return',
+              '            }',
+              '            val hasPendingReconciliation = inventoryRepository.pendingUsage(currentState.sessionId)',
+              '                .any { it.status == "reserved" }',
+              '            if (hasPendingReconciliation) {',
+              '                exposePendingConsumption()',
+              '                emitUiEvent(',
+              '                    if (L.isTr) "Önce stok kullanımını onayla veya iptal et."',
+              '                    else "Confirm or cancel pantry usage before returning to recipes."',
+              '                )',
+              '                return',
+              '            }',
+              '            inventoryRepository.deleteActiveSession(currentState.sessionId)',
+              '            _cookingState.value = CookingSessionState()',
+              '            if (lastOptions.isNotEmpty()) {',
+              '                _planState.value = PlanState.OptionsReady(lastOptions)',
+              '            } else {',
+              '                startSession()',
+              '            }',
+              '        }',
+              '    }',
+              '',
+          ]
+          lines[back_start:back_end] = replacement
 
-          vm_path.write_text(text, encoding='utf-8')
+          # 3. Persist automatic RUNNING -> terminal transitions before exposing consumption reconciliation.
+          ticker_start, ticker_end = function_region('private fun startCookingTicker() {', 'private fun stopTickerIfFinished() {')
+          ticker_region = lines[ticker_start:ticker_end]
+          exposes = [i for i, line in enumerate(ticker_region) if line.strip() == 'exposePendingConsumption()']
+          if len(exposes) != 1:
+              raise SystemExit(f'Expected one ticker expose call, found {len(exposes)}')
+          expose_abs = ticker_start + exposes[0]
+          if lines[expose_abs - 1].strip() == 'persistActiveSession()':
+              raise SystemExit('Ticker persistence already present unexpectedly')
+          lines.insert(expose_abs, '                    persistActiveSession()')
 
+          vm_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+          # Focused ViewModel regressions reuse the existing fakes in AppViewModelTest.
           test_path = Path('app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt')
           tests = test_path.read_text(encoding='utf-8')
           marker = '\n    private fun newViewModel('
@@ -130,7 +114,7 @@ jobs:
               raise SystemExit('Expected exactly one AppViewModelTest insertion marker')
 
           if 'staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan' not in tests:
-              lines = [
+              new_tests = '\n'.join([
                   '',
                   '    @Test',
                   '    fun staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan() {',
@@ -197,13 +181,20 @@ jobs:
                   '        assertEquals(null, inventory.getActiveSession("completed-session"))',
                   '    }',
                   '',
-              ]
-              addition = '\n'.join(lines)
-              tests = tests.replace(marker, addition + marker, 1)
+              ])
+              tests = tests.replace(marker, new_tests + marker, 1)
               test_path.write_text(tests, encoding='utf-8')
           PY
 
           git diff --check
+          changed="$(git diff --name-only)"
+          expected=$'app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt\napp-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt'
+          if [ "$changed" != "$expected" ]; then
+            echo "Unexpected changed files:" >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+          git diff --stat
           git diff -- app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt
 
       - name: Commit exact patch
