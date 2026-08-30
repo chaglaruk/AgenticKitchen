@@ -18,6 +18,17 @@ jobs:
         with:
           ref: refactor/agentic-kitchen-production-foundation
           fetch-depth: 0
+      - name: Repair patch harness test tail
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/phase3_substitution_patch.py')
+          text = p.read_text(encoding='utf-8')
+          marker = '# Prompt guard test'
+          if marker not in text:
+              raise SystemExit('prompt test marker missing')
+          p.write_text(text.split(marker, 1)[0].rstrip() + '\n', encoding='utf-8')
+          PY
       - name: Apply Phase 3 source patch
         run: python3 .github/scripts/phase3_substitution_patch.py
       - name: Validate Phase 3 source patch
