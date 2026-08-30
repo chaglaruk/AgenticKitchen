@@ -21,7 +21,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply exact integration patch
-        run: python3 .github/scripts/phase2_integration_patch.py
+        run: |
+          sed -i 's/"""            Text(option.description/"""                Text(option.description/g; s/^            if (option.shortages.isNotEmpty()) {/                if (option.shortages.isNotEmpty()) {/g' .github/scripts/phase2_integration_patch.py
+          python3 .github/scripts/phase2_integration_patch.py
 
       - name: Validate integration
         run: |
