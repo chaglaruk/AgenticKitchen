@@ -1655,8 +1655,8 @@ private fun InventoryRecipeDialog(
 ) {
     val colors = LocalAppColors.current
     var servings by remember { mutableStateOf(2) }
-    var strictStock by remember { mutableStateOf(true) }
-    var missingStaples by remember { mutableStateOf(0) }
+    var strictStock by remember { mutableStateOf(false) }
+    var missingStaples by remember { mutableStateOf(2) }
     var priority by remember { mutableStateOf("") }
     Dialog(onDismissRequest = onDismiss) {
         Column(

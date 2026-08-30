@@ -21,6 +21,9 @@ import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.ActiveCookingSessionRecord
 import com.agentickitchen.shared.inventory.LocalIngredientResolver
+import com.agentickitchen.shared.inventory.RecipeMatchCandidate
+import com.agentickitchen.shared.inventory.RecipeMatcher
+import com.agentickitchen.shared.inventory.RecipeMatchTier
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
@@ -145,7 +148,14 @@ data class RecipeOption(
     val description: String,
     val sourceLabel: String? = null,
     val proposedIngredients: List<com.agentickitchen.shared.ai.dto.PlannedIngredientDto> = emptyList(),
-    val shortages: List<String> = emptyList()
+    val shortages: List<String> = emptyList(),
+    val matchTier: RecipeMatchTier = RecipeMatchTier.AI_IDEA,
+    val pantryCoveragePercent: Int? = null,
+    val expiresTodayMatches: Int = 0,
+    val useSoonMatches: Int = 0,
+    val estimatedMinutes: Int? = null,
+    val equipmentFit: Boolean = true,
+    val previouslySuccessful: Boolean = false
 )
 data class RecipeRequestSelection(val servings: Int, val targetTime: TargetTimeChoice)
 
@@ -806,47 +816,88 @@ class AppViewModel(
                         )
                     )
                     val response = result.requireValue()
-                    val shortagesByOption = mutableMapOf<String, List<String>>()
-                    if (inventoryRequest != null) {
-                        val reserved = reservedQuantities()
-                        val invalid = response.options.any { option ->
-                            val usage = InventoryWorkflow.planUsage(
-                                CookingPlanResponse(
-                                    recipeName = option.name,
-                                    servings = inventoryRequest.servings,
-                                    ingredients = option.proposedIngredients,
-                                    steps = emptyList(),
-                                    safetyNotes = emptyList()
-                                ),
-                                _inventory.value,
-                                reserved
-                            )
-                            shortagesByOption[option.id] = usage.shortages
-                            option.proposedIngredients.isEmpty() ||
-                                (inventoryRequest.strictStock && usage.shortages.isNotEmpty()) ||
-                                (!inventoryRequest.strictStock && usage.shortages.size > inventoryRequest.maxMissingStaples)
-                        }
-                        if (invalid) throw AiRequestException(
-                            AiResult.Failure(
-                                AiFailureType.InvalidPlan,
-                                true,
-                                AiFailureType.InvalidPlan.userMessageRes
-                            )
-                        )
-                    }
                     val sourceLabel = (result as? AiResult.Success)?.provider
                         ?.takeIf { it == com.agentickitchen.shared.ai.AiProviderId.FREE }
                         ?.label
-                    lastOptions = response.options.map {
-                        RecipeOption(
-                            it.id,
-                            it.difficulty,
-                            it.name,
-                            it.summary,
-                            sourceLabel,
-                            it.proposedIngredients,
-                            shortagesByOption[it.id].orEmpty()
+                    if (inventoryRequest == null) {
+                        lastOptions = response.options.map { dto ->
+                            RecipeOption(
+                                id = dto.id,
+                                type = dto.difficulty,
+                                name = dto.name,
+                                description = dto.summary,
+                                sourceLabel = sourceLabel,
+                                proposedIngredients = dto.proposedIngredients,
+                                shortages = emptyList(),
+                                matchTier = RecipeMatchTier.AI_IDEA,
+                                pantryCoveragePercent = null,
+                                estimatedMinutes = dto.estimatedMinutes,
+                                equipmentFit = dto.requiredEquipment.all(_selectedEquipment.value::contains)
+                            )
+                        }
+                    } else {
+                        val successfulRecipeNames = _history.value
+                            .filter { it.status.equals("completed", ignoreCase = true) }
+                            .map { it.name }
+                        val ranked = RecipeMatcher.rank(
+                            candidates = response.options.map { dto ->
+                                RecipeMatchCandidate(
+                                    id = dto.id,
+                                    proposedIngredients = dto.proposedIngredients,
+                                    requiredEquipment = dto.requiredEquipment.toSet(),
+                                    estimatedMinutes = dto.estimatedMinutes,
+                                    safetyAllowed = true,
+                                    dietAllowed = true,
+                                    previouslySuccessful = successfulRecipeNames.any { it.equals(dto.name, ignoreCase = true) }
+                                )
+                            },
+                            inventory = _inventory.value,
+                            reservedByItem = reservedQuantities(),
+                            availableEquipment = _selectedEquipment.value,
+                            prioritizedIngredients = inventoryRequest.prioritizedIngredients
                         )
+                        val optionById = response.options.associateBy { it.id }
+                        val allowed = ranked.filter { match ->
+                            if (inventoryRequest.strictStock) {
+                                match.tier == RecipeMatchTier.READY_NOW
+                            } else {
+                                when (match.tier) {
+                                    RecipeMatchTier.READY_NOW -> true
+                                    RecipeMatchTier.MISSING_ONE -> inventoryRequest.maxMissingStaples >= 1
+                                    RecipeMatchTier.MISSING_TWO -> inventoryRequest.maxMissingStaples >= 2
+                                    RecipeMatchTier.AI_IDEA -> false
+                                }
+                            }
+                        }
+                        if (allowed.isEmpty()) {
+                            throw AiRequestException(
+                                AiResult.Failure(
+                                    AiFailureType.InvalidPlan,
+                                    true,
+                                    AiFailureType.InvalidPlan.userMessageRes
+                                )
+                            )
+                        }
+                        lastOptions = allowed.mapNotNull { match ->
+                            optionById[match.candidateId]?.let { dto ->
+                                RecipeOption(
+                                    id = dto.id,
+                                    type = dto.difficulty,
+                                    name = dto.name,
+                                    description = dto.summary,
+                                    sourceLabel = sourceLabel,
+                                    proposedIngredients = dto.proposedIngredients,
+                                    shortages = match.shortages,
+                                    matchTier = match.tier,
+                                    pantryCoveragePercent = match.pantryCoveragePercent,
+                                    expiresTodayMatches = match.expiresTodayMatches,
+                                    useSoonMatches = match.useSoonMatches,
+                                    estimatedMinutes = dto.estimatedMinutes,
+                                    equipmentFit = match.equipmentFit,
+                                    previouslySuccessful = match.previouslySuccessful
+                                )
+                            }
+                        }
                     }
                     _planState.value = PlanState.OptionsReady(lastOptions)
                 }
@@ -1020,6 +1071,10 @@ class AppViewModel(
         // Clear active recipe/cooking state only if the consumed session was the currently active session
         val active = _planState.value as? PlanState.RecipeActive
         if (active?.sessionId == sessionId) {
+            if (_cookingState.value.status == CookingSessionStatus.COMPLETED) {
+                historyRepo.updateStatus(sessionId, "completed")
+                loadHistory()
+            }
             _planState.value = PlanState.Idle
             _cookingState.value = CookingSessionState()
         }

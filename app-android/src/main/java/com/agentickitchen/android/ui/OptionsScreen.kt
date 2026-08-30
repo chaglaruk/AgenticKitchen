@@ -82,6 +82,7 @@ import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeRequestSelection
 import com.agentickitchen.android.RecipeOption
+import com.agentickitchen.shared.inventory.RecipeMatchTier
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import kotlinx.coroutines.delay
@@ -495,6 +496,25 @@ private fun EditorialOptionsHeader() {
     }
 }
 
+internal fun recipeMatchTierLabel(tier: RecipeMatchTier, isTurkish: Boolean): String = when (tier) {
+    RecipeMatchTier.READY_NOW -> if (isTurkish) "HAZIR ŞİMDİ" else "READY NOW"
+    RecipeMatchTier.MISSING_ONE -> if (isTurkish) "1 EKSİK" else "MISSING 1"
+    RecipeMatchTier.MISSING_TWO -> if (isTurkish) "2 EKSİK" else "MISSING 2"
+    RecipeMatchTier.AI_IDEA -> if (isTurkish) "AI FİKİRLERİ" else "AI IDEAS"
+}
+
+internal fun recipeCoverageSummary(options: List<RecipeOption>, isTurkish: Boolean): String? {
+    if (options.none { it.pantryCoveragePercent != null }) return null
+    val ready = options.count { it.matchTier == RecipeMatchTier.READY_NOW }
+    val one = options.count { it.matchTier == RecipeMatchTier.MISSING_ONE }
+    val two = options.count { it.matchTier == RecipeMatchTier.MISSING_TWO }
+    return if (isTurkish) {
+        "${options.size} sonuç · $ready hazır · $one tek eksik · $two iki eksik"
+    } else {
+        "${options.size} results · $ready ready · $one missing one · $two missing two"
+    }
+}
+
 @Composable
 private fun EditorialRecipeList(
     options: List<RecipeOption>,
@@ -504,28 +524,46 @@ private fun EditorialRecipeList(
     val colors = LocalAppColors.current
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(options) { visible = true }
+    val coverageSummary = recipeCoverageSummary(options, L.isTr)
+    val groups = RecipeMatchTier.values()
+        .map { tier -> tier to options.filter { it.matchTier == tier } }
+        .filter { it.second.isNotEmpty() }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (L.isTr) "Tarif önerileri" else "Recipe ideas",
-                color = colors.onSurfaceSub,
-                style = MaterialTheme.typography.caption,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (L.isTr) "Tarif önerileri" else "Recipe ideas",
+                    color = colors.onSurfaceSub,
+                    style = MaterialTheme.typography.caption
+                )
+                coverageSummary?.let {
+                    Spacer(Modifier.height(3.dp))
+                    Text(it, color = colors.primary, style = MaterialTheme.typography.caption)
+                }
+            }
             TextButton(onClick = onRefresh) {
                 Text(if (L.isTr) "Başka öneriler" else "More ideas", color = colors.primary)
             }
         }
-        Spacer(Modifier.height(8.dp))
-        options.forEachIndexed { index, option ->
-            EditorialRecipeRow(
-                option = option,
-                index = index,
-                visible = visible,
-                onClick = { onSelect(option) }
+        Spacer(Modifier.height(12.dp))
+        groups.forEachIndexed { groupIndex, (tier, groupOptions) ->
+            if (groupIndex > 0) Spacer(Modifier.height(16.dp))
+            Text(
+                recipeMatchTierLabel(tier, L.isTr),
+                color = colors.primary,
+                style = MaterialTheme.typography.overline
             )
-            if (index < options.lastIndex) Divider(color = colors.divider, thickness = 1.dp)
+            Spacer(Modifier.height(4.dp))
+            groupOptions.forEachIndexed { index, option ->
+                EditorialRecipeRow(
+                    option = option,
+                    index = options.indexOfFirst { it.id == option.id }.coerceAtLeast(index),
+                    visible = visible,
+                    onClick = { onSelect(option) }
+                )
+                if (index < groupOptions.lastIndex) Divider(color = colors.divider, thickness = 1.dp)
+            }
         }
     }
 }
@@ -572,6 +610,32 @@ private fun EditorialRecipeRow(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(option.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+            option.pantryCoveragePercent?.let { coverage ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    if (L.isTr) "Stok eşleşmesi %$coverage" else "$coverage% pantry match",
+                    color = colors.primary,
+                    style = MaterialTheme.typography.caption
+                )
+                if (option.expiresTodayMatches > 0 || option.useSoonMatches > 0) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        if (L.isTr) {
+                            listOfNotNull(
+                                option.expiresTodayMatches.takeIf { it > 0 }?.let { "$it bugün kullanılmalı" },
+                                option.useSoonMatches.takeIf { it > 0 }?.let { "$it yakında kullanılmalı" }
+                            ).joinToString(" · ")
+                        } else {
+                            listOfNotNull(
+                                option.expiresTodayMatches.takeIf { it > 0 }?.let { "$it expires today" },
+                                option.useSoonMatches.takeIf { it > 0 }?.let { "$it use soon" }
+                            ).joinToString(" · ")
+                        },
+                        color = colors.onSurfaceSub,
+                        style = MaterialTheme.typography.caption
+                    )
+                }
+            }
                 if (option.shortages.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(
