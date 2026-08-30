@@ -475,6 +475,10 @@ class AppViewModel(
 
             if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
                 startCookingTicker()
+            } else if (restoredStatus == CookingSessionStatus.RUNNING) {
+                // Repair pre-fix RUNNING records that become terminal after wall-clock reconciliation.
+                persistActiveSession()
+                exposePendingConsumption()
             }
         } catch (e: Exception) {
             AppLogger.w("Recovery", "Failed to restore active session: ${e.message}")
@@ -863,6 +867,26 @@ class AppViewModel(
     fun backToOptions() {
         val currentState = _planState.value
         if (currentState is PlanState.RecipeActive) {
+            val status = _cookingState.value.status
+            if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
+                emitUiEvent(
+                    if (L.isTr) "Devam eden pişirmeyi bitirmeden tariflere dönemezsin."
+                    else "Finish the active cooking session before returning to recipes."
+                )
+                return
+            }
+            val hasPendingReconciliation = inventoryRepository.pendingUsage(currentState.sessionId)
+                .any { it.status == "reserved" }
+            if (hasPendingReconciliation) {
+                exposePendingConsumption()
+                emitUiEvent(
+                    if (L.isTr) "Önce stok kullanımını onayla veya iptal et."
+                    else "Confirm or cancel pantry usage before returning to recipes."
+                )
+                return
+            }
+            inventoryRepository.deleteActiveSession(currentState.sessionId)
+            _cookingState.value = CookingSessionState()
             if (lastOptions.isNotEmpty()) {
                 _planState.value = PlanState.OptionsReady(lastOptions)
             } else {
@@ -1008,6 +1032,7 @@ class AppViewModel(
             while (true) {
                 _cookingState.value = cookingController.current()
                 if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
+                    persistActiveSession()
                     exposePendingConsumption()
                     break
                 }

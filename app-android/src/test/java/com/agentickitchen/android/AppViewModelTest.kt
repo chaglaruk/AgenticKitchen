@@ -429,6 +429,71 @@ class AppViewModelTest {
         assertEquals(sidB, vm.pendingConsumption.value!!.sessionId)
     }
 
+    @Test
+    fun staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan() {
+        val inventory = FakeInventoryRepository()
+        val now = System.currentTimeMillis()
+        inventory.saveActiveSession(
+            ActiveCookingSessionRecord(
+                sessionId = "stale-session",
+                recipeOptionId = "option",
+                recipeName = "Timed recipe",
+                recipeType = "test",
+                description = "description",
+                servings = 2,
+                resolvedReadyTimeIso = "2026-08-30T12:00:00Z",
+                cookingPlanJson = """{"recipeName":"Timed recipe","servings":2,"ingredients":[],"steps":[],"safetyNotes":[]}""",
+                eventsJson = """[{"id":"step","startIso":"2026-08-30T12:00:00Z","endIso":"2026-08-30T12:00:01Z","instruction":"Wait","resource":"counter"}]""",
+                plannedUsageJson = "[]",
+                status = "RUNNING",
+                startedAtMillis = now - 120_000,
+                accumulatedElapsedSeconds = 0,
+                lastRunningStartMillis = now - 120_000,
+                pausedAtMillis = null,
+                completedStepIdsJson = "[]",
+                skippedStepIdsJson = "[]",
+                recentChatTurnsJson = "[]",
+                updatedAtIso = "2026-08-30T12:00:00Z"
+            )
+        )
+
+        newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)
+
+        assertEquals("COMPLETED", inventory.getActiveSession("stale-session")?.status)
+    }
+
+    @Test
+    fun completedRestoredSessionWithoutPendingUsageIsDeletedWhenReturningToRecipes() {
+        val inventory = FakeInventoryRepository()
+        val now = System.currentTimeMillis()
+        inventory.saveActiveSession(
+            ActiveCookingSessionRecord(
+                sessionId = "completed-session",
+                recipeOptionId = "option",
+                recipeName = "Completed recipe",
+                recipeType = "test",
+                description = "description",
+                servings = 2,
+                resolvedReadyTimeIso = "2026-08-30T12:00:00Z",
+                cookingPlanJson = """{"recipeName":"Completed recipe","servings":2,"ingredients":[],"steps":[],"safetyNotes":[]}""",
+                eventsJson = "[]",
+                plannedUsageJson = "[]",
+                status = "COMPLETED",
+                startedAtMillis = now - 120_000,
+                accumulatedElapsedSeconds = 120,
+                completedStepIdsJson = "[]",
+                skippedStepIdsJson = "[]",
+                recentChatTurnsJson = "[]",
+                updatedAtIso = "2026-08-30T12:00:00Z"
+            )
+        )
+        val viewModel = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)
+
+        viewModel.backToOptions()
+
+        assertEquals(null, inventory.getActiveSession("completed-session"))
+    }
+
     private fun newViewModel(
         preferences: FakePreferences,
         history: FakeHistoryRepository,
