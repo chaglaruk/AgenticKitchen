@@ -3,9 +3,9 @@ name: One-shot Phase 1 cooking lifecycle fix
 on:
   push:
     branches:
-      - refactor/agentic-kitchen-production-foundation
+      - "refactor/agentic-kitchen-production-foundation"
     paths:
-      - .github/workflows/phase1-lifecycle-fix.yml
+      - ".github/workflows/phase1-lifecycle-fix.yml"
 
 permissions:
   contents: write
@@ -19,7 +19,7 @@ jobs:
           ref: refactor/agentic-kitchen-production-foundation
           fetch-depth: 0
 
-      - name: Apply exact lifecycle replacements and regression test
+      - name: Apply exact lifecycle replacements and regression tests
         shell: bash
         run: |
           python3 - <<'PY'
@@ -30,88 +30,88 @@ jobs:
 
           replacements = [
               (
-                  '''            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
-                  startCookingTicker()
-              }
-''',
-                  '''            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
-                  startCookingTicker()
-              } else if (restoredStatus == CookingSessionStatus.RUNNING) {
-                  // Repair pre-fix RUNNING records that become terminal once wall-clock time is reconciled.
-                  persistActiveSession()
-                  exposePendingConsumption()
-              }
-'''
+                  """            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
+                          startCookingTicker()
+                      }
+          """,
+                  """            if (_cookingState.value.status == CookingSessionStatus.RUNNING) {
+                          startCookingTicker()
+                      } else if (restoredStatus == CookingSessionStatus.RUNNING) {
+                          // Repair pre-fix RUNNING records that become terminal once wall-clock time is reconciled.
+                          persistActiveSession()
+                          exposePendingConsumption()
+                      }
+          """,
               ),
               (
-                  '''    fun backToOptions() {
-              val currentState = _planState.value
-              if (currentState is PlanState.RecipeActive) {
-                  if (lastOptions.isNotEmpty()) {
-                      _planState.value = PlanState.OptionsReady(lastOptions)
-                  } else {
-                      startSession()
+                  """    fun backToOptions() {
+                  val currentState = _planState.value
+                  if (currentState is PlanState.RecipeActive) {
+                      if (lastOptions.isNotEmpty()) {
+                          _planState.value = PlanState.OptionsReady(lastOptions)
+                      } else {
+                          startSession()
+                      }
                   }
               }
-          }
-''',
-                  '''    fun backToOptions() {
-              val currentState = _planState.value
-              if (currentState is PlanState.RecipeActive) {
-                  val status = _cookingState.value.status
-                  if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
-                      emitUiEvent(
-                          if (L.isTr) "Devam eden pişirmeyi bitirmeden tariflere dönemezsin."
-                          else "Finish the active cooking session before returning to recipes."
-                      )
-                      return
-                  }
-                  val hasPendingReconciliation = inventoryRepository.pendingUsage(currentState.sessionId)
-                      .any { it.status == "reserved" }
-                  if (hasPendingReconciliation) {
-                      exposePendingConsumption()
-                      emitUiEvent(
-                          if (L.isTr) "Önce stok kullanımını onayla veya iptal et."
-                          else "Confirm or cancel pantry usage before returning to recipes."
-                      )
-                      return
-                  }
-                  inventoryRepository.deleteActiveSession(currentState.sessionId)
-                  _cookingState.value = CookingSessionState()
-                  if (lastOptions.isNotEmpty()) {
-                      _planState.value = PlanState.OptionsReady(lastOptions)
-                  } else {
-                      startSession()
+          """,
+                  """    fun backToOptions() {
+                  val currentState = _planState.value
+                  if (currentState is PlanState.RecipeActive) {
+                      val status = _cookingState.value.status
+                      if (status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)) {
+                          emitUiEvent(
+                              if (L.isTr) "Devam eden pişirmeyi bitirmeden tariflere dönemezsin."
+                              else "Finish the active cooking session before returning to recipes."
+                          )
+                          return
+                      }
+                      val hasPendingReconciliation = inventoryRepository.pendingUsage(currentState.sessionId)
+                          .any { it.status == "reserved" }
+                      if (hasPendingReconciliation) {
+                          exposePendingConsumption()
+                          emitUiEvent(
+                              if (L.isTr) "Önce stok kullanımını onayla veya iptal et."
+                              else "Confirm or cancel pantry usage before returning to recipes."
+                          )
+                          return
+                      }
+                      inventoryRepository.deleteActiveSession(currentState.sessionId)
+                      _cookingState.value = CookingSessionState()
+                      if (lastOptions.isNotEmpty()) {
+                          _planState.value = PlanState.OptionsReady(lastOptions)
+                      } else {
+                          startSession()
+                      }
                   }
               }
-          }
-'''
+          """,
               ),
               (
-                  '''        cookingTicker = viewModelScope.launch {
-              while (true) {
-                  _cookingState.value = cookingController.current()
-                  if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
-                      exposePendingConsumption()
-                      break
+                  """        cookingTicker = viewModelScope.launch {
+                  while (true) {
+                      _cookingState.value = cookingController.current()
+                      if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
+                          exposePendingConsumption()
+                          break
+                      }
+                      delay(500)
                   }
-                  delay(500)
               }
-          }
-''',
-                  '''        cookingTicker = viewModelScope.launch {
-              while (true) {
-                  _cookingState.value = cookingController.current()
-                  if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
-                      // Automatic timer completion must be persisted before reconciliation is exposed.
-                      persistActiveSession()
-                      exposePendingConsumption()
-                      break
+          """,
+                  """        cookingTicker = viewModelScope.launch {
+                  while (true) {
+                      _cookingState.value = cookingController.current()
+                      if (_cookingState.value.status != CookingSessionStatus.RUNNING) {
+                          // Automatic timer completion must be durable before reconciliation is exposed.
+                          persistActiveSession()
+                          exposePendingConsumption()
+                          break
+                      }
+                      delay(500)
                   }
-                  delay(500)
               }
-          }
-'''
+          """,
               ),
           ]
 
@@ -125,45 +125,80 @@ jobs:
 
           test_path = Path('app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt')
           tests = test_path.read_text(encoding='utf-8')
-          test_name = 'staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan'
-          if test_name not in tests:
-              marker = '\n    private fun newViewModel('
-              if tests.count(marker) != 1:
-                  raise SystemExit('Expected one AppViewModelTest insertion marker')
-              addition = r'''
-    @Test
-    fun staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan() {
-        val inventory = FakeInventoryRepository()
-        val now = System.currentTimeMillis()
-        inventory.saveActiveSession(
-            ActiveCookingSessionRecord(
-                sessionId = "stale-session",
-                recipeOptionId = "option",
-                recipeName = "Timed recipe",
-                recipeType = "test",
-                description = "description",
-                servings = 2,
-                resolvedReadyTimeIso = "2026-08-30T12:00:00Z",
-                cookingPlanJson = """{"recipeName":"Timed recipe","servings":2,"ingredients":[],"steps":[],"safetyNotes":[]}""",
-                eventsJson = """[{"id":"step","startIso":"2026-08-30T12:00:00Z","endIso":"2026-08-30T12:00:01Z","instruction":"Wait","resource":"counter"}]""",
-                plannedUsageJson = "[]",
-                status = "RUNNING",
-                startedAtMillis = now - 120_000,
-                accumulatedElapsedSeconds = 0,
-                lastRunningStartMillis = now - 120_000,
-                pausedAtMillis = null,
-                completedStepIdsJson = "[]",
-                skippedStepIdsJson = "[]",
-                recentChatTurnsJson = "[]",
-                updatedAtIso = "2026-08-30T12:00:00Z"
-            )
-        )
+          marker = '\n    private fun newViewModel('
+          if tests.count(marker) != 1:
+              raise SystemExit('Expected exactly one AppViewModelTest insertion marker')
 
-        newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)
-
-        assertEquals("COMPLETED", inventory.getActiveSession("stale-session")?.status)
-    }
-'''
+          if 'staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan' not in tests:
+              lines = [
+                  '',
+                  '    @Test',
+                  '    fun staleRunningSessionIsPersistedAsCompletedWhenRestoreFindsElapsedPlan() {',
+                  '        val inventory = FakeInventoryRepository()',
+                  '        val now = System.currentTimeMillis()',
+                  '        inventory.saveActiveSession(',
+                  '            ActiveCookingSessionRecord(',
+                  '                sessionId = "stale-session",',
+                  '                recipeOptionId = "option",',
+                  '                recipeName = "Timed recipe",',
+                  '                recipeType = "test",',
+                  '                description = "description",',
+                  '                servings = 2,',
+                  '                resolvedReadyTimeIso = "2026-08-30T12:00:00Z",',
+                  '                cookingPlanJson = """{"recipeName":"Timed recipe","servings":2,"ingredients":[],"steps":[],"safetyNotes":[]}""",',
+                  '                eventsJson = """[{"id":"step","startIso":"2026-08-30T12:00:00Z","endIso":"2026-08-30T12:00:01Z","instruction":"Wait","resource":"counter"}]""",',
+                  '                plannedUsageJson = "[]",',
+                  '                status = "RUNNING",',
+                  '                startedAtMillis = now - 120_000,',
+                  '                accumulatedElapsedSeconds = 0,',
+                  '                lastRunningStartMillis = now - 120_000,',
+                  '                pausedAtMillis = null,',
+                  '                completedStepIdsJson = "[]",',
+                  '                skippedStepIdsJson = "[]",',
+                  '                recentChatTurnsJson = "[]",',
+                  '                updatedAtIso = "2026-08-30T12:00:00Z"',
+                  '            )',
+                  '        )',
+                  '',
+                  '        newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)',
+                  '',
+                  '        assertEquals("COMPLETED", inventory.getActiveSession("stale-session")?.status)',
+                  '    }',
+                  '',
+                  '    @Test',
+                  '    fun completedRestoredSessionWithoutPendingUsageIsDeletedWhenReturningToRecipes() {',
+                  '        val inventory = FakeInventoryRepository()',
+                  '        val now = System.currentTimeMillis()',
+                  '        inventory.saveActiveSession(',
+                  '            ActiveCookingSessionRecord(',
+                  '                sessionId = "completed-session",',
+                  '                recipeOptionId = "option",',
+                  '                recipeName = "Completed recipe",',
+                  '                recipeType = "test",',
+                  '                description = "description",',
+                  '                servings = 2,',
+                  '                resolvedReadyTimeIso = "2026-08-30T12:00:00Z",',
+                  '                cookingPlanJson = """{"recipeName":"Completed recipe","servings":2,"ingredients":[],"steps":[],"safetyNotes":[]}""",',
+                  '                eventsJson = "[]",',
+                  '                plannedUsageJson = "[]",',
+                  '                status = "COMPLETED",',
+                  '                startedAtMillis = now - 120_000,',
+                  '                accumulatedElapsedSeconds = 120,',
+                  '                completedStepIdsJson = "[]",',
+                  '                skippedStepIdsJson = "[]",',
+                  '                recentChatTurnsJson = "[]",',
+                  '                updatedAtIso = "2026-08-30T12:00:00Z"',
+                  '            )',
+                  '        )',
+                  '        val viewModel = newViewModel(FakePreferences(), FakeHistoryRepository(), inventory = inventory)',
+                  '',
+                  '        viewModel.backToOptions()',
+                  '',
+                  '        assertEquals(null, inventory.getActiveSession("completed-session"))',
+                  '    }',
+                  '',
+              ]
+              addition = '\n'.join(lines)
               tests = tests.replace(marker, addition + marker, 1)
               test_path.write_text(tests, encoding='utf-8')
           PY
