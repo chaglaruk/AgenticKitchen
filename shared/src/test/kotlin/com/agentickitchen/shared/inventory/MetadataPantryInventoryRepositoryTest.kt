@@ -74,7 +74,7 @@ class MetadataPantryInventoryRepositoryTest {
     }
 
     @Test
-    fun migrationFromVersionTwoPreservesExistingPantryRows() {
+    fun migrationFromVersionThreePreservesExistingPantryRows() {
         val legacyDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         try {
             legacyDriver.execute(
@@ -115,7 +115,8 @@ class MetadataPantryInventoryRepositoryTest {
                 0
             ).value
 
-            AppDatabase.Schema.migrate(legacyDriver, 2L, 3L)
+            assertEquals(4L, AppDatabase.Schema.version)
+            AppDatabase.Schema.migrate(legacyDriver, 3L, 4L)
 
             val migratedDatabase = AppDatabase(legacyDriver)
             val migratedRepository = MetadataPantryInventoryRepository(
