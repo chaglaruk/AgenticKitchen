@@ -31,6 +31,27 @@ jobs:
           PY
       - name: Apply Phase 3 source patch
         run: python3 .github/scripts/phase3_substitution_patch.py
+      - name: Repair generated compile anchors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          test = Path('shared/src/test/kotlin/com/agentickitchen/shared/inventory/SubstitutionMutationValidatorTest.kt')
+          text = test.read_text(encoding='utf-8')
+          text = text.replace('import org.junit.Assert.assertFalse\nimport org.junit.Assert.assertTrue\nimport org.junit.Test\n', 'import kotlin.test.Test\nimport kotlin.test.assertFalse\nimport kotlin.test.assertTrue\n')
+          test.write_text(text, encoding='utf-8')
+
+          vm = Path('app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt')
+          text = vm.read_text(encoding='utf-8')
+          text = text.replace('CookingProviderSelection.provider(aiProviderFactory, _hardwareSettings.value)', 'CookingProviderSelection.provider(providerFactory, _hw.value)')
+          text = text.replace('_hardwareSettings.value', '_hw.value')
+          text = text.replace('_language.value', 'language.value')
+          vm.write_text(text, encoding='utf-8')
+
+          ops = Path('app-android/src/main/java/com/agentickitchen/android/ui/OperationsScreen.kt')
+          text = ops.read_text(encoding='utf-8').replace('color = colors.error', 'color = MaterialTheme.colors.error')
+          ops.write_text(text, encoding='utf-8')
+          PY
       - name: Validate Phase 3 source patch
         run: |
           git diff --check
