@@ -20,6 +20,27 @@ jobs:
           fetch-depth: 0
       - name: Apply Phase 5 source patch
         run: python3 .github/scripts/phase5_multi_photo_scan_patch.py
+      - name: Repair generated compile anchors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          home = Path('app-android/src/main/java/com/agentickitchen/android/ui/HomeScreen.kt')
+          text = home.read_text(encoding='utf-8')
+          if 'import androidx.compose.material.icons.filled.PhotoCamera\n' not in text:
+              text = text.replace(
+                  'import androidx.compose.material.icons.filled.GridView\n',
+                  'import androidx.compose.material.icons.filled.GridView\nimport androidx.compose.material.icons.filled.PhotoCamera\n',
+                  1
+              )
+          anchor = '    AdjustmentReason.SHOPPING_ADD -> if (L.isTr) "Alışveriş eklendi" else "Shopping added"\n'
+          replacement = anchor + '    AdjustmentReason.KITCHEN_SCAN -> if (L.isTr) "Mutfak taramasından eklendi" else "Added from kitchen scan"\n'
+          if 'AdjustmentReason.KITCHEN_SCAN ->' not in text:
+              if anchor not in text:
+                  raise SystemExit('adjustment label anchor missing')
+              text = text.replace(anchor, replacement, 1)
+          home.write_text(text, encoding='utf-8')
+          PY
       - name: Validate Phase 5 source patch
         run: |
           git diff --check
