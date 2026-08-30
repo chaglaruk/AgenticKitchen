@@ -80,6 +80,8 @@ When an ingredient is unavailable:
 
 ## Phase 4 — Smart Shopping
 
+**Implementation checkpoint: AUTOMATED_ONLY.** Persistent smart shopping, deterministic shortage amounts, category grouping, recipe-shortage reconciliation, and substitution-aware updates are implemented. The gated source workflow passed shared tests, Android unit tests, lint, and debug assembly before committing. Physical-device QA is intentionally not claimed at this checkpoint.
+
 - Generate missing-item lists from the selected recipe and actual pantry state.
 - Never add ingredients already sufficiently stocked.
 - Group by practical shopping category such as Produce, Meat, Dairy, Pantry, Other.
@@ -88,6 +90,8 @@ When an ingredient is unavailable:
 - Shopping completion can later feed confirmed items into pantry inventory.
 
 ## Phase 5 — multi-photo kitchen scan
+
+**Implementation checkpoint: AUTOMATED_ONLY.** Labelled Fridge / Freezer / Pantry / Counter scanning, structured candidate review, confidence/uncertainty display, editing/removal/location correction, and explicit-confirm inventory mutation are implemented. The gated source workflow passed shared tests, Android unit tests, lint, and debug assembly before committing. Physical-device and real-camera/managed-vision QA remain separate and are not claimed here.
 
 Use vision only where visual inference adds value.
 
