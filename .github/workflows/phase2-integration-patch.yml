@@ -1,0 +1,346 @@
+name: Phase 2 integration patch
+
+on:
+  push:
+    branches:
+      - refactor/agentic-kitchen-production-foundation
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: apply phase 2 integration patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/agentic-kitchen-production-foundation
+          fetch-depth: 0
+
+      - name: Apply narrow Phase 2 integration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one anchor, found {count}')
+              return text.replace(old, new, 1)
+
+          vm_path = Path('app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt')
+          vm = vm_path.read_text(encoding='utf-8')
+          vm = replace_once(
+              vm,
+              'import com.agentickitchen.shared.inventory.LocalIngredientResolver\n',
+              'import com.agentickitchen.shared.inventory.LocalIngredientResolver\n'
+              'import com.agentickitchen.shared.inventory.RecipeMatchCandidate\n'
+              'import com.agentickitchen.shared.inventory.RecipeMatcher\n'
+              'import com.agentickitchen.shared.inventory.RecipeMatchTier\n',
+              'AppViewModel imports'
+          )
+          vm = replace_once(
+              vm,
+              '''data class RecipeOption(
+              val id: String,
+              val type: String,
+              val name: String,
+              val description: String,
+              val sourceLabel: String? = null,
+              val proposedIngredients: List<com.agentickitchen.shared.ai.dto.PlannedIngredientDto> = emptyList(),
+              val shortages: List<String> = emptyList()
+          )''',
+              '''data class RecipeOption(
+              val id: String,
+              val type: String,
+              val name: String,
+              val description: String,
+              val sourceLabel: String? = null,
+              val proposedIngredients: List<com.agentickitchen.shared.ai.dto.PlannedIngredientDto> = emptyList(),
+              val shortages: List<String> = emptyList(),
+              val matchTier: RecipeMatchTier = RecipeMatchTier.AI_IDEA,
+              val pantryCoveragePercent: Int? = null,
+              val expiresTodayMatches: Int = 0,
+              val useSoonMatches: Int = 0,
+              val estimatedMinutes: Int? = null,
+              val equipmentFit: Boolean = true,
+              val previouslySuccessful: Boolean = false
+          )''',
+              'RecipeOption fields'
+          )
+
+          block_start = '                    val response = result.requireValue()\n'
+          block_end = '                    _planState.value = PlanState.OptionsReady(lastOptions)\n'
+          start = vm.find(block_start)
+          if start < 0:
+              raise SystemExit('requestRecipeOptions start anchor missing')
+          end = vm.find(block_end, start)
+          if end < 0:
+              raise SystemExit('requestRecipeOptions end anchor missing')
+          end += len(block_end)
+          replacement = '''                    val response = result.requireValue()
+              val sourceLabel = (result as? AiResult.Success)?.provider
+                  ?.takeIf { it == com.agentickitchen.shared.ai.AiProviderId.FREE }
+                  ?.label
+              if (inventoryRequest == null) {
+                  lastOptions = response.options.map { dto ->
+                      RecipeOption(
+                          id = dto.id,
+                          type = dto.difficulty,
+                          name = dto.name,
+                          description = dto.summary,
+                          sourceLabel = sourceLabel,
+                          proposedIngredients = dto.proposedIngredients,
+                          shortages = emptyList(),
+                          matchTier = RecipeMatchTier.AI_IDEA,
+                          pantryCoveragePercent = null,
+                          estimatedMinutes = dto.estimatedMinutes,
+                          equipmentFit = dto.requiredEquipment.all(_selectedEquipment.value::contains)
+                      )
+                  }
+              } else {
+                  val successfulRecipeNames = _history.value
+                      .filter { it.status.equals("completed", ignoreCase = true) }
+                      .map { it.name }
+                  val ranked = RecipeMatcher.rank(
+                      candidates = response.options.map { dto ->
+                          RecipeMatchCandidate(
+                              id = dto.id,
+                              proposedIngredients = dto.proposedIngredients,
+                              requiredEquipment = dto.requiredEquipment.toSet(),
+                              estimatedMinutes = dto.estimatedMinutes,
+                              // Provider requests already carry the active diet/allergy constraints.
+                              safetyAllowed = true,
+                              dietAllowed = true,
+                              previouslySuccessful = successfulRecipeNames.any { it.equals(dto.name, ignoreCase = true) }
+                          )
+                      },
+                      inventory = _inventory.value,
+                      reservedByItem = reservedQuantities(),
+                      availableEquipment = _selectedEquipment.value,
+                      prioritizedIngredients = inventoryRequest.prioritizedIngredients
+                  )
+                  val optionById = response.options.associateBy { it.id }
+                  val allowed = ranked.filter { match ->
+                      if (inventoryRequest.strictStock) {
+                          match.tier == RecipeMatchTier.READY_NOW
+                      } else {
+                          when (match.tier) {
+                              RecipeMatchTier.READY_NOW -> true
+                              RecipeMatchTier.MISSING_ONE -> inventoryRequest.maxMissingStaples >= 1
+                              RecipeMatchTier.MISSING_TWO -> inventoryRequest.maxMissingStaples >= 2
+                              RecipeMatchTier.AI_IDEA -> false
+                          }
+                      }
+                  }
+                  if (allowed.isEmpty()) {
+                      throw AiRequestException(
+                          AiResult.Failure(
+                              AiFailureType.InvalidPlan,
+                              true,
+                              AiFailureType.InvalidPlan.userMessageRes
+                          )
+                      )
+                  }
+                  lastOptions = allowed.mapNotNull { match ->
+                      optionById[match.candidateId]?.let { dto ->
+                          RecipeOption(
+                              id = dto.id,
+                              type = dto.difficulty,
+                              name = dto.name,
+                              description = dto.summary,
+                              sourceLabel = sourceLabel,
+                              proposedIngredients = dto.proposedIngredients,
+                              shortages = match.shortages,
+                              matchTier = match.tier,
+                              pantryCoveragePercent = match.pantryCoveragePercent,
+                              expiresTodayMatches = match.expiresTodayMatches,
+                              useSoonMatches = match.useSoonMatches,
+                              estimatedMinutes = dto.estimatedMinutes,
+                              equipmentFit = match.equipmentFit,
+                              previouslySuccessful = match.previouslySuccessful
+                          )
+                      }
+                  }
+              }
+              _planState.value = PlanState.OptionsReady(lastOptions)
+          '''
+          vm = vm[:start] + replacement + vm[end:]
+
+          vm = replace_once(
+              vm,
+              '''        val active = _planState.value as? PlanState.RecipeActive
+              if (active?.sessionId == sessionId) {
+                  _planState.value = PlanState.Idle
+                  _cookingState.value = CookingSessionState()
+              }
+          ''',
+              '''        val active = _planState.value as? PlanState.RecipeActive
+              if (active?.sessionId == sessionId) {
+                  if (_cookingState.value.status == CookingSessionStatus.COMPLETED) {
+                      historyRepo.updateStatus(sessionId, "completed")
+                      loadHistory()
+                  }
+                  _planState.value = PlanState.Idle
+                  _cookingState.value = CookingSessionState()
+              }
+          ''',
+              'history completion'
+          )
+          vm_path.write_text(vm, encoding='utf-8')
+
+          options_path = Path('app-android/src/main/java/com/agentickitchen/android/ui/OptionsScreen.kt')
+          options = options_path.read_text(encoding='utf-8')
+          options = replace_once(
+              options,
+              'import com.agentickitchen.android.RecipeOption\n',
+              'import com.agentickitchen.android.RecipeOption\nimport com.agentickitchen.shared.inventory.RecipeMatchTier\n',
+              'OptionsScreen import'
+          )
+
+          list_start_marker = '@Composable\nprivate fun EditorialRecipeList('
+          row_marker = '@Composable\nprivate fun EditorialRecipeRow('
+          list_start = options.find(list_start_marker)
+          list_end = options.find(row_marker, list_start)
+          if list_start < 0 or list_end < 0:
+              raise SystemExit('EditorialRecipeList function boundaries missing')
+          new_list = '''internal fun recipeMatchTierLabel(tier: RecipeMatchTier, isTurkish: Boolean): String = when (tier) {
+              RecipeMatchTier.READY_NOW -> if (isTurkish) "HAZIR ŞİMDİ" else "READY NOW"
+              RecipeMatchTier.MISSING_ONE -> if (isTurkish) "1 EKSİK" else "MISSING 1"
+              RecipeMatchTier.MISSING_TWO -> if (isTurkish) "2 EKSİK" else "MISSING 2"
+              RecipeMatchTier.AI_IDEA -> if (isTurkish) "AI FİKİRLERİ" else "AI IDEAS"
+          }
+
+          internal fun recipeCoverageSummary(options: List<RecipeOption>, isTurkish: Boolean): String? {
+              if (options.none { it.pantryCoveragePercent != null }) return null
+              val ready = options.count { it.matchTier == RecipeMatchTier.READY_NOW }
+              val one = options.count { it.matchTier == RecipeMatchTier.MISSING_ONE }
+              val two = options.count { it.matchTier == RecipeMatchTier.MISSING_TWO }
+              return if (isTurkish) {
+                  "${options.size} sonuç · $ready hazır · $one tek eksik · $two iki eksik"
+              } else {
+                  "${options.size} results · $ready ready · $one missing one · $two missing two"
+              }
+          }
+
+          @Composable
+          private fun EditorialRecipeList(
+              options: List<RecipeOption>,
+              onRefresh: () -> Unit,
+              onSelect: (RecipeOption) -> Unit
+          ) {
+              val colors = LocalAppColors.current
+              var visible by remember { mutableStateOf(false) }
+              LaunchedEffect(options) { visible = true }
+              val coverageSummary = recipeCoverageSummary(options, L.isTr)
+              val groups = RecipeMatchTier.values()
+                  .map { tier -> tier to options.filter { it.matchTier == tier } }
+                  .filter { it.second.isNotEmpty() }
+
+              Column(modifier = Modifier.fillMaxWidth()) {
+                  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                      Column(modifier = Modifier.weight(1f)) {
+                          Text(
+                              if (L.isTr) "Tarif önerileri" else "Recipe ideas",
+                              color = colors.onSurfaceSub,
+                              style = MaterialTheme.typography.caption
+                          )
+                          coverageSummary?.let {
+                              Spacer(Modifier.height(3.dp))
+                              Text(it, color = colors.primary, style = MaterialTheme.typography.caption)
+                          }
+                      }
+                      TextButton(onClick = onRefresh) {
+                          Text(if (L.isTr) "Başka öneriler" else "More ideas", color = colors.primary)
+                      }
+                  }
+                  Spacer(Modifier.height(12.dp))
+                  groups.forEachIndexed { groupIndex, (tier, groupOptions) ->
+                      if (groupIndex > 0) Spacer(Modifier.height(16.dp))
+                      Text(
+                          recipeMatchTierLabel(tier, L.isTr),
+                          color = colors.primary,
+                          style = MaterialTheme.typography.overline
+                      )
+                      Spacer(Modifier.height(4.dp))
+                      groupOptions.forEachIndexed { index, option ->
+                          EditorialRecipeRow(
+                              option = option,
+                              index = options.indexOfFirst { it.id == option.id }.coerceAtLeast(index),
+                              visible = visible,
+                              onClick = { onSelect(option) }
+                          )
+                          if (index < groupOptions.lastIndex) Divider(color = colors.divider, thickness = 1.dp)
+                      }
+                  }
+              }
+          }
+
+          '''
+          options = options[:list_start] + new_list + options[list_end:]
+
+          options = replace_once(
+              options,
+              '''                Text(option.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+                  if (option.shortages.isNotEmpty()) {
+          ''',
+              '''                Text(option.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+                  option.pantryCoveragePercent?.let { coverage ->
+                      Spacer(Modifier.height(8.dp))
+                      Text(
+                          if (L.isTr) "Stok eşleşmesi %$coverage" else "$coverage% pantry match",
+                          color = colors.primary,
+                          style = MaterialTheme.typography.caption
+                      )
+                      if (option.expiresTodayMatches > 0 || option.useSoonMatches > 0) {
+                          Spacer(Modifier.height(3.dp))
+                          Text(
+                              if (L.isTr) {
+                                  listOfNotNull(
+                                      option.expiresTodayMatches.takeIf { it > 0 }?.let { "$it bugün kullanılmalı" },
+                                      option.useSoonMatches.takeIf { it > 0 }?.let { "$it yakında kullanılmalı" }
+                                  ).joinToString(" · ")
+                              } else {
+                                  listOfNotNull(
+                                      option.expiresTodayMatches.takeIf { it > 0 }?.let { "$it expires today" },
+                                      option.useSoonMatches.takeIf { it > 0 }?.let { "$it use soon" }
+                                  ).joinToString(" · ")
+                              },
+                              color = colors.onSurfaceSub,
+                              style = MaterialTheme.typography.caption
+                          )
+                      }
+                  }
+                  if (option.shortages.isNotEmpty()) {
+          ''',
+              'recipe coverage row'
+          )
+          options_path.write_text(options, encoding='utf-8')
+
+          home_path = Path('app-android/src/main/java/com/agentickitchen/android/ui/HomeScreen.kt')
+          home = home_path.read_text(encoding='utf-8')
+          home = replace_once(
+              home,
+              '    var strictStock by remember { mutableStateOf(true) }\n    var missingStaples by remember { mutableStateOf(0) }\n',
+              '    var strictStock by remember { mutableStateOf(false) }\n    var missingStaples by remember { mutableStateOf(2) }\n',
+              'inventory recipe defaults'
+          )
+          home_path.write_text(home, encoding='utf-8')
+          PY
+
+          git diff --check
+          git diff --stat
+          ./gradlew :shared:test :app-android:testDebugUnitTest :app-android:lintDebug :app-android:assembleDebug
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app-android/src/main/java/com/agentickitchen/android/AppViewModel.kt \
+                  app-android/src/main/java/com/agentickitchen/android/ui/OptionsScreen.kt \
+                  app-android/src/main/java/com/agentickitchen/android/ui/HomeScreen.kt
+          git commit -m "feat: integrate deterministic recipe ranking"
+          git push origin HEAD:refactor/agentic-kitchen-production-foundation
