@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
       - name: Apply Phase 4 source patch
         run: python3 .github/scripts/phase4_smart_shopping_patch.py
-      - name: Repair generated compile anchors
+      - name: Repair generated validation anchors
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -36,6 +36,17 @@ jobs:
           if 'import androidx.compose.material.OutlinedButton\n' not in text:
               text = text.replace('import androidx.compose.material.MaterialTheme\n', 'import androidx.compose.material.MaterialTheme\nimport androidx.compose.material.OutlinedButton\n', 1)
           ops.write_text(text, encoding='utf-8')
+
+          migration_test = Path('shared/src/test/kotlin/com/agentickitchen/shared/inventory/MetadataPantryInventoryRepositoryTest.kt')
+          text = migration_test.read_text(encoding='utf-8')
+          text = text.replace('assertEquals(4L, AppDatabase.Schema.version)', 'assertEquals(5L, AppDatabase.Schema.version)', 1)
+          text = text.replace('AppDatabase.Schema.migrate(legacyDriver, 3L, 4L)', 'AppDatabase.Schema.migrate(legacyDriver, 3L, 5L)', 1)
+          anchor = '''            val migratedRepository = MetadataPantryInventoryRepository(\n                SqlDelightPantryInventoryRepository(migratedDatabase),\n                migratedDatabase\n            )\n            val restored = migratedRepository.getAll().single()\n'''
+          replacement = '''            val migratedRepository = MetadataPantryInventoryRepository(\n                SqlDelightPantryInventoryRepository(migratedDatabase),\n                migratedDatabase\n            )\n            assertEquals(emptyList<ShoppingListItem>(), SqlDelightShoppingListRepository(migratedDatabase).getAll())\n            val restored = migratedRepository.getAll().single()\n'''
+          if anchor not in text:
+              raise SystemExit('migration coverage anchor missing')
+          text = text.replace(anchor, replacement, 1)
+          migration_test.write_text(text, encoding='utf-8')
           PY
       - name: Validate Phase 4 source patch
         run: |
