@@ -47,6 +47,15 @@ jobs:
               raise SystemExit('migration coverage anchor missing')
           text = text.replace(anchor, replacement, 1)
           migration_test.write_text(text, encoding='utf-8')
+
+          vm_test = Path('app-android/src/test/java/com/agentickitchen/android/AppViewModelTest.kt')
+          text = vm_test.read_text(encoding='utf-8')
+          anchor = '''            FakeProviderFactory,\n            TargetTimeResolver()\n        )\n'''
+          replacement = '''            FakeProviderFactory,\n            TargetTimeResolver(),\n            com.agentickitchen.shared.inventory.InMemoryShoppingListRepository()\n        )\n'''
+          if anchor not in text:
+              raise SystemExit('AppViewModelFactory test fixture anchor missing')
+          text = text.replace(anchor, replacement, 1)
+          vm_test.write_text(text, encoding='utf-8')
           PY
       - name: Validate Phase 4 source patch
         run: |
