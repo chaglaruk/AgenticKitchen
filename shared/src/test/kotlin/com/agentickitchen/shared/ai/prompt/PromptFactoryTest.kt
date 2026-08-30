@@ -2,6 +2,7 @@ package com.agentickitchen.shared.ai.prompt
 
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class PromptFactoryTest {
@@ -50,5 +51,52 @@ class PromptFactoryTest {
         )
 
         assertContains(prompt, "Allergies: milk, sesame")
+    }
+
+    @Test
+    fun pantryAllowanceIsNotAnUpstreamHardFilterInNonStrictMode() {
+        val context = PromptFactory.inventoryRecipeOptionsContext(
+            inventoryLines = listOf("300 g tomato", "2 piece onion"),
+            strictStock = false,
+            maxMissingStaples = 2,
+            servings = 3,
+            prioritizedIngredients = listOf("tomato")
+        )
+
+        assertContains(context, "authoritative for Ready Now / Missing 1 / Missing 2 / AI Ideas classification")
+        assertContains(context, "at most 2 missing item(s)")
+        assertContains(context, "NOT as a hard generation filter")
+        assertContains(context, "option 3 may exceed the preparation allowance")
+        assertContains(context, "Servings: 3")
+        assertContains(context, "Prioritize: tomato")
+    }
+
+    @Test
+    fun strictPantryModeRemainsAHardStockConstraint() {
+        val context = PromptFactory.inventoryRecipeOptionsContext(
+            inventoryLines = listOf("300 g tomato"),
+            strictStock = true,
+            maxMissingStaples = 0,
+            servings = 2,
+            prioritizedIngredients = emptyList()
+        )
+
+        assertContains(context, "Strict stock mode is ON")
+        assertContains(context, "Every proposed option must be fully preparable")
+        assertFalse(context.contains("option 3 may exceed the preparation allowance"))
+    }
+
+    @Test
+    fun pantryContextIsEmptyWithoutInventorySnapshot() {
+        assertEquals(
+            "",
+            PromptFactory.inventoryRecipeOptionsContext(
+                inventoryLines = emptyList(),
+                strictStock = false,
+                maxMissingStaples = 2,
+                servings = 2,
+                prioritizedIngredients = emptyList()
+            )
+        )
     }
 }
