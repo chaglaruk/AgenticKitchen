@@ -166,6 +166,18 @@ internal fun targetTimePresetOptions(isTurkish: Boolean): List<TargetTimeUiOptio
     TargetTimeUiOption("exact", if (isTurkish) "Saat seç" else "Choose time", TargetTimeChoice.Exact(LocalTime.of(19, 30)))
 )
 
+internal fun targetTimeChoiceId(choice: TargetTimeChoice): String = when (choice) {
+    is TargetTimeChoice.After -> when (choice.duration.toMinutes()) {
+        20L -> "after_20"
+        45L -> "after_45"
+        60L -> "after_60"
+        else -> "flexible"
+    }
+    is TargetTimeChoice.Exact -> "exact"
+    TargetTimeChoice.ThisEvening -> "evening"
+    TargetTimeChoice.Flexible -> "flexible"
+}
+
 internal fun formatExactTimeInput(value: String): String {
     val digits = value.filter(Char::isDigit).take(4)
     return if (digits.length <= 2) digits else "${digits.take(2)}:${digits.drop(2)}"
@@ -206,7 +218,12 @@ private fun EditorialRecipeDetailOverlay(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        EditorialRecipeDetailContent(recipe = recipe, onDismiss = onDismiss, onConfirm = onConfirm)
+        EditorialRecipeDetailContent(
+            recipe = recipe,
+            onDismiss = onDismiss,
+            onConfirm = onConfirm,
+            initialTargetId = recipe.requestedTargetTime?.let(::targetTimeChoiceId) ?: "after_20"
+        )
     }
 }
 
@@ -221,7 +238,7 @@ private fun EditorialRecipeDetailContent(
     val presets = targetTimePresetOptions(L.isTr)
     var selectedTargetId by remember(recipe.id, initialTargetId) { mutableStateOf(initialTargetId) }
     var exactTime by remember(recipe.id) { mutableStateOf("19:30") }
-    var servings by remember(recipe.id) { mutableStateOf(2) }
+    var servings by remember(recipe.id) { mutableStateOf(recipe.servings.coerceIn(1, 12)) }
     var visible by remember { mutableStateOf(false) }
     val exactSectionRequester = remember { BringIntoViewRequester() }
     val coroutineScope = rememberCoroutineScope()
@@ -323,9 +340,17 @@ private fun EditorialRecipeDetailContent(
                         )
                     }
                     Spacer(Modifier.height(32.dp))
+                    if (!recipe.canPrepareFromPantry) {
+                        Text(
+                            if (L.isTr) "Bu fikir için 3 veya daha fazla ürün eksik. Şimdilik yalnızca fikir olarak gösteriliyor." else "This idea is missing 3 or more items. For now it is shown as inspiration only.",
+                            color = Color(0xFF9B3F32),
+                            style = MaterialTheme.typography.body2,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    }
                     Button(
                         onClick = { selectedChoice?.let { onConfirm(recipeRequestSelection(servings, it)) } },
-                        enabled = selectedChoice != null,
+                        enabled = selectedChoice != null && recipe.canPrepareFromPantry,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary, disabledBackgroundColor = colors.divider),
                         shape = RoundedCornerShape(999.dp)
@@ -503,15 +528,22 @@ internal fun recipeMatchTierLabel(tier: RecipeMatchTier, isTurkish: Boolean): St
     RecipeMatchTier.AI_IDEA -> if (isTurkish) "AI FİKİRLERİ" else "AI IDEAS"
 }
 
+internal fun recipeCardFacts(option: RecipeOption, isTurkish: Boolean): String = listOfNotNull(
+    option.estimatedMinutes?.let { if (isTurkish) "$it dk" else "$it min" },
+    if (isTurkish) "${option.servings} kişilik" else "${option.servings} servings",
+    option.pantryCoveragePercent?.let { if (isTurkish) "stok %$it" else "$it% pantry" }
+).joinToString(" · ")
+
 internal fun recipeCoverageSummary(options: List<RecipeOption>, isTurkish: Boolean): String? {
     if (options.none { it.pantryCoveragePercent != null }) return null
     val ready = options.count { it.matchTier == RecipeMatchTier.READY_NOW }
     val one = options.count { it.matchTier == RecipeMatchTier.MISSING_ONE }
     val two = options.count { it.matchTier == RecipeMatchTier.MISSING_TWO }
+    val ai = options.count { it.matchTier == RecipeMatchTier.AI_IDEA }
     return if (isTurkish) {
-        "${options.size} sonuç · $ready hazır · $one tek eksik · $two iki eksik"
+        "${options.size} sonuç · $ready hazır · $one tek eksik · $two iki eksik · $ai fikir"
     } else {
-        "${options.size} results · $ready ready · $one missing one · $two missing two"
+        "${options.size} results · $ready ready · $one missing one · $two missing two · $ai AI ideas"
     }
 }
 
@@ -610,10 +642,9 @@ private fun EditorialRecipeRow(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(option.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
-            option.pantryCoveragePercent?.let { coverage ->
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    if (L.isTr) "Stok eşleşmesi %$coverage" else "$coverage% pantry match",
+                    recipeCardFacts(option, L.isTr),
                     color = colors.primary,
                     style = MaterialTheme.typography.caption
                 )
@@ -635,7 +666,6 @@ private fun EditorialRecipeRow(
                         style = MaterialTheme.typography.caption
                     )
                 }
-            }
                 if (option.shortages.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(

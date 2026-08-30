@@ -22,6 +22,7 @@ import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.ActiveCookingSessionRecord
 import com.agentickitchen.shared.inventory.LocalIngredientResolver
 import com.agentickitchen.shared.inventory.RecipeMatchCandidate
+import com.agentickitchen.shared.inventory.RecipeMatchConstraintPolicy
 import com.agentickitchen.shared.inventory.RecipeMatcher
 import com.agentickitchen.shared.inventory.RecipeMatchTier
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
@@ -155,7 +156,10 @@ data class RecipeOption(
     val useSoonMatches: Int = 0,
     val estimatedMinutes: Int? = null,
     val equipmentFit: Boolean = true,
-    val previouslySuccessful: Boolean = false
+    val previouslySuccessful: Boolean = false,
+    val servings: Int = 2,
+    val requestedTargetTime: TargetTimeChoice? = null,
+    val canPrepareFromPantry: Boolean = true
 )
 data class RecipeRequestSelection(val servings: Int, val targetTime: TargetTimeChoice)
 
@@ -193,7 +197,8 @@ data class InventoryRecipeRequest(
     val servings: Int,
     val strictStock: Boolean,
     val maxMissingStaples: Int,
-    val prioritizedIngredients: List<String>
+    val prioritizedIngredients: List<String>,
+    val targetTime: TargetTimeChoice = TargetTimeChoice.Flexible
 )
 
 data class PendingConsumption(
@@ -789,6 +794,16 @@ class AppViewModel(
         requestRecipeOptions(_inventory.value.map(PantryStockItem::originalName), request)
     }
 
+    private fun requestedReadyMinutes(choice: TargetTimeChoice): Int? {
+        if (choice == TargetTimeChoice.Flexible) return null
+        val now = ZonedDateTime.now()
+        val target = targetTimeResolver.resolve(choice, now.toInstant()).getOrNull() ?: return null
+        return java.time.Duration.between(now, target)
+            .toMinutes()
+            .coerceIn(0L, Int.MAX_VALUE.toLong())
+            .toInt()
+    }
+
     private fun requestRecipeOptions(
         ingredients: List<String>,
         inventoryRequest: InventoryRecipeRequest?
@@ -846,28 +861,30 @@ class AppViewModel(
                                     proposedIngredients = dto.proposedIngredients,
                                     requiredEquipment = dto.requiredEquipment.toSet(),
                                     estimatedMinutes = dto.estimatedMinutes,
-                                    safetyAllowed = true,
-                                    dietAllowed = true,
+                                    safetyAllowed = RecipeMatchConstraintPolicy.safetyAllowed(
+                                        dto.proposedIngredients,
+                                        dietSettings.value.allergies
+                                    ),
+                                    dietAllowed = RecipeMatchConstraintPolicy.dietAllowed(
+                                        dto.proposedIngredients,
+                                        dietSettings.value.dietType
+                                    ),
                                     previouslySuccessful = successfulRecipeNames.any { it.equals(dto.name, ignoreCase = true) }
                                 )
                             },
                             inventory = _inventory.value,
                             reservedByItem = reservedQuantities(),
                             availableEquipment = _selectedEquipment.value,
-                            prioritizedIngredients = inventoryRequest.prioritizedIngredients
+                            prioritizedIngredients = inventoryRequest.prioritizedIngredients,
+                            requestedReadyMinutes = requestedReadyMinutes(inventoryRequest.targetTime)
                         )
                         val optionById = response.options.associateBy { it.id }
                         val allowed = ranked.filter { match ->
-                            if (inventoryRequest.strictStock) {
-                                match.tier == RecipeMatchTier.READY_NOW
-                            } else {
-                                when (match.tier) {
-                                    RecipeMatchTier.READY_NOW -> true
-                                    RecipeMatchTier.MISSING_ONE -> inventoryRequest.maxMissingStaples >= 1
-                                    RecipeMatchTier.MISSING_TWO -> inventoryRequest.maxMissingStaples >= 2
-                                    RecipeMatchTier.AI_IDEA -> false
-                                }
-                            }
+                            RecipeMatcher.shouldSurface(
+                                result = match,
+                                strictStock = inventoryRequest.strictStock,
+                                maxMissingStaples = inventoryRequest.maxMissingStaples
+                            )
                         }
                         if (allowed.isEmpty()) {
                             throw AiRequestException(
@@ -894,7 +911,10 @@ class AppViewModel(
                                     useSoonMatches = match.useSoonMatches,
                                     estimatedMinutes = dto.estimatedMinutes,
                                     equipmentFit = match.equipmentFit,
-                                    previouslySuccessful = match.previouslySuccessful
+                                    previouslySuccessful = match.previouslySuccessful,
+                                    servings = inventoryRequest.servings,
+                                    requestedTargetTime = inventoryRequest.targetTime,
+                                    canPrepareFromPantry = RecipeMatcher.canPrepareFromPantry(match)
                                 )
                             }
                         }

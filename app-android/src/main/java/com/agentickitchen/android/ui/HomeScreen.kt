@@ -125,6 +125,7 @@ import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
 import com.agentickitchen.shared.inventory.AdjustmentReason
 import com.agentickitchen.shared.inventory.ShoppingImportMode
+import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -1658,6 +1659,9 @@ private fun InventoryRecipeDialog(
     var strictStock by remember { mutableStateOf(false) }
     var missingStaples by remember { mutableStateOf(2) }
     var priority by remember { mutableStateOf("") }
+    var targetTimeId by remember { mutableStateOf("flexible") }
+    val targetTimeOptions = targetTimePresetOptions(L.isTr).filter { it.id != "exact" }
+    val targetTime = targetTimeOptions.firstOrNull { it.id == targetTimeId }?.choice ?: TargetTimeChoice.Flexible
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -1693,6 +1697,37 @@ private fun InventoryRecipeDialog(
                     }
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (L.isTr) "Hazır olma hedefi" else "Ready-time target",
+                color = colors.onSurface,
+                style = MaterialTheme.typography.body2
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                targetTimeOptions.forEach { option ->
+                    val selected = option.id == targetTimeId
+                    TextButton(
+                        onClick = { targetTimeId = option.id },
+                        modifier = Modifier
+                            .heightIn(min = 44.dp)
+                            .border(
+                                1.dp,
+                                if (selected) colors.primary else colors.divider,
+                                RoundedCornerShape(999.dp)
+                            )
+                    ) {
+                        Text(
+                            if (selected) "✓ ${option.label}" else option.label,
+                            color = if (selected) colors.primary else colors.onSurfaceSub
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = priority,
                 onValueChange = { priority = it },
@@ -1701,7 +1736,7 @@ private fun InventoryRecipeDialog(
                 placeholder = { Text(if (L.isTr) "Örn. tavuk, ıspanak" else "E.g. chicken, spinach") }
             )
             Text(
-                if (L.isTr) "Hazır olma saatini tarif seçerken belirleyeceksin." else "You will choose the ready time after selecting a recipe.",
+                if (L.isTr) "Tarifler stok durumuna ve bu hazır olma hedefine göre sıralanır." else "Recipes are ranked against your pantry and this ready-time target.",
                 color = colors.onSurfaceSub,
                 style = MaterialTheme.typography.caption,
                 modifier = Modifier.padding(vertical = 12.dp)
@@ -1710,10 +1745,11 @@ private fun InventoryRecipeDialog(
                 onClick = {
                     onStart(
                         InventoryRecipeRequest(
-                            servings,
-                            strictStock,
-                            if (strictStock) 0 else missingStaples,
-                            priority.split(',').map(String::trim).filter(String::isNotEmpty)
+                            servings = servings,
+                            strictStock = strictStock,
+                            maxMissingStaples = if (strictStock) 0 else missingStaples,
+                            prioritizedIngredients = priority.split(',').map(String::trim).filter(String::isNotEmpty),
+                            targetTime = targetTime
                         )
                     )
                 },
