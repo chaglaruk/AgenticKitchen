@@ -8,6 +8,7 @@ internal enum class FirebaseResponseKind(
 ) {
     RECIPE_OPTIONS(FirebaseAiTask.REASONING, FirebaseResponseSchemas.recipeOptions),
     COOKING_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingPlan),
+    SUBSTITUTION_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.substitutionPlan),
     SHOPPING_IMPORT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.shoppingImport),
     COOKING_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.cookingPhoto),
     COOKING_CHAT(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingChat),
@@ -72,6 +73,16 @@ private object FirebaseResponseSchemas {
                 minItems = 1
             ),
             "safetyNotes" to Schema.array(Schema.string())
+        )
+    )
+
+    val substitutionPlan = Schema.obj(
+        properties = mapOf(
+            "originalIngredientName" to Schema.string(),
+            "replacementIngredient" to plannedIngredient,
+            "reason" to Schema.string(),
+            "confidence" to Schema.double(),
+            "mutatedPlan" to cookingPlan
         )
     )
 

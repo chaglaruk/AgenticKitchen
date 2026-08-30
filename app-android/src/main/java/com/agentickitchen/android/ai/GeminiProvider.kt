@@ -14,6 +14,8 @@ import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanResponse
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.RecipeOptionsResponse
@@ -137,6 +139,23 @@ class GeminiProvider internal constructor(
                         it.id.isNotBlank() && it.instruction.isNotBlank() &&
                             it.resource.isNotBlank() && it.durationSeconds > 0
                     }
+            }
+        )
+
+    override suspend fun generateSubstitution(request: SubstitutionPlanRequest): AiResult<SubstitutionPlanResponse> =
+        structured(
+            feature = "substitution_plan",
+            prompt = PromptFactory.substitutionPlanPrompt(request),
+            schema = substitutionPlanSchema,
+            decode = json::decodeFromString,
+            validate = { response ->
+                response.originalIngredientName.isNotBlank() &&
+                    response.replacementIngredient.name.isNotBlank() &&
+                    response.replacementIngredient.quantity.isFinite() &&
+                    response.replacementIngredient.quantity > 0.0 &&
+                    response.reason.isNotBlank() &&
+                    response.confidence.isFinite() && response.confidence in 0.0..1.0 &&
+                    response.mutatedPlan.ingredients.isNotEmpty() && response.mutatedPlan.steps.isNotEmpty()
             }
         )
 
@@ -419,6 +438,9 @@ For photo requests, describe only visible evidence and state uncertainty."""
         )
         private val cookingPlanSchema = schema(
             """{"type":"object","properties":{"recipeName":{"type":"string"},"servings":{"type":"integer"},"ingredients":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"quantity":{"type":"number"},"unit":{"type":"string"}},"required":["name","quantity","unit"]}},"steps":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"type":{"type":"string"},"instruction":{"type":"string"},"resource":{"type":"string"},"durationSeconds":{"type":"integer"},"targetTemperatureC":{"type":["integer","null"]},"powerLevel":{"type":["integer","null"]},"dependsOn":{"type":"array","items":{"type":"string"}},"visionCheckpointRecommended":{"type":"boolean"}},"required":["id","type","instruction","resource","durationSeconds","dependsOn","visionCheckpointRecommended"]}},"safetyNotes":{"type":"array","items":{"type":"string"}}},"required":["recipeName","servings","ingredients","steps","safetyNotes"]}"""
+        )
+        private val substitutionPlanSchema = schema(
+            """{"type":"object","properties":{"originalIngredientName":{"type":"string"},"replacementIngredient":{"type":"object","properties":{"name":{"type":"string"},"quantity":{"type":"number"},"unit":{"type":"string"},"canonicalIngredientId":{"type":["string","null"]}},"required":["name","quantity","unit"]},"reason":{"type":"string"},"confidence":{"type":"number"},"mutatedPlan":{"type":"object","properties":{"recipeName":{"type":"string"},"servings":{"type":"integer"},"ingredients":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"quantity":{"type":"number"},"unit":{"type":"string"},"canonicalIngredientId":{"type":["string","null"]}},"required":["name","quantity","unit"]}},"steps":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"type":{"type":"string"},"instruction":{"type":"string"},"resource":{"type":"string"},"durationSeconds":{"type":"integer"},"targetTemperatureC":{"type":["integer","null"]},"powerLevel":{"type":["integer","null"]},"dependsOn":{"type":"array","items":{"type":"string"}},"visionCheckpointRecommended":{"type":"boolean"}},"required":["id","type","instruction","resource","durationSeconds","dependsOn","visionCheckpointRecommended"]}},"safetyNotes":{"type":"array","items":{"type":"string"}}},"required":["recipeName","servings","ingredients","steps","safetyNotes"]}},"required":["originalIngredientName","replacementIngredient","reason","confidence","mutatedPlan"]}"""
         )
         private val shoppingSchema = schema(
             """{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"canonicalIngredientId":{"type":["string","null"]},"displayName":{"type":"string"},"quantity":{"type":["number","null"]},"unit":{"type":["string","null"]},"unitDimension":{"type":"string"},"packageLabel":{"type":["string","null"]},"confidence":{"type":"number"},"estimated":{"type":"boolean"},"uncertaintyReason":{"type":["string","null"]}},"required":["displayName","quantity","unit","unitDimension","confidence","estimated"]}}},"required":["items"]}"""

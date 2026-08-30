@@ -7,6 +7,13 @@ import kotlinx.serialization.Serializable
 interface KitchenAiProvider {
     suspend fun generateRecipeOptions(request: RecipeOptionsRequest): AiResult<RecipeOptionsResponse>
     suspend fun generateCookingPlan(request: CookingPlanRequest): AiResult<CookingPlanResponse>
+    suspend fun generateSubstitution(request: SubstitutionPlanRequest): AiResult<SubstitutionPlanResponse> =
+        AiResult.Failure(
+            AiFailureType.ProviderUnavailable,
+            retryable = false,
+            userMessage = AiFailureType.ProviderUnavailable.userMessageRes,
+            technicalMessage = "substitution_not_supported"
+        )
     suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse>
     suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse>
     suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse>

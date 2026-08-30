@@ -73,6 +73,7 @@ import com.agentickitchen.android.L
 import com.agentickitchen.android.PendingConsumption
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
+import com.agentickitchen.android.SubstitutionState
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
@@ -102,7 +103,10 @@ fun OperationsScreen(
     inventory: List<PantryStockItem> = emptyList(),
     onConsumePlanned: () -> Unit = {},
     onConsumeActual: (Map<String, Double>) -> Unit = {},
-    onCancelConsumption: () -> Unit = {}
+    onCancelConsumption: () -> Unit = {},
+    onRequestSubstitution: (String) -> Unit = {},
+    onApplySubstitution: () -> Unit = {},
+    onDismissSubstitution: () -> Unit = {}
 ) {
     val colors = LocalAppColors.current
     val activity = LocalContext.current as? Activity
@@ -145,6 +149,15 @@ fun OperationsScreen(
         }
         when (planState) {
             is PlanState.RecipeActive -> {
+                if (cookingState.status == CookingSessionStatus.READY && planState.shortages.isNotEmpty()) {
+                    Spacer(Modifier.height(20.dp))
+                    PantrySubstitutionSection(
+                        state = planState,
+                        onRequest = onRequestSubstitution,
+                        onApply = onApplySubstitution,
+                        onDismiss = onDismissSubstitution
+                    )
+                }
                 Spacer(Modifier.height(24.dp))
                 KitchenAssistantSection(
                     state = planState,
@@ -171,6 +184,88 @@ fun OperationsScreen(
             onUseActual = onConsumeActual,
             onCancel = onCancelConsumption
         )
+    }
+}
+
+@Composable
+private fun PantrySubstitutionSection(
+    state: PlanState.RecipeActive,
+    onRequest: (String) -> Unit,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = colors.surface,
+        elevation = 0.dp,
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Text(if (L.isTr) "STOKTAN DEĞİŞTİR" else "SUBSTITUTE FROM PANTRY", color = colors.primary, style = MaterialTheme.typography.overline)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (L.isTr) "Eksik malzemeyi, stoktaki güvenli bir alternatifle planın tamamında değiştirebilirsin." else "Replace a shortage with a safe pantry alternative across the whole cooking plan.",
+                color = colors.onSurfaceSub,
+                style = MaterialTheme.typography.body2
+            )
+            Spacer(Modifier.height(12.dp))
+            state.shortages.forEach { shortage ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(shortage, color = colors.onSurface, style = MaterialTheme.typography.body1, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onRequest(shortage) }) {
+                        Text(if (L.isTr) "Alternatif bul" else "Find substitute", color = colors.primary)
+                    }
+                }
+            }
+            when (val substitution = state.substitutionState) {
+                SubstitutionState.Idle -> Unit
+                is SubstitutionState.Loading -> {
+                    Divider(color = colors.divider)
+                    Spacer(Modifier.height(10.dp))
+                    Text(if (L.isTr) "${substitution.originalIngredientName} için güvenli alternatif aranıyor…" else "Finding a safe substitute for ${substitution.originalIngredientName}…", color = colors.onSurfaceSub)
+                }
+                is SubstitutionState.Error -> {
+                    Divider(color = colors.divider)
+                    Spacer(Modifier.height(10.dp))
+                    Text(substitution.message, color = MaterialTheme.colors.error, style = MaterialTheme.typography.body2)
+                    TextButton(onClick = onDismiss) { Text(if (L.isTr) "Kapat" else "Dismiss") }
+                }
+                is SubstitutionState.Review -> {
+                    Divider(color = colors.divider)
+                    Spacer(Modifier.height(12.dp))
+                    val replacement = substitution.response.replacementIngredient
+                    Text(
+                        "${substitution.originalIngredientName} → ${replacement.name}",
+                        color = colors.onSurface,
+                        style = MaterialTheme.typography.h6
+                    )
+                    Text(
+                        "${formatPlanQuantity(replacement.quantity)} ${localizedPlanUnit(replacement.unit, L.isTr)} · ${substitution.response.reason}",
+                        color = colors.onSurfaceSub,
+                        style = MaterialTheme.typography.body2
+                    )
+                    val beforeSeconds = state.cookingPlan?.steps?.sumOf { it.durationSeconds } ?: 0
+                    val afterSeconds = substitution.response.mutatedPlan.steps.sumOf { it.durationSeconds }
+                    val changedSteps = state.cookingPlan?.steps.orEmpty().count { before ->
+                        substitution.response.mutatedPlan.steps.firstOrNull { it.id == before.id } != before
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (L.isTr) "$changedSteps adım güncellenecek · süre ${formatCookingDuration(beforeSeconds.toLong())} → ${formatCookingDuration(afterSeconds.toLong())}" else "$changedSteps steps will change · duration ${formatCookingDuration(beforeSeconds.toLong())} → ${formatCookingDuration(afterSeconds.toLong())}",
+                        color = colors.onSurfaceSub,
+                        style = MaterialTheme.typography.caption
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(onClick = onApply, colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary)) {
+                            Text(if (L.isTr) "Değişikliği uygula" else "Apply substitution", color = colors.onPrimary)
+                        }
+                        TextButton(onClick = onDismiss) { Text(if (L.isTr) "Vazgeç" else "Cancel") }
+                    }
+                }
+            }
+        }
     }
 }
 

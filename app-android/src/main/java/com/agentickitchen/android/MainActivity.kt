@@ -365,7 +365,10 @@ fun AppNavigation(
                     inventory = inventory,
                     onConsumePlanned = viewModel::consumePlannedInventory,
                     onConsumeActual = viewModel::consumeActualInventory,
-                    onCancelConsumption = viewModel::cancelInventoryConsumption
+                    onCancelConsumption = viewModel::cancelInventoryConsumption,
+                    onRequestSubstitution = viewModel::requestPantrySubstitution,
+                    onApplySubstitution = viewModel::applyPantrySubstitution,
+                    onDismissSubstitution = viewModel::dismissPantrySubstitution
                 )
 
                 Screen.History -> HistoryScreen(history) { ingredients ->

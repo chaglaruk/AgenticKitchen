@@ -11,6 +11,8 @@ import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanResponse
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.VisionSafetyPolicy
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
@@ -25,6 +27,9 @@ class SafetyEnforcingAiProvider(
 
     override suspend fun generateCookingPlan(request: CookingPlanRequest): AiResult<CookingPlanResponse> =
         delegate.generateCookingPlan(request)
+
+    override suspend fun generateSubstitution(request: SubstitutionPlanRequest): AiResult<SubstitutionPlanResponse> =
+        delegate.generateSubstitution(request)
 
     override suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse> =
         delegate.parseShoppingText(request)

@@ -1,5 +1,7 @@
 package com.agentickitchen.shared.ai.prompt
 
+import com.agentickitchen.shared.ai.SubstitutionPlanRequest
+
 object PromptFactory {
 
     fun recipeOptionsPrompt(
@@ -164,6 +166,48 @@ $langInstr
 Analyze if the substitution is chemically and flavor-profile compatible.
 If it would break the dish, explain why and suggest a better alternative if possible.
 Keep your response concise and authoritative."""
+    }
+
+    fun substitutionPlanPrompt(request: SubstitutionPlanRequest): String {
+        val langInstr = if (request.language == "Türkçe") "Write user-visible text in Turkish." else "Write user-visible text in English."
+        val ingredients = request.plan.ingredients.joinToString("\n") {
+            "- ${it.quantity} ${it.unit} ${it.name} [${it.canonicalIngredientId.orEmpty()}]"
+        }
+        val steps = request.plan.steps.joinToString("\n") {
+            "- ${it.id} | ${it.type} | ${it.resource} | ${it.durationSeconds}s | temp=${it.targetTemperatureC} | power=${it.powerLevel} | depends=${it.dependsOn.joinToString(",")} | ${it.instruction}"
+        }
+        return """You are proposing ONE pantry-aware substitution for an already validated cooking plan.
+Target missing ingredient: ${request.missingIngredientName}
+Recipe: ${request.plan.recipeName}
+Servings: ${request.plan.servings}
+
+Current ingredients:
+$ingredients
+
+Current steps:
+$steps
+
+Available pantry quantities (replacement MUST come from this list and fit the stated quantity):
+${request.inventoryLines.joinToString("\n")}
+
+Equipment: ${request.equipment.joinToString(", ")}
+Stove: ${request.stoveType}, max level ${request.stoveMaxLevel}
+Oven available: ${request.ovenAvailable}; fan: ${request.ovenHasFan}
+Airfryer available: ${request.airfryerAvailable}
+Diet: ${request.dietType}
+Allergies: ${request.allergies.joinToString(", ").ifBlank { "none" }}
+$langInstr
+
+Rules:
+- Replace exactly the target ingredient identity with exactly one pantry ingredient.
+- Do not silently change any other ingredient identity.
+- Keep recipeName, servings, and the complete set of step IDs unchanged.
+- You MAY adjust quantities, instructions, step durations, resource, temperature, power level, and dependencies only when required by the substitution.
+- The replacement must not introduce a diet or allergen conflict.
+- Do not invent pantry stock, equipment, steps, or ingredients.
+- If no safe pantry replacement exists, do not fabricate one; return a structurally valid response with confidence 0 and the original ingredient as replacement so the app will reject it fail-closed.
+- mutatedPlan must be a complete plan, not a patch.
+Return only JSON matching the substitution schema."""
     }
 
     fun visionAssessmentPrompt(

@@ -14,6 +14,7 @@ import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -68,6 +69,9 @@ class ResilientGeminiProvider internal constructor(
 
     override suspend fun generateCookingPlan(request: CookingPlanRequest) =
         primary.generateCookingPlan(request)
+
+    override suspend fun generateSubstitution(request: SubstitutionPlanRequest) =
+        primary.generateSubstitution(request)
 
     override suspend fun parseShoppingText(request: ShoppingTextRequest) =
         primary.parseShoppingText(request)

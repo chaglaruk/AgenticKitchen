@@ -30,6 +30,8 @@ import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.RecipeOptionsResponse
 import com.agentickitchen.shared.ai.prompt.PromptFactory
@@ -148,6 +150,22 @@ class FirebaseAiProvider internal constructor(
                         it.id.isNotBlank() && it.instruction.isNotBlank() &&
                             it.resource.isNotBlank() && it.durationSeconds > 0
                     }
+            }
+        )
+
+    override suspend fun generateSubstitution(request: SubstitutionPlanRequest): AiResult<SubstitutionPlanResponse> =
+        structured(
+            kind = FirebaseResponseKind.SUBSTITUTION_PLAN,
+            prompt = PromptFactory.substitutionPlanPrompt(request),
+            decode = json::decodeFromString,
+            validate = { response ->
+                response.originalIngredientName.isNotBlank() &&
+                    response.replacementIngredient.name.isNotBlank() &&
+                    response.replacementIngredient.quantity.isFinite() &&
+                    response.replacementIngredient.quantity > 0.0 &&
+                    response.reason.isNotBlank() &&
+                    response.confidence.isFinite() && response.confidence in 0.0..1.0 &&
+                    response.mutatedPlan.ingredients.isNotEmpty() && response.mutatedPlan.steps.isNotEmpty()
             }
         )
 

@@ -25,6 +25,7 @@ import com.agentickitchen.shared.inventory.RecipeMatchCandidate
 import com.agentickitchen.shared.inventory.RecipeMatchConstraintPolicy
 import com.agentickitchen.shared.inventory.RecipeMatcher
 import com.agentickitchen.shared.inventory.RecipeMatchTier
+import com.agentickitchen.shared.inventory.SubstitutionMutationValidator
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
@@ -44,6 +45,8 @@ import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
 import com.agentickitchen.shared.ai.ShoppingCandidate
+import com.agentickitchen.shared.ai.SubstitutionPlanRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanResponse
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
@@ -163,6 +166,17 @@ data class RecipeOption(
 )
 data class RecipeRequestSelection(val servings: Int, val targetTime: TargetTimeChoice)
 
+sealed interface SubstitutionState {
+    data object Idle : SubstitutionState
+    data class Loading(val originalIngredientName: String) : SubstitutionState
+    data class Review(
+        val originalIngredientName: String,
+        val response: SubstitutionPlanResponse,
+        val remainingShortages: List<String>
+    ) : SubstitutionState
+    data class Error(val originalIngredientName: String, val message: String) : SubstitutionState
+}
+
 sealed class PlanState {
     object Idle : PlanState()
     object Loading : PlanState()
@@ -175,6 +189,8 @@ sealed class PlanState {
         val resolvedReadyTimeIso: String = "",
         val cookingPlan: CookingPlanResponse? = null,
         val plannedUsage: List<PlannedPantryUsage> = emptyList(),
+        val shortages: List<String> = emptyList(),
+        val substitutionState: SubstitutionState = SubstitutionState.Idle,
         val agentChatResponse: String? = null,
         val visionScanResponse: String? = null
     ) : PlanState()
@@ -270,7 +286,8 @@ internal fun activeRecipeState(
     servings: Int,
     readyTimeIso: String,
     plan: CookingPlanResponse,
-    plannedUsage: List<PlannedPantryUsage> = emptyList()
+    plannedUsage: List<PlannedPantryUsage> = emptyList(),
+    shortages: List<String> = emptyList()
 ) = PlanState.RecipeActive(
     sessionId = sessionId,
     recipe = option,
@@ -278,7 +295,8 @@ internal fun activeRecipeState(
     servings = servings,
     resolvedReadyTimeIso = readyTimeIso,
     cookingPlan = plan,
-    plannedUsage = plannedUsage
+    plannedUsage = plannedUsage,
+    shortages = shortages
 )
 
 internal fun readerSafeAiError(error: Throwable?): String {
@@ -966,6 +984,154 @@ class AppViewModel(
         }
     }
 
+    fun requestPantrySubstitution(originalIngredientName: String) {
+        val active = _planState.value as? PlanState.RecipeActive ?: return
+        val plan = active.cookingPlan ?: return
+        if (_cookingState.value.status != CookingSessionStatus.READY) {
+            emitUiEvent(if (L.isTr) "Değişiklik yalnızca pişirme başlamadan önce yapılabilir." else "Substitutions can only be applied before cooking starts.")
+            return
+        }
+        if (active.shortages.none { shortage ->
+                LocalIngredientResolver.matches(shortage, null, originalIngredientName, null)
+            }) {
+            emitUiEvent(if (L.isTr) "Bu malzeme mevcut planın eksiklerinden biri değil." else "That ingredient is not a current plan shortage.")
+            return
+        }
+        val provider = CookingProviderSelection.provider(providerFactory, _hw.value)
+        if (provider == null) {
+            emitUiEvent(if (L.isTr) "Güvenli değişiklik önerisi şu anda kullanılamıyor." else "A safe substitution suggestion is not available right now.")
+            return
+        }
+        _planState.value = active.copy(substitutionState = SubstitutionState.Loading(originalIngredientName))
+        viewModelScope.launch {
+            try {
+                val hw = _hw.value
+                val result = provider.generateSubstitution(
+                    SubstitutionPlanRequest(
+                        plan = plan,
+                        missingIngredientName = originalIngredientName,
+                        inventoryLines = _inventory.value.map { "${it.quantity} ${it.unit} ${it.originalName}" },
+                        equipment = _selectedEquipment.value,
+                        stoveType = hw.stoveType,
+                        stoveMaxLevel = hw.stovePowerMax,
+                        ovenAvailable = hw.ovenAvailable,
+                        ovenHasFan = hw.ovenHasFan,
+                        airfryerAvailable = _selectedEquipment.value.contains("airfryer"),
+                        dietType = dietSettings.value.dietType,
+                        allergies = dietSettings.value.allergies,
+                        language = language.value
+                    )
+                ).requireValue()
+                val current = _planState.value as? PlanState.RecipeActive ?: return@launch
+                if (current.sessionId != active.sessionId || _cookingState.value.status != CookingSessionStatus.READY) return@launch
+                val structural = SubstitutionMutationValidator.validate(plan, originalIngredientName, result)
+                if (!structural.valid) throw ProviderFailure("SUBSTITUTION", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                val validation = CookingPlanValidator(
+                    _selectedEquipment.value,
+                    hw.stovePowerMax,
+                    hw.stoveType,
+                    hw.ovenAvailable,
+                    _selectedEquipment.value.contains("airfryer"),
+                    dietSettings.value.dietType,
+                    dietSettings.value.allergies,
+                    current.servings
+                ).validate(result.mutatedPlan)
+                if (!validation.valid) throw PlanValidationException(validation.errors)
+                val usage = InventoryWorkflow.planUsage(result.mutatedPlan, _inventory.value, reservedQuantities())
+                if (usage.shortages.size >= current.shortages.size || usage.shortages.any {
+                        LocalIngredientResolver.matches(it, null, originalIngredientName, null)
+                    }) {
+                    throw ProviderFailure("SUBSTITUTION", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                }
+                _planState.value = current.copy(
+                    substitutionState = SubstitutionState.Review(originalIngredientName, result, usage.shortages)
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                val current = _planState.value as? PlanState.RecipeActive ?: return@launch
+                if (current.sessionId != active.sessionId) return@launch
+                val message = if (error is AiRequestException && error.failure.technicalMessage == "substitution_not_supported") {
+                    if (L.isTr) "Çevrimdışı sağlayıcı bu değişikliği güvenle öneremiyor." else "The offline provider cannot safely propose this substitution."
+                } else {
+                    readerSafeAiError(error)
+                }
+                _planState.value = current.copy(
+                    substitutionState = SubstitutionState.Error(originalIngredientName, message)
+                )
+            }
+        }
+    }
+
+    fun dismissPantrySubstitution() {
+        val active = _planState.value as? PlanState.RecipeActive ?: return
+        _planState.value = active.copy(substitutionState = SubstitutionState.Idle)
+    }
+
+    fun applyPantrySubstitution() {
+        val active = _planState.value as? PlanState.RecipeActive ?: return
+        val review = active.substitutionState as? SubstitutionState.Review ?: return
+        val before = active.cookingPlan ?: return
+        if (_cookingState.value.status != CookingSessionStatus.READY) {
+            emitUiEvent(if (L.isTr) "Pişirme başladıktan sonra plan değiştirilemez." else "The plan cannot be changed after cooking starts.")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val hw = _hw.value
+                val response = review.response
+                val structural = SubstitutionMutationValidator.validate(before, review.originalIngredientName, response)
+                if (!structural.valid) throw ProviderFailure("SUBSTITUTION", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                val validation = CookingPlanValidator(
+                    _selectedEquipment.value,
+                    hw.stovePowerMax,
+                    hw.stoveType,
+                    hw.ovenAvailable,
+                    _selectedEquipment.value.contains("airfryer"),
+                    dietSettings.value.dietType,
+                    dietSettings.value.allergies,
+                    active.servings
+                ).validate(response.mutatedPlan)
+                if (!validation.valid) throw PlanValidationException(validation.errors)
+                val usage = InventoryWorkflow.planUsage(response.mutatedPlan, _inventory.value, reservedQuantities())
+                if (usage.shortages.size >= active.shortages.size || usage.shortages.any {
+                        LocalIngredientResolver.matches(it, null, review.originalIngredientName, null)
+                    }) {
+                    throw ProviderFailure("SUBSTITUTION", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                }
+                val session = RecipeSession(
+                    active.sessionId,
+                    active.resolvedReadyTimeIso,
+                    response.mutatedPlan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) },
+                    "kitchen",
+                    response.mutatedPlan.steps.map {
+                        RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn)
+                    }
+                )
+                val schedule = orchestrator.startSession(session)
+                _planState.value = active.copy(
+                    recipe = active.recipe.copy(
+                        proposedIngredients = response.mutatedPlan.ingredients,
+                        shortages = usage.shortages
+                    ),
+                    events = schedule.events,
+                    cookingPlan = response.mutatedPlan,
+                    plannedUsage = usage.usages,
+                    shortages = usage.shortages,
+                    substitutionState = SubstitutionState.Idle
+                )
+                emitUiEvent(if (L.isTr) "Değişiklik plana uygulandı ve zamanlama yeniden hesaplandı." else "Substitution applied and the schedule was recalculated.")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                val current = _planState.value as? PlanState.RecipeActive ?: return@launch
+                _planState.value = current.copy(
+                    substitutionState = SubstitutionState.Error(review.originalIngredientName, readerSafeAiError(error))
+                )
+            }
+        }
+    }
+
     fun startCooking() {
         val active = _planState.value as? PlanState.RecipeActive ?: run {
             _cookingState.value = CookingSessionState(
@@ -1210,7 +1376,8 @@ class AppViewModel(
                         selection.servings,
                         readyTimeIso,
                         plan,
-                        usagePlan.usages
+                        usagePlan.usages,
+                        usagePlan.shortages
                     )
                     persistActiveSession()
                 }

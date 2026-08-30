@@ -6,6 +6,10 @@ import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.KitchenImage
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.SubstitutionPlanRequest
+import com.agentickitchen.shared.ai.dto.CookingPlanResponse
+import com.agentickitchen.shared.ai.dto.CookingStepDto
+import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -73,6 +77,28 @@ class FirebaseAiProviderTest {
     }
 
     @Test
+    fun `substitution plan uses reasoning response kind`() = runBlocking {
+        var responseKind: FirebaseResponseKind? = null
+        val provider = FirebaseAiProvider(FirebaseModelGateway { kind, _, _ ->
+            responseKind = kind
+            FirebaseGatewayResponse(substitutionJson, "reasoning-test-model")
+        })
+        val plan = CookingPlanResponse(
+            "Rice", 2,
+            listOf(PlannedIngredientDto("Rice", 160.0, "g", "rice"), PlannedIngredientDto("Onion", 1.0, "piece", "onion")),
+            listOf(CookingStepDto("s1", "prep", "Prep", "counter", 60)),
+            emptyList()
+        )
+        val result = provider.generateSubstitution(
+            SubstitutionPlanRequest(plan, "Onion", listOf("2 clove Garlic"), setOf("pan"), "electric", 9, false, false, false, "none", emptySet(), "English")
+        )
+        assertTrue(result is AiResult.Success)
+        assertEquals(FirebaseResponseKind.SUBSTITUTION_PLAN, responseKind)
+        assertEquals(FirebaseAiTask.REASONING, responseKind?.task)
+        assertEquals("Garlic", result.getOrNull()?.replacementIngredient?.name)
+    }
+
+    @Test
     fun `shopping photo uses extraction model class and forwards image`() = runBlocking {
         var imageSeen = false
         var responseKind: FirebaseResponseKind? = null
@@ -132,6 +158,13 @@ class FirebaseAiProviderTest {
               {"id":"r2","name":"Sebzeli Pirinç","summary":"Sebzeli sıcak kase","difficulty":"easy","estimatedMinutes":25,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]},
               {"id":"r3","name":"Soğanlı Pirinç","summary":"Sade ve hızlı","difficulty":"easy","estimatedMinutes":18,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]}
             ]}
+        """.trimIndent()
+
+        val substitutionJson = """
+            {"originalIngredientName":"Onion","replacementIngredient":{"name":"Garlic","quantity":2.0,"unit":"clove","canonicalIngredientId":"garlic"},"reason":"Available aromatic substitute","confidence":0.8,
+             "mutatedPlan":{"recipeName":"Rice","servings":2,
+             "ingredients":[{"name":"Rice","quantity":160.0,"unit":"g","canonicalIngredientId":"rice"},{"name":"Garlic","quantity":2.0,"unit":"clove","canonicalIngredientId":"garlic"}],
+             "steps":[{"id":"s1","type":"prep","instruction":"Prep garlic","resource":"counter","durationSeconds":60,"dependsOn":[],"visionCheckpointRecommended":false}],"safetyNotes":[]}}
         """.trimIndent()
 
         val cookingPlanJson = """
