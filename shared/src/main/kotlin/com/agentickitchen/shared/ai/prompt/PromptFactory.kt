@@ -36,6 +36,42 @@ Return ONLY valid JSON in this exact schema:
 }"""
     }
 
+    /**
+     * Extra context for pantry-backed recipe candidate generation.
+     *
+     * The provider proposes candidates; the app remains authoritative for pantry comparison,
+     * shortage classification and ranking. The user's missing-item allowance therefore must not
+     * become an upstream hard filter except when strict-stock mode is explicitly enabled.
+     */
+    fun inventoryRecipeOptionsContext(
+        inventoryLines: List<String>,
+        strictStock: Boolean,
+        maxMissingStaples: Int,
+        servings: Int,
+        prioritizedIngredients: List<String>
+    ): String {
+        if (inventoryLines.isEmpty()) return ""
+        val candidateGuidance = if (strictStock) {
+            """Strict stock mode is ON. Every proposed option must be fully preparable from the listed pantry quantities. Do not introduce a broader missing-item idea."""
+        } else {
+            """Strict stock mode is OFF.
+The app will compare every structured option against the pantry locally and is authoritative for Ready Now / Missing 1 / Missing 2 / AI Ideas classification.
+The user's pantry-preparation allowance is at most $maxMissingStaples missing item(s). Treat that as a preparation allowance, NOT as a hard generation filter.
+Favor high pantry coverage for the first options. When a safe, relevant broader idea genuinely adds value, option 3 may exceed the preparation allowance; the app will show it as an AI Idea and will block Prepare until its shortage is resolved."""
+        }
+        return """
+
+Available pantry quantities:
+${inventoryLines.joinToString("\n")}
+Servings: $servings
+Prioritize: ${prioritizedIngredients.joinToString(", ")}
+$candidateGuidance
+Include exact proposedIngredients for every option so the app can compare quantities deterministically.
+Never claim an ingredient is available unless the pantry list supports it.
+Respect diet and allergies strictly for every option.
+""".trimEnd()
+    }
+
     fun cookingPlanPrompt(
         recipeName: String,
         ingredients: List<String>,
