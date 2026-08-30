@@ -72,6 +72,71 @@ class RecipeMatcherTest {
     }
 
     @Test
+    fun `expiry priority remains ahead of ready time priority`() {
+        val inventory = listOf(
+            stock("tomato", "Domates", 500.0, "g", useBy = "2026-08-30"),
+            stock("rice", "Pirinç", 500.0, "g")
+        )
+        val result = RecipeMatcher.rank(
+            candidates = listOf(
+                candidate("fast", ingredient("Pirinç", 75.0, "g", "rice")).copy(estimatedMinutes = 15),
+                candidate("expiring", ingredient("Domates", 100.0, "g", "tomato")).copy(estimatedMinutes = 30)
+            ),
+            inventory = inventory,
+            requestedReadyMinutes = 20,
+            today = today
+        )
+
+        assertEquals("expiring", result.first().candidateId)
+        assertEquals(10, result.first().readyTimePenaltyMinutes)
+    }
+
+    @Test
+    fun `requested ready time penalizes only recipes that miss the target`() {
+        val inventory = listOf(stock("tomato", "Domates", 500.0, "g"))
+        val result = RecipeMatcher.rank(
+            candidates = listOf(
+                candidate("late", ingredient("Domates", 100.0, "g", "tomato")).copy(estimatedMinutes = 30),
+                candidate("fits", ingredient("Domates", 100.0, "g", "tomato")).copy(estimatedMinutes = 15)
+            ),
+            inventory = inventory,
+            requestedReadyMinutes = 20,
+            today = today
+        )
+
+        assertEquals("fits", result.first().candidateId)
+        assertTrue(result.first().canMeetRequestedReadyTime)
+        assertEquals(10, result.last().readyTimePenaltyMinutes)
+        assertFalse(result.last().canMeetRequestedReadyTime)
+    }
+
+    @Test
+    fun `important missing ingredient ranks after equally sized unimportant shortage`() {
+        val inventory = listOf(stock("tomato", "Domates", 500.0, "g"))
+        val result = RecipeMatcher.rank(
+            candidates = listOf(
+                candidate(
+                    "missing-priority",
+                    ingredient("Domates", 100.0, "g", "tomato"),
+                    ingredient("Ispanak", 100.0, "g", "spinach")
+                ),
+                candidate(
+                    "missing-other",
+                    ingredient("Domates", 100.0, "g", "tomato"),
+                    ingredient("Pirinç", 100.0, "g", "rice")
+                )
+            ),
+            inventory = inventory,
+            prioritizedIngredients = listOf("Ispanak"),
+            today = today
+        )
+
+        assertEquals("missing-other", result.first().candidateId)
+        assertEquals(0, result.first().importantShortageCount)
+        assertEquals(1, result.last().importantShortageCount)
+    }
+
+    @Test
     fun `reserved stock participates in shortage classification`() {
         val tomato = stock("tomato", "Domates", 100.0, "g")
         val result = RecipeMatcher.rank(
@@ -102,6 +167,55 @@ class RecipeMatcherTest {
     }
 
     @Test
+    fun `constraint policy rejects allergen and diet conflicts locally`() {
+        val peanutDish = listOf(ingredient("Yer fıstığı", 30.0, "g", "peanut"))
+        val chickenDish = listOf(ingredient("Tavuk", 200.0, "g", "chicken"))
+
+        assertFalse(RecipeMatchConstraintPolicy.safetyAllowed(peanutDish, setOf("peanut")))
+        assertTrue(RecipeMatchConstraintPolicy.safetyAllowed(peanutDish, emptySet()))
+        assertFalse(RecipeMatchConstraintPolicy.dietAllowed(chickenDish, "vegetarian"))
+        assertTrue(RecipeMatchConstraintPolicy.dietAllowed(chickenDish, "none"))
+    }
+
+    @Test
+    fun `constraint policy fails closed when structured ingredients are absent under active constraints`() {
+        assertFalse(RecipeMatchConstraintPolicy.safetyAllowed(emptyList(), setOf("peanut")))
+        assertFalse(RecipeMatchConstraintPolicy.dietAllowed(emptyList(), "vegan"))
+        assertTrue(RecipeMatchConstraintPolicy.safetyAllowed(emptyList(), emptySet()))
+        assertTrue(RecipeMatchConstraintPolicy.dietAllowed(emptyList(), "none"))
+    }
+
+    @Test
+    fun `surface policy keeps ai ideas visible but never pantry preparable`() {
+        val aiIdea = RecipeMatchResult(
+            candidateId = "idea",
+            tier = RecipeMatchTier.AI_IDEA,
+            shortages = listOf("a", "b", "c"),
+            pantryCoveragePercent = 25,
+            expiresTodayMatches = 0,
+            useSoonMatches = 0,
+            importantShortageCount = 0,
+            readyTimePenaltyMinutes = 0,
+            equipmentFit = true,
+            estimatedMinutes = 20,
+            previouslySuccessful = false,
+            priorityMatchCount = 0
+        )
+        val missingTwo = aiIdea.copy(
+            candidateId = "missing-two",
+            tier = RecipeMatchTier.MISSING_TWO,
+            shortages = listOf("a", "b")
+        )
+
+        assertTrue(RecipeMatcher.shouldSurface(aiIdea, strictStock = false, maxMissingStaples = 0))
+        assertFalse(RecipeMatcher.shouldSurface(aiIdea, strictStock = true, maxMissingStaples = 2))
+        assertFalse(RecipeMatcher.canPrepareFromPantry(aiIdea))
+        assertFalse(RecipeMatcher.shouldSurface(missingTwo, strictStock = false, maxMissingStaples = 1))
+        assertTrue(RecipeMatcher.shouldSurface(missingTwo, strictStock = false, maxMissingStaples = 2))
+        assertTrue(RecipeMatcher.canPrepareFromPantry(missingTwo))
+    }
+
+    @Test
     fun `equipment history and explicit priority provide stable local tie breakers`() {
         val inventory = listOf(
             stock("tomato", "Domates", 500.0, "g"),
@@ -110,9 +224,9 @@ class RecipeMatcherTest {
         val baseIngredient = ingredient("Domates", 100.0, "g", "tomato")
         val result = RecipeMatcher.rank(
             candidates = listOf(
-                candidate("slow", baseIngredient).copy(estimatedMinutes = 30),
-                candidate("fast", baseIngredient).copy(estimatedMinutes = 15),
-                candidate("no-equipment", baseIngredient).copy(estimatedMinutes = 15, requiredEquipment = setOf("oven"))
+                candidate("history", baseIngredient).copy(previouslySuccessful = true, estimatedMinutes = 20),
+                candidate("priority", baseIngredient).copy(estimatedMinutes = 20),
+                candidate("no-equipment", baseIngredient).copy(estimatedMinutes = 20, requiredEquipment = setOf("oven"))
             ),
             inventory = inventory,
             availableEquipment = setOf("elec"),
@@ -120,11 +234,11 @@ class RecipeMatcherTest {
             today = today
         )
 
-        assertEquals("fast", result.first().candidateId)
+        assertEquals("history", result.first().candidateId)
         assertTrue(result.first().equipmentFit)
-        assertFalse(result.first().priorityMatchCount == 0)
-        assertEquals("no-equipment", result[1].candidateId)
-        assertEquals("slow", result[2].candidateId)
+        assertTrue(result.first().previouslySuccessful)
+        assertEquals("priority", result[1].candidateId)
+        assertEquals("no-equipment", result[2].candidateId)
     }
 
     @Test
