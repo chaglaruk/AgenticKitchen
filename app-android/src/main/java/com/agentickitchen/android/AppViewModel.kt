@@ -31,6 +31,9 @@ import com.agentickitchen.shared.inventory.PantryShortage
 import com.agentickitchen.shared.inventory.ShoppingListItem
 import com.agentickitchen.shared.inventory.ShoppingListRepository
 import com.agentickitchen.shared.inventory.SmartShoppingPlanner
+import com.agentickitchen.shared.inventory.KitchenScanImportPlanner
+import com.agentickitchen.shared.inventory.LocatedShoppingCandidate
+import com.agentickitchen.shared.inventory.PantryLocation
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
@@ -212,6 +215,25 @@ sealed interface ShoppingImportState {
         val conflicts: List<String> = emptyList()
     ) : ShoppingImportState
     data class Error(val message: String) : ShoppingImportState
+}
+
+sealed interface KitchenScanState {
+    data object Idle : KitchenScanState
+    data class Loading(
+        val location: PantryLocation,
+        val candidates: List<LocatedShoppingCandidate>,
+        val scannedLocations: Set<PantryLocation>
+    ) : KitchenScanState
+    data class Review(
+        val candidates: List<LocatedShoppingCandidate>,
+        val scannedLocations: Set<PantryLocation>,
+        val conflicts: List<String> = emptyList()
+    ) : KitchenScanState
+    data class Error(
+        val candidates: List<LocatedShoppingCandidate>,
+        val scannedLocations: Set<PantryLocation>,
+        val message: String
+    ) : KitchenScanState
 }
 
 data class InventoryRecipeRequest(
@@ -398,6 +420,10 @@ class AppViewModel(
     val shoppingImportState: StateFlow<ShoppingImportState> = _shoppingImportState.asStateFlow()
     private val _shoppingList = MutableStateFlow(shoppingListRepository.getAll())
     val shoppingList: StateFlow<List<ShoppingListItem>> = _shoppingList.asStateFlow()
+    private val _kitchenScanState = MutableStateFlow<KitchenScanState>(KitchenScanState.Idle)
+    val kitchenScanState: StateFlow<KitchenScanState> = _kitchenScanState.asStateFlow()
+    private var kitchenScanCandidates: List<LocatedShoppingCandidate> = emptyList()
+    private var kitchenScanLocations: Set<PantryLocation> = emptySet()
     private val _allPendingConsumptions = MutableStateFlow(
         inventoryRepository.allPendingUsage()
             .groupBy(PendingRecipeUsageRecord::sessionId)
@@ -1558,6 +1584,83 @@ class AppViewModel(
     private fun rememberCookingTurn(role: String, text: String) {
         recentCookingTurns.addLast(CookingChatTurn(role, text))
         while (recentCookingTurns.size > 6) recentCookingTurns.removeFirst()
+    }
+
+    fun beginKitchenScan() {
+        kitchenScanCandidates = emptyList()
+        kitchenScanLocations = emptySet()
+        _kitchenScanState.value = KitchenScanState.Review(emptyList(), emptySet())
+    }
+
+    fun updateKitchenScanDraft(candidates: List<LocatedShoppingCandidate>) {
+        if (_kitchenScanState.value is KitchenScanState.Loading) return
+        kitchenScanCandidates = candidates
+        _kitchenScanState.value = KitchenScanState.Review(candidates, kitchenScanLocations)
+    }
+
+    fun scanKitchenPhoto(image: Bitmap, location: PantryLocation) {
+        viewModelScope.launch {
+            _kitchenScanState.value = KitchenScanState.Loading(location, kitchenScanCandidates, kitchenScanLocations)
+            try {
+                val response = executeAiWithProvider { provider ->
+                    provider.scanShoppingPhoto(
+                        ShoppingPhotoRequest(
+                            image = encodeKitchenImage(image),
+                            language = language.value
+                        )
+                    ).requireValue()
+                }
+                val extracted = response.items
+                    .filter { it.displayName.isNotBlank() }
+                    .map { LocatedShoppingCandidate(it, location) }
+                kitchenScanCandidates = kitchenScanCandidates + extracted
+                kitchenScanLocations = kitchenScanLocations + location
+                _kitchenScanState.value = KitchenScanState.Review(
+                    kitchenScanCandidates,
+                    kitchenScanLocations
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                logAiFailure("KitchenScan", error)
+                _kitchenScanState.value = KitchenScanState.Error(
+                    kitchenScanCandidates,
+                    kitchenScanLocations,
+                    readerSafeCurrentProviderError(error)
+                )
+            }
+        }
+    }
+
+    fun confirmKitchenScan(candidates: List<LocatedShoppingCandidate>): Boolean {
+        val timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val plan = KitchenScanImportPlanner.plan(
+            existing = _inventory.value,
+            candidates = candidates,
+            timestamp = timestamp,
+            idFactory = { UUID.randomUUID().toString() }
+        )
+        if (plan.conflicts.isNotEmpty()) {
+            kitchenScanCandidates = candidates
+            _kitchenScanState.value = KitchenScanState.Review(
+                candidates,
+                kitchenScanLocations,
+                plan.conflicts
+            )
+            return false
+        }
+        if (plan.mutations.isEmpty()) return false
+        inventoryRepository.applyMutations(plan.mutations)
+        refreshInventory()
+        clearKitchenScan()
+        emitUiEvent(if (L.isTr) "Mutfak taraması stoğa eklendi." else "Kitchen scan added to your inventory.")
+        return true
+    }
+
+    fun clearKitchenScan() {
+        kitchenScanCandidates = emptyList()
+        kitchenScanLocations = emptySet()
+        _kitchenScanState.value = KitchenScanState.Idle
     }
 
     fun clearScannedIngredients() { _scannedIngredients.value = null }

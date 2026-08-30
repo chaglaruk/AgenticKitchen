@@ -217,6 +217,7 @@ fun AppNavigation(
     val inventoryAdjustments by viewModel.inventoryAdjustments.collectAsState()
     val shoppingImportState by viewModel.shoppingImportState.collectAsState()
     val shoppingList by viewModel.shoppingList.collectAsState()
+    val kitchenScanState by viewModel.kitchenScanState.collectAsState()
     val pendingConsumption by viewModel.pendingConsumption.collectAsState()
     val planState by viewModel.planState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
@@ -305,6 +306,7 @@ fun AppNavigation(
                             inventoryAdjustments = inventoryAdjustments,
                             shoppingImportState = shoppingImportState,
                             shoppingList = shoppingList,
+                            kitchenScanState = kitchenScanState,
                             scannedIngredients = scannedIngredients,
                             pantryIntel = pantryIntel,
                             onScanImage = viewModel::scanIngredients,
@@ -321,6 +323,11 @@ fun AppNavigation(
                             onToggleShoppingItem = viewModel::setShoppingItemChecked,
                             onDeleteShoppingItem = viewModel::deleteShoppingItem,
                             onClearCheckedShoppingItems = viewModel::clearCheckedShoppingItems,
+                            onBeginKitchenScan = viewModel::beginKitchenScan,
+                            onScanKitchenPhoto = viewModel::scanKitchenPhoto,
+                            onUpdateKitchenScanDraft = viewModel::updateKitchenScanDraft,
+                            onConfirmKitchenScan = viewModel::confirmKitchenScan,
+                            onClearKitchenScan = viewModel::clearKitchenScan,
                             onConfigureGemini = onConfigureGemini,
                             onStartInventorySession = { request ->
                                 currentScreen = Screen.Options

@@ -8,6 +8,7 @@ enum class AdjustmentMode { DELTA, REPLACE }
 enum class AdjustmentReason {
     MANUAL_ADD,
     SHOPPING_ADD,
+    KITCHEN_SCAN,
     RECOUNT,
     RECIPE_RESERVATION,
     RECIPE_RESERVATION_RELEASE,

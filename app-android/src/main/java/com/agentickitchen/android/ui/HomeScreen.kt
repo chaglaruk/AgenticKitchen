@@ -73,6 +73,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Send
@@ -116,6 +117,7 @@ import com.agentickitchen.android.L
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.android.ShoppingImportState
+import com.agentickitchen.android.KitchenScanState
 import com.agentickitchen.android.searchIngredientCatalog
 import com.agentickitchen.shared.ai.ShoppingCandidate
 import com.agentickitchen.shared.models.PantryIntelReport
@@ -128,6 +130,8 @@ import com.agentickitchen.shared.inventory.AdjustmentReason
 import com.agentickitchen.shared.inventory.ShoppingImportMode
 import com.agentickitchen.shared.inventory.ShoppingCategory
 import com.agentickitchen.shared.inventory.ShoppingListItem
+import com.agentickitchen.shared.inventory.LocatedShoppingCandidate
+import com.agentickitchen.shared.inventory.PantryLocation
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import java.math.BigDecimal
 import java.time.OffsetDateTime
@@ -142,6 +146,7 @@ fun HomeScreen(
     inventoryAdjustments: Map<String, List<InventoryAdjustmentRecord>>,
     shoppingImportState: ShoppingImportState = ShoppingImportState.Idle,
     shoppingList: List<ShoppingListItem> = emptyList(),
+    kitchenScanState: KitchenScanState = KitchenScanState.Idle,
     scannedIngredients: List<String>?,
     pantryIntel: PantryIntelReport,
     onScanImage: (android.graphics.Bitmap) -> Unit,
@@ -158,6 +163,11 @@ fun HomeScreen(
     onToggleShoppingItem: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteShoppingItem: (String) -> Unit = {},
     onClearCheckedShoppingItems: () -> Unit = {},
+    onBeginKitchenScan: () -> Unit = {},
+    onScanKitchenPhoto: (Bitmap, PantryLocation) -> Unit = { _, _ -> },
+    onUpdateKitchenScanDraft: (List<LocatedShoppingCandidate>) -> Unit = {},
+    onConfirmKitchenScan: (List<LocatedShoppingCandidate>) -> Boolean = { false },
+    onClearKitchenScan: () -> Unit = {},
     onConfigureGemini: () -> Unit = {},
     onStartInventorySession: (InventoryRecipeRequest) -> Unit = {},
     onClearAll: () -> Unit,
@@ -169,6 +179,7 @@ fun HomeScreen(
     var showCameraModal by remember { mutableStateOf(false) }
     var showInventoryEditor by remember { mutableStateOf(false) }
     var showShoppingImport by remember { mutableStateOf(false) }
+    var showKitchenScan by remember { mutableStateOf(false) }
     var showInventoryRecipe by remember { mutableStateOf(false) }
     var editingInventoryItem by remember { mutableStateOf<PantryStockItem?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -249,6 +260,21 @@ fun HomeScreen(
                     showInventoryEditor = true
                 }
             )
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            OutlinedButton(
+                onClick = {
+                    onBeginKitchenScan()
+                    showKitchenScan = true
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                border = BorderStroke(1.dp, colors.primary),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = colors.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(if (L.isTr) "Mutfağını tara" else "Scan my kitchen", color = colors.primary)
+            }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
@@ -357,6 +383,23 @@ fun HomeScreen(
                 onClearScannedIngredients()
             },
             onImageCaptured = { bmp -> onScanImage(bmp) }
+        )
+    }
+
+    if (showKitchenScan) {
+        KitchenScanDialog(
+            state = kitchenScanState,
+            onDismiss = {
+                showKitchenScan = false
+                onClearKitchenScan()
+            },
+            onScanPhoto = onScanKitchenPhoto,
+            onUpdateDraft = onUpdateKitchenScanDraft,
+            onConfirm = { candidates ->
+                val confirmed = onConfirmKitchenScan(candidates)
+                if (confirmed) showKitchenScan = false
+                confirmed
+            }
         )
     }
 
@@ -745,6 +788,7 @@ private fun InventoryItemDialog(
 private fun adjustmentLabel(reason: AdjustmentReason): String = when (reason) {
     AdjustmentReason.MANUAL_ADD -> if (L.isTr) "Elle eklendi" else "Added manually"
     AdjustmentReason.SHOPPING_ADD -> if (L.isTr) "Alışveriş eklendi" else "Shopping added"
+    AdjustmentReason.KITCHEN_SCAN -> if (L.isTr) "Mutfak taramasından eklendi" else "Added from kitchen scan"
     AdjustmentReason.RECOUNT -> if (L.isTr) "Yeniden sayıldı" else "Recounted"
     AdjustmentReason.RECIPE_RESERVATION -> if (L.isTr) "Tarif için ayrıldı" else "Reserved for recipe"
     AdjustmentReason.RECIPE_RESERVATION_RELEASE -> if (L.isTr) "Rezervasyon serbest bırakıldı" else "Reservation released"
