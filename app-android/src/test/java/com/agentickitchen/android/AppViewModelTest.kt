@@ -87,7 +87,8 @@ class AppViewModelTest {
             FakeOrchestrator,
             FakePantryIntelAgent,
             FakeProviderFactory,
-            TargetTimeResolver()
+            TargetTimeResolver(),
+            com.agentickitchen.shared.inventory.InMemoryShoppingListRepository()
         )
 
         val viewModel = factory.create(AppViewModel::class.java)

@@ -23,9 +23,19 @@ data class PlannedPantryUsage(
     val unit: String
 )
 
+data class PantryShortage(
+    val ingredientName: String,
+    val canonicalIngredientId: String?,
+    val requiredQuantity: Double,
+    val availableQuantity: Double,
+    val missingQuantity: Double,
+    val unit: String
+)
+
 data class InventoryUsagePlan(
     val usages: List<PlannedPantryUsage>,
-    val shortages: List<String>
+    val shortages: List<String>,
+    val shortageDetails: List<PantryShortage> = emptyList()
 )
 
 object InventoryWorkflow {
@@ -97,6 +107,7 @@ object InventoryWorkflow {
     ): InventoryUsagePlan {
         val usages = mutableListOf<PlannedPantryUsage>()
         val shortages = mutableListOf<String>()
+        val shortageDetails = mutableListOf<PantryShortage>()
         plan.ingredients.forEach { ingredient ->
             val resolvedIngredientCanonicalId = ingredient.canonicalIngredientId
                 ?: LocalIngredientResolver.resolveCanonicalId(ingredient.name)
@@ -109,19 +120,47 @@ object InventoryWorkflow {
                     secondCanonicalId = resolvedIngredientCanonicalId
                 )
             }
+            val needed = runCatching { InventoryUnits.normalize(ingredient.quantity, ingredient.unit) }.getOrNull()
             if (item == null) {
                 shortages += ingredient.name
+                if (needed != null && needed.dimension != UnitDimension.UNKNOWN) {
+                    shortageDetails += PantryShortage(
+                        ingredientName = ingredient.name,
+                        canonicalIngredientId = resolvedIngredientCanonicalId,
+                        requiredQuantity = needed.quantity,
+                        availableQuantity = 0.0,
+                        missingQuantity = needed.quantity,
+                        unit = needed.unit
+                    )
+                }
                 return@forEach
             }
-            val needed = runCatching { InventoryUnits.normalize(ingredient.quantity, ingredient.unit) }.getOrNull()
             val current = runCatching { InventoryUnits.normalize(item.quantity, item.unit) }.getOrNull()
             if (needed == null || current == null || !compatible(needed, current)) {
                 shortages += ingredient.name
+                if (needed != null && needed.dimension != UnitDimension.UNKNOWN) {
+                    shortageDetails += PantryShortage(
+                        ingredientName = ingredient.name,
+                        canonicalIngredientId = resolvedIngredientCanonicalId,
+                        requiredQuantity = needed.quantity,
+                        availableQuantity = 0.0,
+                        missingQuantity = needed.quantity,
+                        unit = needed.unit
+                    )
+                }
                 return@forEach
             }
-            val available = current.quantity - reservedByItem.getOrDefault(item.id, 0.0)
+            val available = (current.quantity - reservedByItem.getOrDefault(item.id, 0.0)).coerceAtLeast(0.0)
             if (needed.quantity > available + 0.000_001) {
                 shortages += ingredient.name
+                shortageDetails += PantryShortage(
+                    ingredientName = ingredient.name,
+                    canonicalIngredientId = resolvedIngredientCanonicalId ?: item.canonicalIngredientId,
+                    requiredQuantity = needed.quantity,
+                    availableQuantity = available,
+                    missingQuantity = (needed.quantity - available).coerceAtLeast(0.0),
+                    unit = needed.unit
+                )
             } else {
                 usages += PlannedPantryUsage(
                     itemId = item.id,
@@ -133,7 +172,13 @@ object InventoryWorkflow {
                 )
             }
         }
-        return InventoryUsagePlan(usages, shortages.distinct())
+        return InventoryUsagePlan(
+            usages = usages,
+            shortages = shortages.distinct(),
+            shortageDetails = shortageDetails
+                .filter { it.missingQuantity > 0.000_001 }
+                .distinctBy { (it.canonicalIngredientId ?: it.ingredientName.lowercase()) to it.unit }
+        )
     }
 
     private fun mutation(

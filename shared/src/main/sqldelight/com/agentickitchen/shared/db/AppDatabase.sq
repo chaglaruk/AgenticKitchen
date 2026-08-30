@@ -116,6 +116,41 @@ SELECT * FROM PendingRecipeUsage ORDER BY timestamp;
 deletePendingRecipeUsage:
 DELETE FROM PendingRecipeUsage WHERE sessionId = ?;
 
+CREATE TABLE ShoppingListItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    canonicalIngredientId TEXT,
+    originalName TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    category TEXT NOT NULL,
+    sourceRecipeId TEXT NOT NULL,
+    sourceRecipeName TEXT NOT NULL,
+    checked INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+);
+
+selectAllShoppingListItems:
+SELECT * FROM ShoppingListItem ORDER BY checked ASC, category ASC, createdAt ASC;
+
+upsertShoppingListItem:
+INSERT OR REPLACE INTO ShoppingListItem(
+    id, canonicalIngredientId, originalName, quantity, unit, category,
+    sourceRecipeId, sourceRecipeName, checked, createdAt, updatedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateShoppingItemChecked:
+UPDATE ShoppingListItem SET checked = ? WHERE id = ?;
+
+deleteShoppingListItem:
+DELETE FROM ShoppingListItem WHERE id = ?;
+
+deleteShoppingItemsForRecipe:
+DELETE FROM ShoppingListItem WHERE sourceRecipeId = ?;
+
+deleteCheckedShoppingItems:
+DELETE FROM ShoppingListItem WHERE checked != 0;
+
 CREATE TABLE ActiveCookingSession (
     sessionId TEXT NOT NULL PRIMARY KEY,
     recipeOptionId TEXT NOT NULL,

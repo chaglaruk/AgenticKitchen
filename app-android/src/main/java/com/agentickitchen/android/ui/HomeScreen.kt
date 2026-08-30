@@ -122,9 +122,12 @@ import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.PantryIntelSignal
 import com.agentickitchen.shared.models.ScheduleEvent
 import com.agentickitchen.shared.inventory.PantryStockItem
+import com.agentickitchen.shared.inventory.LocalIngredientResolver
 import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
 import com.agentickitchen.shared.inventory.AdjustmentReason
 import com.agentickitchen.shared.inventory.ShoppingImportMode
+import com.agentickitchen.shared.inventory.ShoppingCategory
+import com.agentickitchen.shared.inventory.ShoppingListItem
 import com.agentickitchen.shared.scheduler.TargetTimeChoice
 import java.math.BigDecimal
 import java.time.OffsetDateTime
@@ -138,6 +141,7 @@ fun HomeScreen(
     inventory: List<PantryStockItem>,
     inventoryAdjustments: Map<String, List<InventoryAdjustmentRecord>>,
     shoppingImportState: ShoppingImportState = ShoppingImportState.Idle,
+    shoppingList: List<ShoppingListItem> = emptyList(),
     scannedIngredients: List<String>?,
     pantryIntel: PantryIntelReport,
     onScanImage: (android.graphics.Bitmap) -> Unit,
@@ -151,6 +155,9 @@ fun HomeScreen(
     onImportShoppingPhoto: (Bitmap, ShoppingImportMode) -> Unit = { _, _ -> },
     onConfirmShoppingImport: (List<ShoppingCandidate>, ShoppingImportMode) -> Boolean = { _, _ -> false },
     onClearShoppingImport: () -> Unit = {},
+    onToggleShoppingItem: (String, Boolean) -> Unit = { _, _ -> },
+    onDeleteShoppingItem: (String) -> Unit = {},
+    onClearCheckedShoppingItems: () -> Unit = {},
     onConfigureGemini: () -> Unit = {},
     onStartInventorySession: (InventoryRecipeRequest) -> Unit = {},
     onClearAll: () -> Unit,
@@ -282,6 +289,16 @@ fun HomeScreen(
                     editingInventoryItem = item
                     showInventoryEditor = true
                 }
+            }
+        }
+        if (shoppingList.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SmartShoppingListSection(
+                    items = shoppingList,
+                    onToggle = onToggleShoppingItem,
+                    onDelete = onDeleteShoppingItem,
+                    onClearChecked = onClearCheckedShoppingItems
+                )
             }
         }
         if (chips.isNotEmpty()) {
@@ -500,6 +517,76 @@ private fun InventoryIngredientCard(item: PantryStockItem, modifier: Modifier = 
             maxLines = 1
         )
     }
+}
+
+@Composable
+private fun SmartShoppingListSection(
+    items: List<ShoppingListItem>,
+    onToggle: (String, Boolean) -> Unit,
+    onDelete: (String) -> Unit,
+    onClearChecked: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+        Divider(color = colors.divider)
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Text(if (L.isTr) "ALIŞVERİŞ" else "SHOPPING", color = colors.primary, style = MaterialTheme.typography.overline)
+                Text(if (L.isTr) "Eksiklerin" else "What you need", color = colors.onSurface, style = MaterialTheme.typography.h5)
+            }
+            if (items.any { it.checked }) {
+                TextButton(onClick = onClearChecked) {
+                    Text(if (L.isTr) "Tamamlananları temizle" else "Clear completed", color = colors.primary)
+                }
+            }
+        }
+        ShoppingCategory.values().forEach { category ->
+            val categoryItems = items.filter { it.category == category }
+            if (categoryItems.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(shoppingCategoryLabel(category), color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
+                categoryItems.forEach { item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { onToggle(item.id, !item.checked) }) {
+                            Icon(
+                                Icons.Filled.CheckCircle,
+                                contentDescription = if (item.checked) {
+                                    if (L.isTr) "Tamamlanmadı olarak işaretle" else "Mark not completed"
+                                } else {
+                                    if (L.isTr) "Tamamlandı olarak işaretle" else "Mark completed"
+                                },
+                                tint = if (item.checked) colors.success else colors.onSurfaceSub
+                            )
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(item.originalName, color = if (item.checked) colors.onSurfaceSub else colors.onSurface, style = MaterialTheme.typography.body1)
+                            Text(
+                                "${BigDecimal.valueOf(item.quantity).stripTrailingZeros().toPlainString()} ${LocalIngredientResolver.localizeUnit(item.unit, L.isTr)} · ${item.sourceRecipeName}",
+                                color = colors.onSurfaceSub,
+                                style = MaterialTheme.typography.caption
+                            )
+                        }
+                        IconButton(onClick = { onDelete(item.id) }) {
+                            Icon(Icons.Filled.Close, contentDescription = if (L.isTr) "Listeden sil" else "Remove from list", tint = colors.onSurfaceSub)
+                        }
+                    }
+                    Divider(color = colors.divider)
+                }
+            }
+        }
+    }
+}
+
+private fun shoppingCategoryLabel(category: ShoppingCategory): String = when (category) {
+    ShoppingCategory.PRODUCE -> if (L.isTr) "SEBZE & MEYVE" else "PRODUCE"
+    ShoppingCategory.MEAT -> if (L.isTr) "ET & BALIK" else "MEAT & FISH"
+    ShoppingCategory.DAIRY -> if (L.isTr) "SÜT ÜRÜNLERİ" else "DAIRY"
+    ShoppingCategory.PANTRY -> if (L.isTr) "KİLER" else "PANTRY"
+    ShoppingCategory.OTHER -> if (L.isTr) "DİĞER" else "OTHER"
 }
 
 private fun formatInventoryQuantity(item: PantryStockItem): String =

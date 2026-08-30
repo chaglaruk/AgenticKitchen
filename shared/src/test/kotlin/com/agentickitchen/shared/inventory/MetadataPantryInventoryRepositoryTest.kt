@@ -115,14 +115,15 @@ class MetadataPantryInventoryRepositoryTest {
                 0
             ).value
 
-            assertEquals(4L, AppDatabase.Schema.version)
-            AppDatabase.Schema.migrate(legacyDriver, 3L, 4L)
+            assertEquals(5L, AppDatabase.Schema.version)
+            AppDatabase.Schema.migrate(legacyDriver, 3L, 5L)
 
             val migratedDatabase = AppDatabase(legacyDriver)
             val migratedRepository = MetadataPantryInventoryRepository(
                 SqlDelightPantryInventoryRepository(migratedDatabase),
                 migratedDatabase
             )
+            assertEquals(emptyList<ShoppingListItem>(), SqlDelightShoppingListRepository(migratedDatabase).getAll())
             val restored = migratedRepository.getAll().single()
 
             assertEquals("legacy-item", restored.id)

@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,7 @@ import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
@@ -106,7 +108,8 @@ fun OperationsScreen(
     onCancelConsumption: () -> Unit = {},
     onRequestSubstitution: (String) -> Unit = {},
     onApplySubstitution: () -> Unit = {},
-    onDismissSubstitution: () -> Unit = {}
+    onDismissSubstitution: () -> Unit = {},
+    onAddShortagesToShoppingList: () -> Unit = {}
 ) {
     val colors = LocalAppColors.current
     val activity = LocalContext.current as? Activity
@@ -155,7 +158,8 @@ fun OperationsScreen(
                         state = planState,
                         onRequest = onRequestSubstitution,
                         onApply = onApplySubstitution,
-                        onDismiss = onDismissSubstitution
+                        onDismiss = onDismissSubstitution,
+                        onAddToShopping = onAddShortagesToShoppingList
                     )
                 }
                 Spacer(Modifier.height(24.dp))
@@ -192,7 +196,8 @@ private fun PantrySubstitutionSection(
     state: PlanState.RecipeActive,
     onRequest: (String) -> Unit,
     onApply: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAddToShopping: () -> Unit
 ) {
     val colors = LocalAppColors.current
     Card(
@@ -217,6 +222,14 @@ private fun PantrySubstitutionSection(
                         Text(if (L.isTr) "Alternatif bul" else "Find substitute", color = colors.primary)
                     }
                 }
+            }
+            OutlinedButton(
+                onClick = onAddToShopping,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                border = BorderStroke(1.dp, colors.divider),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Text(if (L.isTr) "Kalan eksikleri alışverişe ekle" else "Add remaining shortages to shopping", color = colors.primary)
             }
             when (val substitution = state.substitutionState) {
                 SubstitutionState.Idle -> Unit

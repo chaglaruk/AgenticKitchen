@@ -26,6 +26,11 @@ import com.agentickitchen.shared.inventory.RecipeMatchConstraintPolicy
 import com.agentickitchen.shared.inventory.RecipeMatcher
 import com.agentickitchen.shared.inventory.RecipeMatchTier
 import com.agentickitchen.shared.inventory.SubstitutionMutationValidator
+import com.agentickitchen.shared.inventory.InMemoryShoppingListRepository
+import com.agentickitchen.shared.inventory.PantryShortage
+import com.agentickitchen.shared.inventory.ShoppingListItem
+import com.agentickitchen.shared.inventory.ShoppingListRepository
+import com.agentickitchen.shared.inventory.SmartShoppingPlanner
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
@@ -366,7 +371,8 @@ class AppViewModel(
     private val orchestrator: Orchestrator,
     private val pantryIntelAgent: PantryIntelAgent,
     private val providerFactory: AiProviderFactory,
-    private val targetTimeResolver: TargetTimeResolver
+    private val targetTimeResolver: TargetTimeResolver,
+    private val shoppingListRepository: ShoppingListRepository = InMemoryShoppingListRepository()
 ) : ViewModel() {
 
     private val _setupDone = MutableStateFlow(prefs.setupDone())
@@ -390,6 +396,8 @@ class AppViewModel(
     val inventoryAdjustments = _inventoryAdjustments.asStateFlow()
     private val _shoppingImportState = MutableStateFlow<ShoppingImportState>(ShoppingImportState.Idle)
     val shoppingImportState: StateFlow<ShoppingImportState> = _shoppingImportState.asStateFlow()
+    private val _shoppingList = MutableStateFlow(shoppingListRepository.getAll())
+    val shoppingList: StateFlow<List<ShoppingListItem>> = _shoppingList.asStateFlow()
     private val _allPendingConsumptions = MutableStateFlow(
         inventoryRepository.allPendingUsage()
             .groupBy(PendingRecipeUsageRecord::sessionId)
@@ -484,7 +492,8 @@ class AppViewModel(
                 servings = sessionRecord.servings,
                 readyTimeIso = sessionRecord.resolvedReadyTimeIso,
                 plan = plan,
-                plannedUsage = plannedUsage
+                plannedUsage = plannedUsage,
+                shortages = InventoryWorkflow.planUsage(plan, _inventory.value, reservedQuantities()).shortages
             )
             _planState.value = restoredState
 
@@ -1120,6 +1129,8 @@ class AppViewModel(
                     shortages = usage.shortages,
                     substitutionState = SubstitutionState.Idle
                 )
+                persistActiveSession()
+                reconcileTrackedShoppingForRecipe(active.recipe.id, active.recipe.name, usage.shortageDetails)
                 emitUiEvent(if (L.isTr) "Değişiklik plana uygulandı ve zamanlama yeniden hesaplandı." else "Substitution applied and the schedule was recalculated.")
             } catch (error: CancellationException) {
                 throw error
@@ -1130,6 +1141,56 @@ class AppViewModel(
                 )
             }
         }
+    }
+
+    fun addCurrentShortagesToShoppingList() {
+        val active = _planState.value as? PlanState.RecipeActive ?: return
+        val plan = active.cookingPlan ?: return
+        val usage = InventoryWorkflow.planUsage(plan, _inventory.value, reservedQuantities())
+        if (usage.shortageDetails.isEmpty()) {
+            emitUiEvent(if (L.isTr) "Bu tarif için alınacak eksik malzeme yok." else "There are no missing items to buy for this recipe.")
+            return
+        }
+        replaceRecipeShopping(active.recipe.id, active.recipe.name, usage.shortageDetails)
+        emitUiEvent(if (L.isTr) "Eksik malzemeler alışveriş listesine eklendi." else "Missing ingredients were added to your shopping list.")
+    }
+
+    fun setShoppingItemChecked(id: String, checked: Boolean) {
+        shoppingListRepository.setChecked(id, checked)
+        refreshShoppingList()
+    }
+
+    fun deleteShoppingItem(id: String) {
+        shoppingListRepository.delete(id)
+        refreshShoppingList()
+    }
+
+    fun clearCheckedShoppingItems() {
+        shoppingListRepository.clearChecked()
+        refreshShoppingList()
+    }
+
+    private fun refreshShoppingList() {
+        _shoppingList.value = shoppingListRepository.getAll()
+    }
+
+    private fun replaceRecipeShopping(sourceRecipeId: String, sourceRecipeName: String, shortages: List<PantryShortage>) {
+        val timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val items = SmartShoppingPlanner.planForRecipe(
+            existing = shoppingListRepository.getAll(),
+            shortages = shortages,
+            sourceRecipeId = sourceRecipeId,
+            sourceRecipeName = sourceRecipeName,
+            timestamp = timestamp,
+            idFactory = { UUID.randomUUID().toString() }
+        )
+        shoppingListRepository.replaceRecipeShortages(sourceRecipeId, items)
+        refreshShoppingList()
+    }
+
+    private fun reconcileTrackedShoppingForRecipe(sourceRecipeId: String, sourceRecipeName: String, shortages: List<PantryShortage>) {
+        if (shoppingListRepository.getAll().none { it.sourceRecipeId == sourceRecipeId }) return
+        replaceRecipeShopping(sourceRecipeId, sourceRecipeName, shortages)
     }
 
     fun startCooking() {

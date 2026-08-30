@@ -20,6 +20,8 @@ import com.agentickitchen.shared.inventory.HistoryTrackingPantryInventoryReposit
 import com.agentickitchen.shared.inventory.MetadataPantryInventoryRepository
 import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.SqlDelightPantryInventoryRepository
+import com.agentickitchen.shared.inventory.SqlDelightShoppingListRepository
+import com.agentickitchen.shared.inventory.ShoppingListRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
 import java.io.Closeable
 
@@ -37,6 +39,7 @@ class AppContainer(private val app: Application) : Closeable {
     )
     val pantryInventoryRepository: PantryInventoryRepository =
         HistoryTrackingPantryInventoryRepository(pantryStorage, historyRepository)
+    val shoppingListRepository: ShoppingListRepository = SqlDelightShoppingListRepository(database)
 
     val targetTimeResolver: TargetTimeResolver = TargetTimeResolver()
 

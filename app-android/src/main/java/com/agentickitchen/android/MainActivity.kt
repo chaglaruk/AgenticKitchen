@@ -216,6 +216,7 @@ fun AppNavigation(
     val inventory by viewModel.inventory.collectAsState()
     val inventoryAdjustments by viewModel.inventoryAdjustments.collectAsState()
     val shoppingImportState by viewModel.shoppingImportState.collectAsState()
+    val shoppingList by viewModel.shoppingList.collectAsState()
     val pendingConsumption by viewModel.pendingConsumption.collectAsState()
     val planState by viewModel.planState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
@@ -303,6 +304,7 @@ fun AppNavigation(
                             inventory = inventory,
                             inventoryAdjustments = inventoryAdjustments,
                             shoppingImportState = shoppingImportState,
+                            shoppingList = shoppingList,
                             scannedIngredients = scannedIngredients,
                             pantryIntel = pantryIntel,
                             onScanImage = viewModel::scanIngredients,
@@ -316,6 +318,9 @@ fun AppNavigation(
                             onImportShoppingPhoto = viewModel::importShoppingPhoto,
                             onConfirmShoppingImport = viewModel::confirmShoppingImport,
                             onClearShoppingImport = viewModel::clearShoppingImport,
+                            onToggleShoppingItem = viewModel::setShoppingItemChecked,
+                            onDeleteShoppingItem = viewModel::deleteShoppingItem,
+                            onClearCheckedShoppingItems = viewModel::clearCheckedShoppingItems,
                             onConfigureGemini = onConfigureGemini,
                             onStartInventorySession = { request ->
                                 currentScreen = Screen.Options
@@ -368,7 +373,8 @@ fun AppNavigation(
                     onCancelConsumption = viewModel::cancelInventoryConsumption,
                     onRequestSubstitution = viewModel::requestPantrySubstitution,
                     onApplySubstitution = viewModel::applyPantrySubstitution,
-                    onDismissSubstitution = viewModel::dismissPantrySubstitution
+                    onDismissSubstitution = viewModel::dismissPantrySubstitution,
+                    onAddShortagesToShoppingList = viewModel::addCurrentShortagesToShoppingList
                 )
 
                 Screen.History -> HistoryScreen(history) { ingredients ->
