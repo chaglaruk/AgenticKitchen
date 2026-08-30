@@ -2,7 +2,9 @@ package com.agentickitchen.shared.inventory
 
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
+import com.agentickitchen.shared.validator.IngredientSafety
 import java.time.LocalDate
+import java.util.Locale
 
 /** Local-only pantry matching buckets used before presentation. */
 enum class RecipeMatchTier(val order: Int) {
@@ -29,18 +31,49 @@ data class RecipeMatchResult(
     val pantryCoveragePercent: Int,
     val expiresTodayMatches: Int,
     val useSoonMatches: Int,
+    val importantShortageCount: Int,
+    val readyTimePenaltyMinutes: Int,
     val equipmentFit: Boolean,
     val estimatedMinutes: Int,
     val previouslySuccessful: Boolean,
     val priorityMatchCount: Int
-)
+) {
+    val canMeetRequestedReadyTime: Boolean get() = readyTimePenaltyMinutes == 0
+}
+
+/**
+ * Performs the deterministic option-level checks that can be answered from structured ingredient
+ * data. Detailed cooking-step food safety remains enforced later by CookingPlanValidator.
+ */
+object RecipeMatchConstraintPolicy {
+    fun safetyAllowed(
+        ingredients: List<PlannedIngredientDto>,
+        allergies: Set<String>
+    ): Boolean {
+        if (allergies.isEmpty()) return true
+        if (ingredients.isEmpty()) return false
+        return ingredients.none { ingredient ->
+            allergies.any { allergen -> IngredientSafety.conflictsWithAllergen(ingredient.name, allergen) }
+        }
+    }
+
+    fun dietAllowed(
+        ingredients: List<PlannedIngredientDto>,
+        dietType: String
+    ): Boolean {
+        val normalizedDiet = dietType.trim().lowercase(Locale.ROOT)
+        if (normalizedDiet.isBlank() || normalizedDiet == "none") return true
+        if (ingredients.isEmpty()) return false
+        return ingredients.none { ingredient -> IngredientSafety.conflictsWithDiet(ingredient.name, normalizedDiet) }
+    }
+}
 
 /**
  * Deterministic pantry comparison/ranking. No provider or network call is made here.
  *
- * Safety and diet are fail-closed inputs: candidates explicitly rejected by either gate are
- * removed before ranking. Current callers only set them true after their existing constrained
- * recipe-generation/validation path has accepted the option.
+ * Ordering follows the product priority: constraints first, pantry coverage, expiring stock,
+ * shortage count/importance, requested ready time, equipment, previous success, then local
+ * preference/history signals. Duration and id are only stable final tie-breakers.
  */
 object RecipeMatcher {
     fun rank(
@@ -49,6 +82,7 @@ object RecipeMatcher {
         reservedByItem: Map<String, Double> = emptyMap(),
         availableEquipment: Set<String> = emptySet(),
         prioritizedIngredients: List<String> = emptyList(),
+        requestedReadyMinutes: Int? = null,
         today: LocalDate = LocalDate.now()
     ): List<RecipeMatchResult> = candidates
         .asSequence()
@@ -60,6 +94,7 @@ object RecipeMatcher {
                 reservedByItem = reservedByItem,
                 availableEquipment = availableEquipment,
                 prioritizedIngredients = prioritizedIngredients,
+                requestedReadyMinutes = requestedReadyMinutes,
                 today = today
             )
         }
@@ -69,13 +104,35 @@ object RecipeMatcher {
                 .thenByDescending { it.expiresTodayMatches }
                 .thenByDescending { it.useSoonMatches }
                 .thenBy { it.shortages.size }
-                .thenBy { it.estimatedMinutes }
+                .thenBy { it.importantShortageCount }
+                .thenBy { it.readyTimePenaltyMinutes }
                 .thenByDescending { it.equipmentFit }
                 .thenByDescending { it.previouslySuccessful }
                 .thenByDescending { it.priorityMatchCount }
+                .thenBy { it.estimatedMinutes }
                 .thenBy { it.candidateId }
         )
         .toList()
+
+    /**
+     * Pantry matches obey the user's missing-item allowance. AI ideas remain visible in non-strict
+     * mode as inspiration, but callers must not treat an AI_IDEA as pantry-preparable.
+     */
+    fun shouldSurface(
+        result: RecipeMatchResult,
+        strictStock: Boolean,
+        maxMissingStaples: Int
+    ): Boolean {
+        if (strictStock) return result.tier == RecipeMatchTier.READY_NOW
+        return when (result.tier) {
+            RecipeMatchTier.READY_NOW -> true
+            RecipeMatchTier.MISSING_ONE -> maxMissingStaples >= 1
+            RecipeMatchTier.MISSING_TWO -> maxMissingStaples >= 2
+            RecipeMatchTier.AI_IDEA -> true
+        }
+    }
+
+    fun canPrepareFromPantry(result: RecipeMatchResult): Boolean = result.tier != RecipeMatchTier.AI_IDEA
 
     private fun evaluate(
         candidate: RecipeMatchCandidate,
@@ -83,6 +140,7 @@ object RecipeMatcher {
         reservedByItem: Map<String, Double>,
         availableEquipment: Set<String>,
         prioritizedIngredients: List<String>,
+        requestedReadyMinutes: Int?,
         today: LocalDate
     ): RecipeMatchResult {
         if (candidate.proposedIngredients.isEmpty()) {
@@ -93,6 +151,8 @@ object RecipeMatcher {
                 pantryCoveragePercent = 0,
                 expiresTodayMatches = 0,
                 useSoonMatches = 0,
+                importantShortageCount = 0,
+                readyTimePenaltyMinutes = readyTimePenalty(candidate.estimatedMinutes, requestedReadyMinutes),
                 equipmentFit = equipmentFits(candidate, availableEquipment),
                 estimatedMinutes = candidate.estimatedMinutes,
                 previouslySuccessful = candidate.previouslySuccessful,
@@ -127,6 +187,9 @@ object RecipeMatcher {
             .filter { it.id in usedItemIds }
             .map { PantryFreshnessPolicy.evaluate(it, today).status }
             .toList()
+        val importantShortages = prioritizedIngredients.count { priority ->
+            usage.shortages.any { shortage -> ingredientNamesMatch(priority, shortage) }
+        }
 
         return RecipeMatchResult(
             candidateId = candidate.id,
@@ -135,6 +198,8 @@ object RecipeMatcher {
             pantryCoveragePercent = coverage,
             expiresTodayMatches = freshness.count { it == PantryFreshnessStatus.EXPIRES_TODAY },
             useSoonMatches = freshness.count { it == PantryFreshnessStatus.USE_SOON },
+            importantShortageCount = importantShortages,
+            readyTimePenaltyMinutes = readyTimePenalty(candidate.estimatedMinutes, requestedReadyMinutes),
             equipmentFit = equipmentFits(candidate, availableEquipment),
             estimatedMinutes = candidate.estimatedMinutes,
             previouslySuccessful = candidate.previouslySuccessful,
@@ -150,6 +215,14 @@ object RecipeMatcher {
             }
         )
     }
+
+    private fun readyTimePenalty(estimatedMinutes: Int, requestedReadyMinutes: Int?): Int {
+        if (requestedReadyMinutes == null) return 0
+        return (estimatedMinutes.coerceAtLeast(0) - requestedReadyMinutes.coerceAtLeast(0)).coerceAtLeast(0)
+    }
+
+    private fun ingredientNamesMatch(first: String, second: String): Boolean =
+        LocalIngredientResolver.matches(first, null, second, null)
 
     private fun equipmentFits(candidate: RecipeMatchCandidate, availableEquipment: Set<String>): Boolean =
         candidate.requiredEquipment.all(availableEquipment::contains)
