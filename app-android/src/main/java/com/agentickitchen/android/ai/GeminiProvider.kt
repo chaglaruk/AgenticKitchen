@@ -11,6 +11,11 @@ import com.agentickitchen.shared.ai.CookingPhotoResponse
 import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.ai.KitchenImage
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.RecipeImportNormalizer
+import com.agentickitchen.shared.ai.RecipeImportResponse
+import com.agentickitchen.shared.ai.RecipeImportSource
+import com.agentickitchen.shared.ai.RecipePhotoImportRequest
+import com.agentickitchen.shared.ai.RecipeTextImportRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
@@ -127,7 +132,7 @@ class GeminiProvider internal constructor(
                 ""
             } else {
                 "\nAvailable pantry quantities:\n${request.inventoryLines.joinToString("\n")}\nDo not exceed these quantities."
-            },
+            } + PromptFactory.importedRecipeContext(request.sourceRecipeIngredientLines, request.sourceRecipeInstructions),
             schema = cookingPlanSchema,
             decode = json::decodeFromString,
             validate = { plan ->
@@ -176,6 +181,34 @@ class GeminiProvider internal constructor(
             image = request.image,
             decode = json::decodeFromString,
             validate = ::validShoppingResponse
+        )
+
+    override suspend fun parseRecipeText(request: RecipeTextImportRequest): AiResult<RecipeImportResponse> =
+        RecipeImportNormalizer.normalizeResult(
+            structured(
+                feature = "recipe_import_text",
+                prompt = PromptFactory.recipeImportTextPrompt(request.text, request.language),
+                schema = recipeImportSchema,
+                decode = json::decodeFromString,
+                validate = { it.recipe.name.isNotBlank() && it.recipe.ingredients.isNotEmpty() && it.recipe.instructions.isNotEmpty() }
+            ),
+            source = RecipeImportSource.AI_TEXT,
+            sourceLabel = request.sourceLabel,
+            sourceUrl = request.sourceUrl
+        )
+
+    override suspend fun scanRecipePhoto(request: RecipePhotoImportRequest): AiResult<RecipeImportResponse> =
+        RecipeImportNormalizer.normalizeResult(
+            structured(
+                feature = "recipe_import_photo",
+                prompt = PromptFactory.recipeImportPhotoPrompt(request.language),
+                schema = recipeImportSchema,
+                image = request.image,
+                decode = json::decodeFromString,
+                validate = { it.recipe.name.isNotBlank() && it.recipe.ingredients.isNotEmpty() && it.recipe.instructions.isNotEmpty() }
+            ),
+            source = RecipeImportSource.AI_PHOTO,
+            sourceLabel = request.sourceLabel
         )
 
     override suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse> =
@@ -445,6 +478,10 @@ For photo requests, describe only visible evidence and state uncertainty."""
         private val shoppingSchema = schema(
             """{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"canonicalIngredientId":{"type":["string","null"]},"displayName":{"type":"string"},"quantity":{"type":["number","null"]},"unit":{"type":["string","null"]},"unitDimension":{"type":"string"},"packageLabel":{"type":["string","null"]},"confidence":{"type":"number"},"estimated":{"type":"boolean"},"uncertaintyReason":{"type":["string","null"]}},"required":["displayName","quantity","unit","unitDimension","confidence","estimated"]}}},"required":["items"]}"""
         )
+        private val recipeImportSchema = schema(
+            """{"type":"object","properties":{"recipe":{"type":"object","properties":{"name":{"type":"string"},"servings":{"type":["integer","null"]},"ingredients":{"type":"array","minItems":1,"items":{"type":"object","properties":{"displayName":{"type":"string"},"quantity":{"type":["number","null"]},"unit":{"type":["string","null"]},"confidence":{"type":"number"},"uncertaintyReason":{"type":["string","null"]}},"required":["displayName","quantity","unit","confidence"]}},"instructions":{"type":"array","minItems":1,"items":{"type":"string"}}},"required":["name","servings","ingredients","instructions"]},"confidence":{"type":"number"},"uncertainty":{"type":["string","null"]},"source":{"type":"string","enum":["AI_TEXT","AI_PHOTO"]}},"required":["recipe","confidence","uncertainty","source"]}"""
+        )
+
         private val cookingPhotoSchema = schema(
             """{"type":"object","properties":{"assessment":{"type":"string"},"visibleObservation":{"type":"string"},"immediateAction":{"type":"string"},"heatAdjustment":{"type":["string","null"]},"recheckAfterSeconds":{"type":["integer","null"]},"safetyWarning":{"type":["string","null"]},"uncertainty":{"type":"string"}},"required":["assessment","visibleObservation","immediateAction","uncertainty"]}"""
         )

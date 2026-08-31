@@ -27,6 +27,11 @@ import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.ai.KitchenImage
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.RecipeImportNormalizer
+import com.agentickitchen.shared.ai.RecipeImportResponse
+import com.agentickitchen.shared.ai.RecipeImportSource
+import com.agentickitchen.shared.ai.RecipePhotoImportRequest
+import com.agentickitchen.shared.ai.RecipeTextImportRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
@@ -139,7 +144,7 @@ class FirebaseAiProvider internal constructor(
                 request.dietType,
                 request.allergies,
                 request.language
-            ) + inventoryPlanContext(request),
+            ) + inventoryPlanContext(request) + PromptFactory.importedRecipeContext(request.sourceRecipeIngredientLines, request.sourceRecipeInstructions),
             decode = json::decodeFromString,
             validate = { plan ->
                 plan.recipeName.isNotBlank() && plan.servings > 0 &&
@@ -192,6 +197,32 @@ Return only valid JSON for the app's shopping import schema.""",
             image = request.image,
             decode = json::decodeFromString,
             validate = ::validShoppingResponse
+        )
+
+    override suspend fun parseRecipeText(request: RecipeTextImportRequest): AiResult<RecipeImportResponse> =
+        RecipeImportNormalizer.normalizeResult(
+            structured(
+                kind = FirebaseResponseKind.RECIPE_IMPORT_TEXT,
+                prompt = PromptFactory.recipeImportTextPrompt(request.text, request.language),
+                decode = json::decodeFromString,
+                validate = { it.recipe.name.isNotBlank() && it.recipe.ingredients.isNotEmpty() && it.recipe.instructions.isNotEmpty() }
+            ),
+            source = RecipeImportSource.AI_TEXT,
+            sourceLabel = request.sourceLabel,
+            sourceUrl = request.sourceUrl
+        )
+
+    override suspend fun scanRecipePhoto(request: RecipePhotoImportRequest): AiResult<RecipeImportResponse> =
+        RecipeImportNormalizer.normalizeResult(
+            structured(
+                kind = FirebaseResponseKind.RECIPE_IMPORT_PHOTO,
+                prompt = PromptFactory.recipeImportPhotoPrompt(request.language),
+                image = request.image,
+                decode = json::decodeFromString,
+                validate = { it.recipe.name.isNotBlank() && it.recipe.ingredients.isNotEmpty() && it.recipe.instructions.isNotEmpty() }
+            ),
+            source = RecipeImportSource.AI_PHOTO,
+            sourceLabel = request.sourceLabel
         )
 
     override suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse> =

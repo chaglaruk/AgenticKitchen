@@ -16,6 +16,20 @@ interface KitchenAiProvider {
         )
     suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse>
     suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse>
+    suspend fun parseRecipeText(request: RecipeTextImportRequest): AiResult<RecipeImportResponse> =
+        AiResult.Failure(
+            AiFailureType.ProviderUnavailable,
+            retryable = false,
+            userMessage = AiFailureType.ProviderUnavailable.userMessageRes,
+            technicalMessage = "recipe_import_not_supported"
+        )
+    suspend fun scanRecipePhoto(request: RecipePhotoImportRequest): AiResult<RecipeImportResponse> =
+        AiResult.Failure(
+            AiFailureType.ProviderUnavailable,
+            retryable = false,
+            userMessage = AiFailureType.ProviderUnavailable.userMessageRes,
+            technicalMessage = "recipe_import_not_supported"
+        )
     suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse>
     suspend fun askCookingAssistant(request: CookingChatRequest): AiResult<CookingChatResponse>
     suspend fun testConnection(): AiResult<Unit>
@@ -47,7 +61,9 @@ data class CookingPlanRequest(
     val dietType: String,
     val allergies: Set<String>,
     val language: String,
-    val inventoryLines: List<String> = emptyList()
+    val inventoryLines: List<String> = emptyList(),
+    val sourceRecipeIngredientLines: List<String> = emptyList(),
+    val sourceRecipeInstructions: List<String> = emptyList()
 )
 
 data class ShoppingTextRequest(val text: String, val language: String)

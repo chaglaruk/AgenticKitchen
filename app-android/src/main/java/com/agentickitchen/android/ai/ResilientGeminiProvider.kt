@@ -11,6 +11,8 @@ import com.agentickitchen.shared.ai.CookingPhotoResponse
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.RecipePhotoImportRequest
+import com.agentickitchen.shared.ai.RecipeTextImportRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
@@ -84,6 +86,12 @@ class ResilientGeminiProvider internal constructor(
             result
         }
     }
+
+    override suspend fun parseRecipeText(request: RecipeTextImportRequest) =
+        primary.parseRecipeText(request)
+
+    override suspend fun scanRecipePhoto(request: RecipePhotoImportRequest) =
+        primary.scanRecipePhoto(request)
 
     override suspend fun inspectCookingPhoto(request: CookingPhotoRequest) =
         primary.inspectCookingPhoto(request)

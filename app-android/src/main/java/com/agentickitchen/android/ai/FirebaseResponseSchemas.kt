@@ -10,6 +10,8 @@ internal enum class FirebaseResponseKind(
     COOKING_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingPlan),
     SUBSTITUTION_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.substitutionPlan),
     SHOPPING_IMPORT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.shoppingImport),
+    RECIPE_IMPORT_TEXT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.recipeImport),
+    RECIPE_IMPORT_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.recipeImport),
     COOKING_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.cookingPhoto),
     COOKING_CHAT(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingChat),
     CONNECTION_TEST(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.connectionTest)
@@ -111,6 +113,36 @@ private object FirebaseResponseSchemas {
                 )
             )
         )
+    )
+
+    val recipeImport = Schema.obj(
+        properties = mapOf(
+            "recipe" to Schema.obj(
+                properties = mapOf(
+                    "name" to Schema.string(),
+                    "servings" to Schema.integer(nullable = true),
+                    "ingredients" to Schema.array(
+                        items = Schema.obj(
+                            properties = mapOf(
+                                "displayName" to Schema.string(),
+                                "quantity" to Schema.double(nullable = true),
+                                "unit" to Schema.string(nullable = true),
+                                "confidence" to Schema.double(),
+                                "uncertaintyReason" to Schema.string(nullable = true)
+                            ),
+                            optionalProperties = listOf("quantity", "unit", "uncertaintyReason")
+                        ),
+                        minItems = 1
+                    ),
+                    "instructions" to Schema.array(Schema.string(), minItems = 1)
+                ),
+                optionalProperties = listOf("servings")
+            ),
+            "confidence" to Schema.double(),
+            "uncertainty" to Schema.string(nullable = true),
+            "source" to Schema.enumeration(listOf("AI_TEXT", "AI_PHOTO"))
+        ),
+        optionalProperties = listOf("uncertainty")
     )
 
     val cookingPhoto = Schema.obj(

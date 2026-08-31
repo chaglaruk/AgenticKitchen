@@ -210,6 +210,44 @@ Rules:
 Return only JSON matching the substitution schema."""
     }
 
+    fun recipeImportTextPrompt(text: String, language: String): String = """Extract exactly one cooking recipe from the supplied text.
+Language for user-visible names/instructions: $language
+Source text:
+$text
+
+Rules:
+- Use only recipe facts supported by the source.
+- Never invent an ingredient, amount, yield, or instruction.
+- If quantity or unit is not explicit, return null for that field and explain uncertainty.
+- Keep ingredient confidence between 0 and 1.
+- Keep top-level confidence between 0 and 1.
+- source must be AI_TEXT.
+- Return only JSON matching the recipe import schema."""
+
+    fun recipeImportPhotoPrompt(language: String): String = """Extract exactly one cooking recipe from this screenshot or photo.
+Language for user-visible names/instructions: $language
+Rules:
+- Read only text and recipe facts visibly supported by the image.
+- Never invent cropped/hidden ingredients, amounts, yield, or instructions.
+- If quantity or unit is not visible, return null and explain uncertainty.
+- Keep ingredient and top-level confidence between 0 and 1.
+- source must be AI_PHOTO.
+- Return only JSON matching the recipe import schema."""
+
+    fun importedRecipeContext(ingredientLines: List<String>, instructions: List<String>): String {
+        if (ingredientLines.isEmpty() && instructions.isEmpty()) return ""
+        return """
+
+This plan is being converted from an imported source recipe. The imported recipe is authoritative.
+Source ingredient amounts:
+${ingredientLines.joinToString("\n")}
+Source instructions:
+${instructions.mapIndexed { index, instruction -> "${index + 1}. $instruction" }.joinToString("\n")}
+Do not add, remove, substitute, rename to a different ingredient identity, or materially change ingredient amounts.
+You may expand the source instructions into safe timed operations and equipment-specific detail, but preserve the dish and instruction intent.
+""".trimEnd()
+    }
+
     fun visionAssessmentPrompt(
         stepDescription: String,
         language: String

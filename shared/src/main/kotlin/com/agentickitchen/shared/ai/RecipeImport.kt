@@ -64,6 +64,73 @@ data class RecipePhotoImportRequest(
     val sourceLabel: String? = null
 )
 
+object RecipeImportNormalizer {
+    fun normalize(
+        response: RecipeImportResponse,
+        source: RecipeImportSource,
+        sourceLabel: String? = null,
+        sourceUrl: String? = null
+    ): RecipeImportResponse? {
+        if (!response.confidence.isFinite() || response.confidence !in 0.0..1.0) return null
+        val recipe = response.recipe
+        val cleanName = recipe.name.trim().takeIf(String::isNotEmpty) ?: return null
+        val servings = recipe.servings?.takeIf { it > 0 }
+        if (recipe.servings != null && servings == null) return null
+        val instructions = recipe.instructions.map(String::trim).filter(String::isNotEmpty)
+        if (instructions.isEmpty() || recipe.ingredients.isEmpty()) return null
+        val ingredients = recipe.ingredients.map { ingredient ->
+            val display = ingredient.displayName.trim().takeIf(String::isNotEmpty) ?: return null
+            if (!ingredient.confidence.isFinite() || ingredient.confidence !in 0.0..1.0) return null
+            val quantity = ingredient.quantity
+            if (quantity != null && (!quantity.isFinite() || quantity <= 0.0)) return null
+            val unit = ingredient.unit?.trim()?.takeIf(String::isNotEmpty)
+            if (ingredient.unit != null && unit == null) return null
+            ingredient.copy(
+                displayName = display,
+                quantity = quantity,
+                unit = unit,
+                canonicalIngredientId = LocalIngredientResolver.resolveCanonicalId(display),
+                rawText = ingredient.rawText?.trim()?.takeIf(String::isNotEmpty),
+                uncertaintyReason = ingredient.uncertaintyReason?.trim()?.takeIf(String::isNotEmpty)
+            )
+        }
+        return response.copy(
+            recipe = recipe.copy(
+                name = cleanName,
+                servings = servings,
+                ingredients = ingredients,
+                instructions = instructions,
+                sourceLabel = sourceLabel?.trim()?.takeIf(String::isNotEmpty) ?: recipe.sourceLabel?.trim()?.takeIf(String::isNotEmpty),
+                sourceUrl = sourceUrl?.trim()?.takeIf(String::isNotEmpty) ?: recipe.sourceUrl?.trim()?.takeIf(String::isNotEmpty)
+            ),
+            uncertainty = response.uncertainty?.trim()?.takeIf(String::isNotEmpty),
+            source = source
+        )
+    }
+
+    fun normalizeResult(
+        result: AiResult<RecipeImportResponse>,
+        source: RecipeImportSource,
+        sourceLabel: String? = null,
+        sourceUrl: String? = null
+    ): AiResult<RecipeImportResponse> = when (result) {
+        is AiResult.Failure -> result
+        is AiResult.Success -> {
+            val normalized = normalize(result.value, source, sourceLabel, sourceUrl)
+            if (normalized == null) {
+                AiResult.Failure(
+                    AiFailureType.InvalidResponse,
+                    retryable = true,
+                    userMessage = AiFailureType.InvalidResponse.userMessageRes,
+                    technicalMessage = "invalid_recipe_import"
+                )
+            } else {
+                AiResult.Success(normalized, result.provider, result.model)
+            }
+        }
+    }
+}
+
 object DeterministicRecipeImportParser {
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonLdScript = Regex(

@@ -6,6 +6,8 @@ import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.KitchenImage
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.RecipePhotoImportRequest
+import com.agentickitchen.shared.ai.RecipeTextImportRequest
 import com.agentickitchen.shared.ai.SubstitutionPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
@@ -125,6 +127,37 @@ class FirebaseAiProviderTest {
     }
 
     @Test
+    fun `recipe text import uses extraction class and normalizes source`() = runBlocking {
+        var responseKind: FirebaseResponseKind? = null
+        val provider = FirebaseAiProvider(FirebaseModelGateway { kind, _, _ ->
+            responseKind = kind
+            FirebaseGatewayResponse(recipeImportJson, "extraction-test-model")
+        })
+        val result = provider.parseRecipeText(RecipeTextImportRequest("ambiguous recipe", "English", "shared"))
+        assertEquals(FirebaseResponseKind.RECIPE_IMPORT_TEXT, responseKind)
+        assertEquals(FirebaseAiTask.EXTRACTION, responseKind?.task)
+        assertTrue(result is AiResult.Success)
+        assertEquals(com.agentickitchen.shared.ai.RecipeImportSource.AI_TEXT, result.getOrNull()?.source)
+        assertEquals("shared", result.getOrNull()?.recipe?.sourceLabel)
+    }
+
+    @Test
+    fun `recipe photo import uses vision class and forwards image`() = runBlocking {
+        var imageSeen = false
+        var responseKind: FirebaseResponseKind? = null
+        val provider = FirebaseAiProvider(FirebaseModelGateway { kind, _, image ->
+            responseKind = kind
+            imageSeen = image?.bytes?.contentEquals(byteArrayOf(4, 5, 6)) == true
+            FirebaseGatewayResponse(recipeImportJson.replace("AI_TEXT", "AI_PHOTO"), "vision-test-model")
+        })
+        val result = provider.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(4, 5, 6), "image/jpeg"), "English"))
+        assertTrue(imageSeen)
+        assertEquals(FirebaseResponseKind.RECIPE_IMPORT_PHOTO, responseKind)
+        assertEquals(FirebaseAiTask.VISION, responseKind?.task)
+        assertTrue(result is AiResult.Success)
+    }
+
+    @Test
     fun `cooking photo uses vision model class`() {
         assertEquals(FirebaseAiTask.VISION, FirebaseResponseKind.COOKING_PHOTO.task)
     }
@@ -165,6 +198,10 @@ class FirebaseAiProviderTest {
              "mutatedPlan":{"recipeName":"Rice","servings":2,
              "ingredients":[{"name":"Rice","quantity":160.0,"unit":"g","canonicalIngredientId":"rice"},{"name":"Garlic","quantity":2.0,"unit":"clove","canonicalIngredientId":"garlic"}],
              "steps":[{"id":"s1","type":"prep","instruction":"Prep garlic","resource":"counter","durationSeconds":60,"dependsOn":[],"visionCheckpointRecommended":false}],"safetyNotes":[]}}
+        """.trimIndent()
+
+        val recipeImportJson = """
+            {"recipe":{"name":"Tomato Rice","servings":2,"ingredients":[{"displayName":"Rice","quantity":200.0,"unit":"g","confidence":0.98},{"displayName":"Tomato","quantity":2.0,"unit":"adet","confidence":0.95}],"instructions":["Cook rice with tomato."]},"confidence":0.95,"source":"AI_TEXT"}
         """.trimIndent()
 
         val cookingPlanJson = """
