@@ -20,6 +20,18 @@ jobs:
           fetch-depth: 0
       - name: Apply Phase 6 provider patch
         run: python3 .github/scripts/phase6_recipe_import_provider_patch.py
+      - name: Align redirect test fixture
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app-android/src/test/java/com/agentickitchen/android/ai/RecipeImportUrlLoaderTest.kt')
+          text = path.read_text(encoding='utf-8')
+          old = 'val client = HttpClient(engine) { install(HttpTimeout) }'
+          new = 'val client = HttpClient(engine) { followRedirects = false; install(HttpTimeout) }'
+          if old not in text:
+              raise SystemExit('Redirect fixture anchor not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Validate Phase 6 provider patch
         run: |
           git diff --check
