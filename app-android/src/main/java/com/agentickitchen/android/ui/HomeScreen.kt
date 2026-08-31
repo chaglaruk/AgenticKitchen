@@ -118,6 +118,8 @@ import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.android.ShoppingImportState
 import com.agentickitchen.android.KitchenScanState
+import com.agentickitchen.android.RecipeImportState
+import com.agentickitchen.shared.ai.ImportedRecipe
 import com.agentickitchen.android.searchIngredientCatalog
 import com.agentickitchen.shared.ai.ShoppingCandidate
 import com.agentickitchen.shared.models.PantryIntelReport
@@ -145,6 +147,7 @@ fun HomeScreen(
     inventory: List<PantryStockItem>,
     inventoryAdjustments: Map<String, List<InventoryAdjustmentRecord>>,
     shoppingImportState: ShoppingImportState = ShoppingImportState.Idle,
+    recipeImportState: RecipeImportState = RecipeImportState.Idle,
     shoppingList: List<ShoppingListItem> = emptyList(),
     kitchenScanState: KitchenScanState = KitchenScanState.Idle,
     scannedIngredients: List<String>?,
@@ -160,6 +163,11 @@ fun HomeScreen(
     onImportShoppingPhoto: (Bitmap, ShoppingImportMode) -> Unit = { _, _ -> },
     onConfirmShoppingImport: (List<ShoppingCandidate>, ShoppingImportMode) -> Boolean = { _, _ -> false },
     onClearShoppingImport: () -> Unit = {},
+    onImportRecipeText: (String) -> Unit = {},
+    onImportRecipeUrl: (String) -> Unit = {},
+    onImportRecipePhoto: (Bitmap) -> Unit = {},
+    onPrepareImportedRecipe: (ImportedRecipe) -> Unit = {},
+    onClearRecipeImport: () -> Unit = {},
     onToggleShoppingItem: (String, Boolean) -> Unit = { _, _ -> },
     onDeleteShoppingItem: (String) -> Unit = {},
     onClearCheckedShoppingItems: () -> Unit = {},
@@ -179,6 +187,7 @@ fun HomeScreen(
     var showCameraModal by remember { mutableStateOf(false) }
     var showInventoryEditor by remember { mutableStateOf(false) }
     var showShoppingImport by remember { mutableStateOf(false) }
+    var showRecipeImport by remember { mutableStateOf(false) }
     var showKitchenScan by remember { mutableStateOf(false) }
     var showInventoryRecipe by remember { mutableStateOf(false) }
     var editingInventoryItem by remember { mutableStateOf<PantryStockItem?>(null) }
@@ -194,6 +203,9 @@ fun HomeScreen(
 
     LaunchedEffect(filteredIngredients) {
         expandedAuto = filteredIngredients.isNotEmpty()
+    }
+    LaunchedEffect(recipeImportState) {
+        if (recipeImportState !is RecipeImportState.Idle) showRecipeImport = true
     }
 
     LazyVerticalGrid(
@@ -298,6 +310,16 @@ fun HomeScreen(
                 ) {
                     Text(if (L.isTr) "Elimdekilerle pişir" else "Cook with what I have", color = colors.onPrimary)
                 }
+            }
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            OutlinedButton(
+                onClick = { showRecipeImport = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                border = BorderStroke(1.dp, colors.divider),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Text(if (L.isTr) "Tarif içe aktar · URL / metin / fotoğraf" else "Import recipe · URL / text / photo", color = colors.primary)
             }
         }
         if (inventory.isEmpty()) {
@@ -442,6 +464,22 @@ fun HomeScreen(
                 showInventoryRecipe = false
                 onStartInventorySession(it)
             }
+        )
+    }
+
+    if (showRecipeImport) {
+        RecipeImportDialog(
+            state = recipeImportState,
+            inventory = inventory,
+            onDismiss = {
+                showRecipeImport = false
+                onClearRecipeImport()
+            },
+            onImportUrl = onImportRecipeUrl,
+            onImportText = onImportRecipeText,
+            onImportPhoto = onImportRecipePhoto,
+            onPrepare = onPrepareImportedRecipe,
+            onConfigureGemini = onConfigureGemini
         )
     }
 }

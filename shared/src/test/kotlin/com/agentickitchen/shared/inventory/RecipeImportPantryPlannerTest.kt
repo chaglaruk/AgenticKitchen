@@ -72,7 +72,7 @@ class RecipeImportPantryPlannerTest {
     fun `unknown measurement units fail closed to review`() {
         val recipe = ImportedRecipe(
             name = "Soup",
-            ingredients = listOf(ImportedRecipeIngredient("Milk", 1.0, "cup", "milk")),
+            ingredients = listOf(ImportedRecipeIngredient("Milk", 1.0, "ladle", "milk")),
             instructions = listOf("Cook.")
         )
         val summary = RecipeImportPantryPlanner.compare(

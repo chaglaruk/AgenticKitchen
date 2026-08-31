@@ -1,5 +1,6 @@
 package com.agentickitchen.android
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) handleRecipeShare(intent)
         setContent {
             val theme by viewModel.theme.collectAsState()
             AgenticTheme(themeName = theme) {
@@ -69,6 +71,22 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleRecipeShare(intent)
+    }
+
+    private fun handleRecipeShare(intent: Intent?) {
+        recipeSharePayload(intent?.action, intent?.type, intent?.getStringExtra(Intent.EXTRA_TEXT))
+            ?.let(viewModel::importSharedRecipe)
+    }
+}
+
+internal fun recipeSharePayload(action: String?, mimeType: String?, text: String?): String? {
+    if (action != Intent.ACTION_SEND || mimeType?.startsWith("text/") != true) return null
+    return text?.trim()?.takeIf(String::isNotEmpty)
 }
 
 sealed class Screen(val route: String, val icon: ImageVector) {
@@ -216,6 +234,7 @@ fun AppNavigation(
     val inventory by viewModel.inventory.collectAsState()
     val inventoryAdjustments by viewModel.inventoryAdjustments.collectAsState()
     val shoppingImportState by viewModel.shoppingImportState.collectAsState()
+    val recipeImportState by viewModel.recipeImportState.collectAsState()
     val shoppingList by viewModel.shoppingList.collectAsState()
     val kitchenScanState by viewModel.kitchenScanState.collectAsState()
     val pendingConsumption by viewModel.pendingConsumption.collectAsState()
@@ -259,6 +278,7 @@ fun AppNavigation(
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is UiEvent.ShowSnackbar -> scaffoldState.snackbarHostState.showSnackbar(event.message)
+                UiEvent.NavigateKitchen -> currentScreen = Screen.Intelligence
                 is UiEvent.DraftIngredientRemoved -> {
                     val result = scaffoldState.snackbarHostState.showSnackbar(
                         message = event.message,
@@ -305,6 +325,7 @@ fun AppNavigation(
                             inventory = inventory,
                             inventoryAdjustments = inventoryAdjustments,
                             shoppingImportState = shoppingImportState,
+                            recipeImportState = recipeImportState,
                             shoppingList = shoppingList,
                             kitchenScanState = kitchenScanState,
                             scannedIngredients = scannedIngredients,
@@ -320,6 +341,11 @@ fun AppNavigation(
                             onImportShoppingPhoto = viewModel::importShoppingPhoto,
                             onConfirmShoppingImport = viewModel::confirmShoppingImport,
                             onClearShoppingImport = viewModel::clearShoppingImport,
+                            onImportRecipeText = viewModel::importRecipeText,
+                            onImportRecipeUrl = viewModel::importRecipeUrl,
+                            onImportRecipePhoto = viewModel::importRecipePhoto,
+                            onPrepareImportedRecipe = viewModel::prepareImportedRecipe,
+                            onClearRecipeImport = viewModel::clearRecipeImport,
                             onToggleShoppingItem = viewModel::setShoppingItemChecked,
                             onDeleteShoppingItem = viewModel::deleteShoppingItem,
                             onClearCheckedShoppingItems = viewModel::clearCheckedShoppingItems,

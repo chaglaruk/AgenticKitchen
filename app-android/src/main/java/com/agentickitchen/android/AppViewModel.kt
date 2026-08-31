@@ -25,6 +25,10 @@ import com.agentickitchen.shared.inventory.RecipeMatchCandidate
 import com.agentickitchen.shared.inventory.RecipeMatchConstraintPolicy
 import com.agentickitchen.shared.inventory.RecipeMatcher
 import com.agentickitchen.shared.inventory.RecipeMatchTier
+import com.agentickitchen.shared.inventory.RecipeImportDraftPolicy
+import com.agentickitchen.shared.inventory.RecipeImportPantryPlanner
+import com.agentickitchen.shared.inventory.RecipeImportPantrySummary
+import com.agentickitchen.shared.inventory.RecipeImportPlanGuard
 import com.agentickitchen.shared.inventory.SubstitutionMutationValidator
 import com.agentickitchen.shared.inventory.InMemoryShoppingListRepository
 import com.agentickitchen.shared.inventory.PantryShortage
@@ -39,8 +43,16 @@ import com.agentickitchen.android.data.preferences.AppPreferences
 import com.agentickitchen.android.ai.AiProviderFactory
 import com.agentickitchen.android.ai.ProviderFailure
 import com.agentickitchen.android.ai.ProviderFailureCategory
+import com.agentickitchen.android.ai.RecipeImportUrlLoader
 import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.AiFailureType
+import com.agentickitchen.shared.ai.DeterministicRecipeImportParser
+import com.agentickitchen.shared.ai.ImportedRecipe
+import com.agentickitchen.shared.ai.RecipeImportNormalizer
+import com.agentickitchen.shared.ai.RecipeImportResponse
+import com.agentickitchen.shared.ai.RecipeImportSource
+import com.agentickitchen.shared.ai.RecipePhotoImportRequest
+import com.agentickitchen.shared.ai.RecipeTextImportRequest
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import com.agentickitchen.shared.ai.CookingChatRequest
@@ -217,6 +229,16 @@ sealed interface ShoppingImportState {
     data class Error(val message: String) : ShoppingImportState
 }
 
+sealed interface RecipeImportState {
+    data object Idle : RecipeImportState
+    data class Loading(val source: String) : RecipeImportState
+    data class Review(
+        val response: RecipeImportResponse,
+        val pantry: RecipeImportPantrySummary
+    ) : RecipeImportState
+    data class Error(val message: String) : RecipeImportState
+}
+
 sealed interface KitchenScanState {
     data object Idle : KitchenScanState
     data class Loading(
@@ -251,6 +273,7 @@ data class PendingConsumption(
 
 sealed class UiEvent {
     data class ShowSnackbar(val message: String) : UiEvent()
+    data object NavigateKitchen : UiEvent()
     data class DraftIngredientRemoved(
         val ingredient: String,
         val previousIndex: Int,
@@ -418,6 +441,9 @@ class AppViewModel(
     val inventoryAdjustments = _inventoryAdjustments.asStateFlow()
     private val _shoppingImportState = MutableStateFlow<ShoppingImportState>(ShoppingImportState.Idle)
     val shoppingImportState: StateFlow<ShoppingImportState> = _shoppingImportState.asStateFlow()
+    private val _recipeImportState = MutableStateFlow<RecipeImportState>(RecipeImportState.Idle)
+    val recipeImportState: StateFlow<RecipeImportState> = _recipeImportState.asStateFlow()
+    private var recipeImportJob: Job? = null
     private val _shoppingList = MutableStateFlow(shoppingListRepository.getAll())
     val shoppingList: StateFlow<List<ShoppingListItem>> = _shoppingList.asStateFlow()
     private val _kitchenScanState = MutableStateFlow<KitchenScanState>(KitchenScanState.Idle)
@@ -823,6 +849,320 @@ class AppViewModel(
         _shoppingImportState.value = ShoppingImportState.Idle
     }
 
+
+    fun importRecipeText(text: String) {
+        importRecipeTextInternal(text, sourceOverride = null)
+    }
+
+    fun importSharedRecipe(text: String) {
+        val clean = text.trim()
+        if (clean.isBlank()) return
+        val singleUrl = clean.takeIf { it.matches(Regex("(?is)^https?://\\S+$")) }
+        if (singleUrl != null) {
+            importRecipeUrlInternal(singleUrl, RecipeImportSource.ANDROID_SHARE)
+        } else {
+            importRecipeTextInternal(clean, RecipeImportSource.ANDROID_SHARE)
+        }
+    }
+
+    private fun importRecipeTextInternal(text: String, sourceOverride: RecipeImportSource?) {
+        val clean = text.trim()
+        if (clean.isBlank()) return
+        if (clean.length > RecipeImportUrlLoader.MAX_AI_TEXT_CHARS) {
+            _recipeImportState.value = RecipeImportState.Error(
+                if (L.isTr) "Tarif metni çok uzun. Daha kısa bir tarif metni kullan." else "The recipe text is too long. Use a shorter recipe text."
+            )
+            return
+        }
+        recipeImportJob?.cancel()
+        val deterministic = DeterministicRecipeImportParser.parsePlainText(clean, sourceLabel = if (L.isTr) "Yapıştırılan tarif" else "Pasted recipe")
+        if (deterministic != null) {
+            presentRecipeImport(deterministic, sourceOverride)
+            return
+        }
+        recipeImportJob = viewModelScope.launch {
+            _recipeImportState.value = RecipeImportState.Loading("text")
+            try {
+                val response = executeAiWithProvider { provider ->
+                    provider.parseRecipeText(
+                        RecipeTextImportRequest(
+                            text = clean,
+                            language = language.value,
+                            sourceLabel = if (L.isTr) "Yapıştırılan tarif" else "Pasted recipe"
+                        )
+                    ).requireValue()
+                }
+                presentRecipeImport(response, sourceOverride)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                _recipeImportState.value = RecipeImportState.Error(recipeImportError(error))
+            }
+        }
+    }
+
+    fun importRecipeUrl(url: String) {
+        importRecipeUrlInternal(url, sourceOverride = null)
+    }
+
+    private fun importRecipeUrlInternal(url: String, sourceOverride: RecipeImportSource?) {
+        val clean = url.trim()
+        if (clean.isBlank()) return
+        recipeImportJob?.cancel()
+        recipeImportJob = viewModelScope.launch {
+            _recipeImportState.value = RecipeImportState.Loading("url")
+            try {
+                val loaded = RecipeImportUrlLoader().use { loader ->
+                    loader.load(clean).getOrElse { throw it }
+                }
+                val deterministic = DeterministicRecipeImportParser.parseJsonLd(
+                    loaded.body,
+                    sourceLabel = loaded.sourceLabel,
+                    sourceUrl = loaded.finalUrl
+                )
+                val response = deterministic ?: executeAiWithProvider { provider ->
+                    val visibleText = RecipeImportUrlLoader.visibleRecipeText(loaded.body)
+                    if (visibleText.isBlank()) throw IllegalArgumentException("No visible recipe text")
+                    provider.parseRecipeText(
+                        RecipeTextImportRequest(
+                            text = visibleText,
+                            language = language.value,
+                            sourceLabel = loaded.sourceLabel,
+                            sourceUrl = loaded.finalUrl
+                        )
+                    ).requireValue()
+                }
+                presentRecipeImport(response, sourceOverride)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                _recipeImportState.value = RecipeImportState.Error(recipeImportError(error))
+            }
+        }
+    }
+
+    fun importRecipePhoto(image: Bitmap) {
+        recipeImportJob?.cancel()
+        recipeImportJob = viewModelScope.launch {
+            _recipeImportState.value = RecipeImportState.Loading("photo")
+            try {
+                val response = executeAiWithProvider { provider ->
+                    provider.scanRecipePhoto(
+                        RecipePhotoImportRequest(
+                            image = encodeKitchenImage(image),
+                            language = language.value,
+                            sourceLabel = if (L.isTr) "Tarif fotoğrafı" else "Recipe photo"
+                        )
+                    ).requireValue()
+                }
+                presentRecipeImport(response, null)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                _recipeImportState.value = RecipeImportState.Error(recipeImportError(error))
+            }
+        }
+    }
+
+    private fun presentRecipeImport(response: RecipeImportResponse, sourceOverride: RecipeImportSource?): Boolean {
+        val source = sourceOverride ?: response.source
+        val normalized = RecipeImportNormalizer.normalize(
+            response = response,
+            source = source,
+            sourceLabel = response.recipe.sourceLabel,
+            sourceUrl = response.recipe.sourceUrl
+        ) ?: run {
+            _recipeImportState.value = RecipeImportState.Error(
+                if (L.isTr) "Tarif güvenilir biçimde okunamadı." else "The recipe could not be read reliably."
+            )
+            return false
+        }
+        val pantry = RecipeImportPantryPlanner.compare(normalized.recipe, _inventory.value, reservedQuantities())
+        _recipeImportState.value = RecipeImportState.Review(normalized, pantry)
+        return true
+    }
+
+    fun clearRecipeImport() {
+        recipeImportJob?.cancel()
+        recipeImportJob = null
+        _recipeImportState.value = RecipeImportState.Idle
+    }
+
+    private fun recipeImportError(error: Throwable): String {
+        if (error is AiRequestException && error.failure.technicalMessage == "recipe_import_not_supported") {
+            return if (L.isTr) {
+                "Seçili çevrimdışı sağlayıcı tarif içe aktaramıyor. Firebase veya Gemini seç."
+            } else {
+                "The selected offline provider cannot import recipes. Choose Firebase or Gemini."
+            }
+        }
+        val message = error.message.orEmpty()
+        if (message.contains("Blocked recipe URL host", ignoreCase = true) ||
+            message.contains("Only HTTP(S)", ignoreCase = true) ||
+            message.contains("Recipe URL credentials", ignoreCase = true)) {
+            return if (L.isTr) "Bu tarif bağlantısı güvenlik nedeniyle açılamadı." else "This recipe link was blocked for safety."
+        }
+        if (message.contains("too large", ignoreCase = true)) {
+            return if (L.isTr) "Tarif sayfası çok büyük." else "The recipe page is too large."
+        }
+        return readerSafeCurrentProviderError(error)
+    }
+
+    fun prepareImportedRecipe(recipe: ImportedRecipe) {
+        if (!canReplacePreparedRecipe(_cookingState.value.status)) {
+            emitUiEvent(
+                if (L.isTr) "Devam eden pişirmeyi bitirmeden başka bir tarif hazırlayamazsın."
+                else "Finish the active cooking session before preparing another recipe."
+            )
+            return
+        }
+        val issues = RecipeImportDraftPolicy.issues(recipe)
+        if (issues.isNotEmpty()) {
+            emitUiEvent(
+                if (L.isTr) "Tarif adı, porsiyon, miktarlar, birimler ve adımlar tamamlanmalı."
+                else "Recipe name, servings, amounts, units, and steps must be complete."
+            )
+            return
+        }
+        val sourceReview = _recipeImportState.value as? RecipeImportState.Review ?: return
+        val normalizedResponse = RecipeImportNormalizer.normalize(
+            response = sourceReview.response.copy(recipe = recipe),
+            source = sourceReview.response.source,
+            sourceLabel = recipe.sourceLabel,
+            sourceUrl = recipe.sourceUrl
+        ) ?: return
+        val imported = normalizedResponse.recipe
+        val importedPantry = RecipeImportPantryPlanner.compare(imported, _inventory.value, reservedQuantities())
+        if (!importedPantry.readyForValidatedPlan) {
+            _recipeImportState.value = RecipeImportState.Review(normalizedResponse, importedPantry)
+            emitUiEvent(if (L.isTr) "Önce belirsiz tarif miktarlarını düzelt." else "Resolve the uncertain recipe amounts first.")
+            return
+        }
+
+        viewModelScope.launch {
+            _recipeImportState.value = RecipeImportState.Loading("prepare")
+            _planState.value = PlanState.Loading
+            try {
+                executeAiWithProvider { provider ->
+                    val hw = _hw.value
+                    val servings = imported.servings ?: throw IllegalArgumentException("Missing servings")
+                    val plan = normalizeCookingPlan(
+                        provider.generateCookingPlan(
+                            CookingPlanRequest(
+                                recipeName = imported.name,
+                                ingredients = imported.ingredients.map { it.displayName },
+                                equipment = _selectedEquipment.value,
+                                servings = servings,
+                                stoveType = selectedStoveType(),
+                                stoveMaxLevel = hw.stovePowerMax,
+                                ovenAvailable = hw.ovenAvailable,
+                                ovenHasFan = hw.ovenHasFan,
+                                airfryerAvailable = "airfryer" in _selectedEquipment.value,
+                                dietType = dietSettings.value.dietType,
+                                allergies = dietSettings.value.allergies,
+                                language = language.value,
+                                inventoryLines = _inventory.value.map { "${it.quantity} ${it.unit} ${it.originalName}" },
+                                sourceRecipeIngredientLines = imported.ingredients.map { ingredient ->
+                                    ingredient.rawText ?: "${ingredient.quantity} ${ingredient.unit} ${ingredient.displayName}"
+                                },
+                                sourceRecipeInstructions = imported.instructions
+                            )
+                        ).requireValue()
+                    )
+                    val sourceGuard = RecipeImportPlanGuard.validate(imported, plan)
+                    if (!sourceGuard.valid) {
+                        AppLogger.w("RecipeImportGuard", sourceGuard.reasons.joinToString("_"))
+                        throw ProviderFailure("RECIPE_IMPORT", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                    }
+                    val validation = CookingPlanValidator(
+                        _selectedEquipment.value,
+                        hw.stovePowerMax,
+                        selectedStoveType(),
+                        hw.ovenAvailable,
+                        _selectedEquipment.value.contains("airfryer"),
+                        dietSettings.value.dietType,
+                        dietSettings.value.allergies,
+                        servings
+                    ).validate(plan)
+                    if (!validation.valid) throw PlanValidationException(validation.errors)
+
+                    val usagePlan = InventoryWorkflow.planUsage(plan, _inventory.value, reservedQuantities())
+                    val sessionId = UUID.randomUUID().toString()
+                    val sequentialSeconds = plan.steps.sumOf { it.durationSeconds.toLong() }.coerceAtLeast(60L)
+                    val readyTimeIso = ZonedDateTime.now().plusSeconds(sequentialSeconds)
+                        .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                    val option = RecipeOption(
+                        id = "import-$sessionId",
+                        type = "imported",
+                        name = imported.name,
+                        description = if (L.isTr) "İçe aktarılan tarif" else "Imported recipe",
+                        sourceLabel = imported.sourceLabel ?: when (normalizedResponse.source) {
+                            RecipeImportSource.URL_JSON_LD -> if (L.isTr) "Web tarifi" else "Web recipe"
+                            RecipeImportSource.PLAIN_TEXT -> if (L.isTr) "Metin tarifi" else "Text recipe"
+                            RecipeImportSource.AI_TEXT -> if (L.isTr) "AI ile çıkarılan tarif" else "AI-extracted recipe"
+                            RecipeImportSource.AI_PHOTO -> if (L.isTr) "Fotoğraftan tarif" else "Recipe from photo"
+                            RecipeImportSource.ANDROID_SHARE -> if (L.isTr) "Paylaşılan tarif" else "Shared recipe"
+                        },
+                        proposedIngredients = plan.ingredients,
+                        shortages = usagePlan.shortages,
+                        matchTier = when (usagePlan.shortages.size) {
+                            0 -> RecipeMatchTier.READY_NOW
+                            1 -> RecipeMatchTier.MISSING_ONE
+                            else -> RecipeMatchTier.MISSING_TWO
+                        },
+                        pantryCoveragePercent = if (imported.ingredients.isEmpty()) 0 else
+                            ((importedPantry.availableCount * 100.0) / imported.ingredients.size).toInt(),
+                        servings = servings,
+                        canPrepareFromPantry = usagePlan.shortages.isEmpty()
+                    )
+                    val session = RecipeSession(
+                        sessionId,
+                        readyTimeIso,
+                        plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) },
+                        "kitchen",
+                        plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) }
+                    )
+                    val schedule = orchestrator.startSession(session)
+                    historyRepo.insertRecipe(
+                        sessionId,
+                        imported.name,
+                        plan.ingredients.joinToString { "${it.quantity} ${it.unit} ${it.name}" },
+                        ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                        "started"
+                    )
+                    loadHistory()
+                    inventoryRecipeRequest = null
+                    lastOptions = emptyList()
+                    cookingTicker?.cancel()
+                    recentCookingTurns.clear()
+                    _cookingState.value = preparedCookingState(imported.name)
+                    _planState.value = activeRecipeState(
+                        sessionId,
+                        option,
+                        schedule.events,
+                        servings,
+                        readyTimeIso,
+                        plan,
+                        usagePlan.usages,
+                        usagePlan.shortages
+                    )
+                    _recipeImportState.value = RecipeImportState.Idle
+                    persistActiveSession()
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                val message = when (error) {
+                    is PlanValidationException -> readerSafePlanValidationError(error.validationErrors)
+                    else -> recipeImportError(error)
+                }
+                _recipeImportState.value = RecipeImportState.Review(normalizedResponse, importedPantry)
+                _planState.value = PlanState.Error(message, canUseOffline = false)
+                emitUiEvent(message)
+            }
+        }
+    }
+
     fun reuseHistoryIngredients(names: List<String>) {
         val localized = names.map { canonicalIngredientName(it, L.isTr) }
             .filter(String::isNotBlank)
@@ -1011,6 +1351,11 @@ class AppViewModel(
             }
             inventoryRepository.deleteActiveSession(currentState.sessionId)
             _cookingState.value = CookingSessionState()
+            if (currentState.recipe.type == "imported") {
+                _planState.value = PlanState.Idle
+                viewModelScope.launch { _uiEvent.emit(UiEvent.NavigateKitchen) }
+                return
+            }
             if (lastOptions.isNotEmpty()) {
                 _planState.value = PlanState.OptionsReady(lastOptions)
             } else {
@@ -1850,13 +2195,9 @@ class AppViewModel(
         return stored.copy(aiProvider = CookingProviderSelection.normalize(stored.aiProvider))
     }
 
-    private fun quantityToGrams(quantity: Double, unit: String): Int = when (unit.lowercase()) {
-        "kg" -> (quantity * 1000).toInt()
-        "g" -> quantity.toInt()
-        "ml" -> quantity.toInt()
-        "l" -> (quantity * 1000).toInt()
-        else -> quantity.toInt().coerceAtLeast(1)
-    }
+    private fun quantityToGrams(quantity: Double, unit: String): Int =
+        runCatching { InventoryUnits.normalize(quantity, unit).quantity.toInt().coerceAtLeast(1) }
+            .getOrElse { quantity.toInt().coerceAtLeast(1) }
 
 
     private fun slugify(name: String) = name.lowercase().replace("ğ", "g").replace("ü", "u").replace("ş", "s").replace("ı", "i").replace("ö", "o").replace("ç", "c").replace(Regex("[^a-z0-9]"), "_")

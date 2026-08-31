@@ -103,7 +103,10 @@ object InventoryUnits {
             "ml", "millilitre", "milliliter" -> NormalizedAmount(quantity, "ml", UnitDimension.VOLUME)
             "1", "count", "adet", "piece", "pieces", "pcs" -> NormalizedAmount(quantity, "adet", UnitDimension.COUNT)
             "package", "paket", "pack", "packs" -> NormalizedAmount(quantity, "paket", UnitDimension.PACKAGE)
-            "bunch", "demet" -> NormalizedAmount(quantity, "demet", UnitDimension.BUNCH)
+            "bunch", "bunches", "demet" -> NormalizedAmount(quantity, "demet", UnitDimension.BUNCH)
+            "cup", "cups" -> NormalizedAmount(quantity * 240.0, "ml", UnitDimension.VOLUME)
+            "tbsp", "tablespoon", "tablespoons" -> NormalizedAmount(quantity * 15.0, "ml", UnitDimension.VOLUME)
+            "tsp", "teaspoon", "teaspoons" -> NormalizedAmount(quantity * 5.0, "ml", UnitDimension.VOLUME)
             else -> NormalizedAmount(quantity, unit.trim().ifBlank { "birim" }, UnitDimension.UNKNOWN)
         }
     }

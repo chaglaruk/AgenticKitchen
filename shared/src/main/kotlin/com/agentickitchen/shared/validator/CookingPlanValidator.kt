@@ -67,7 +67,7 @@ class CookingPlanValidator(
                 )
             }
             val normalizedUnit = ingredient.unit.lowercase()
-            if (normalizedUnit !in setOf("g", "kg", "ml", "l", "tsp", "tbsp", "cup", "piece", "pieces", "slice", "slices", "clove", "pinch", "unit", "to taste", "")) {
+            if (normalizedUnit !in setOf("g", "kg", "ml", "l", "tsp", "tbsp", "cup", "piece", "pieces", "count", "adet", "package", "packages", "pack", "packs", "paket", "bunch", "bunches", "demet", "slice", "slices", "clove", "pinch", "unit", "to taste", "")) {
                 errors.add(
                     ValidationError(
                         ErrorType.UNKNOWN_UNIT,

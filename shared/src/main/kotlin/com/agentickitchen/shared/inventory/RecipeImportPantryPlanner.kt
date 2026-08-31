@@ -29,6 +29,30 @@ data class RecipeImportPantrySummary(
     val readyForValidatedPlan: Boolean get() = needsReviewCount == 0
 }
 
+
+object RecipeImportDraftPolicy {
+    fun issues(recipe: ImportedRecipe): List<String> = buildList {
+        if (recipe.name.isBlank()) add("recipe_name_missing")
+        if (recipe.servings == null || recipe.servings <= 0) add("servings_missing")
+        if (recipe.ingredients.isEmpty()) add("ingredients_missing")
+        recipe.ingredients.forEachIndexed { index, ingredient ->
+            if (ingredient.displayName.isBlank()) add("ingredient_name_$index")
+            val quantity = ingredient.quantity
+            val unit = ingredient.unit
+            if (quantity == null || !quantity.isFinite() || quantity <= 0.0) add("ingredient_quantity_$index")
+            if (unit.isNullOrBlank()) {
+                add("ingredient_unit_$index")
+            } else if (quantity != null && quantity.isFinite() && quantity > 0.0) {
+                val normalized = runCatching { InventoryUnits.normalize(quantity, unit) }.getOrNull()
+                if (normalized == null || normalized.dimension == UnitDimension.UNKNOWN) add("ingredient_unit_$index")
+            }
+        }
+        if (recipe.instructions.isEmpty() || recipe.instructions.any(String::isBlank)) add("instructions_missing")
+    }.distinct()
+
+    fun canPrepare(recipe: ImportedRecipe): Boolean = issues(recipe).isEmpty()
+}
+
 object RecipeImportPantryPlanner {
     fun compare(
         recipe: ImportedRecipe,
