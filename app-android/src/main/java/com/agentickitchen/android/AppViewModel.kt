@@ -318,6 +318,8 @@ enum class AiConnectionStatus {
     NETWORK_FAILURE
 }
 
+internal fun canStartPreparedCooking(shortages: List<String>): Boolean = shortages.isEmpty()
+
 internal fun aiConnectionStatusFor(result: AiResult<*>): AiConnectionStatus = when (result) {
     is AiResult.Success -> AiConnectionStatus.CONNECTED
     is AiResult.Failure -> when (result.type) {
@@ -1569,6 +1571,18 @@ class AppViewModel(
             _cookingState.value = CookingSessionState(
                 status = CookingSessionStatus.ERROR,
                 error = if (L.isTr) "Önce bir tarif seç." else "Choose a recipe first."
+            )
+            return
+        }
+        if (!canStartPreparedCooking(active.shortages)) {
+            _cookingState.value = _cookingState.value.copy(
+                recipeName = active.recipe.name,
+                status = CookingSessionStatus.READY,
+                error = if (L.isTr) {
+                    "Pişirmeye başlamadan önce eksik malzemeleri tamamla veya güvenli bir alternatif uygula."
+                } else {
+                    "Resolve missing ingredients or apply a safe substitution before starting cooking."
+                }
             )
             return
         }

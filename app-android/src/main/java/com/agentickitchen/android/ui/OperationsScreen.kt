@@ -76,6 +76,7 @@ import com.agentickitchen.android.PendingConsumption
 import com.agentickitchen.android.PlanState
 import com.agentickitchen.android.RecipeOption
 import com.agentickitchen.android.SubstitutionState
+import com.agentickitchen.android.canStartPreparedCooking
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
@@ -493,8 +494,18 @@ private fun ReadyCookingState(
             PlanReview(activePlan)
         }
         Spacer(Modifier.height(18.dp))
+        val canStart = activePlan?.let { canStartPreparedCooking(it.shortages) } ?: true
+        if (!canStart) {
+            Text(
+                if (L.isTr) "Önce aşağıdaki eksikleri tamamla veya güvenli bir alternatif uygula." else "Resolve the shortages below or apply a safe substitution first.",
+                color = colors.accent,
+                style = MaterialTheme.typography.body2
+            )
+            Spacer(Modifier.height(10.dp))
+        }
         Button(
             onClick = onStart,
+            enabled = canStart,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
             shape = RoundedCornerShape(999.dp)
