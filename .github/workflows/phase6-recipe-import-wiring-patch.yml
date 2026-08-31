@@ -20,6 +20,8 @@ jobs:
           fetch-depth: 0
       - name: Apply Phase 6 recipe import wiring patch
         run: python3 .github/scripts/phase6_recipe_import_wiring_patch.py
+      - name: Repair Phase 6 recipe import wiring
+        run: python3 .github/scripts/phase6_recipe_import_wiring_repair.py
       - name: Validate Phase 6 recipe import wiring
         run: |
           git diff --check
@@ -29,7 +31,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm .github/workflows/phase6-recipe-import-wiring-patch.yml .github/scripts/phase6_recipe_import_wiring_patch.py
+          rm .github/workflows/phase6-recipe-import-wiring-patch.yml .github/scripts/phase6_recipe_import_wiring_patch.py .github/scripts/phase6_recipe_import_wiring_repair.py
           git add -A
           git diff --cached --check
           git commit -m "feat: wire recipe import review and sharing"
