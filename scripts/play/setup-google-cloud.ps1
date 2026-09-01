@@ -97,7 +97,7 @@ Write-Host "Play Console access must be granted to the service account itself:"
 Write-Host ("  {0}" -f $serviceAccountEmail)
 Write-Host ""
 Write-Host "Then authenticate locally with the explicit Google account:"
-Write-Host ("  .\scripts\play\auth-google-play.ps1 -GoogleAccount \"{0}\"" -f $GoogleAccount)
+Write-Host ('  .\scripts\play\auth-google-play.ps1 -GoogleAccount "{0}"' -f $GoogleAccount)
 Write-Host ""
 Write-Host "Then publish the listing with:"
 Write-Host "  .\scripts\play\publish-listing.ps1 -Execute"
