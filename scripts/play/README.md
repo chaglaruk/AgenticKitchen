@@ -2,6 +2,16 @@
 
 AgenticKitchen uses Gradle Play Publisher (GPP) for repeatable Google Play listing and release automation, plus the official Android Publisher REST endpoint for Data Safety.
 
+## One-command local update + setup
+
+From any up-to-date checkout of the AgenticKitchen repository, run:
+
+```powershell
+.\scripts\play\update-and-setup.ps1
+```
+
+The helper refuses to touch a dirty working tree, fetches `origin`, switches to `refactor/agentic-kitchen-production-foundation`, fast-forwards only, prints the resulting exact HEAD, and then runs the Google Cloud / Play publisher setup. It never rebases, resets, force-pushes, or discards local work.
+
 ## Compatibility decision
 
 The project is currently on Android Gradle Plugin 8.13.2. GPP 4.x requires AGP 9, so this branch intentionally pins GPP 3.13.0.
