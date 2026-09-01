@@ -134,6 +134,18 @@ internal fun backDestination(currentScreen: Screen, hasActiveRecipe: Boolean): S
     Screen.Intelligence -> Screen.Intelligence
 }
 
+internal fun automaticDestination(
+    planState: PlanState,
+    recipeImportState: RecipeImportState,
+    hasPendingConsumption: Boolean
+): Screen? = when {
+    recipeImportState != RecipeImportState.Idle -> Screen.Intelligence
+    hasPendingConsumption -> Screen.Operations
+    planState is PlanState.OptionsReady -> Screen.Options
+    planState is PlanState.RecipeActive -> Screen.Operations
+    else -> null
+}
+
 @Composable
 fun AppRoot(viewModel: AppViewModel) {
     val setupDone by viewModel.setupDone.collectAsState()
@@ -250,15 +262,12 @@ fun AppNavigation(
     val pantryIntel by viewModel.pantryIntel.collectAsState()
     val scannedIngredients by viewModel.scannedIngredients.collectAsState()
 
-    LaunchedEffect(planState) {
-        when (planState) {
-            is PlanState.OptionsReady -> currentScreen = Screen.Options
-            is PlanState.RecipeActive -> currentScreen = Screen.Operations
-            else -> Unit
-        }
-    }
-    LaunchedEffect(pendingConsumption?.sessionId) {
-        if (pendingConsumption != null) currentScreen = Screen.Operations
+    LaunchedEffect(planState, recipeImportState, pendingConsumption?.sessionId) {
+        automaticDestination(
+            planState = planState,
+            recipeImportState = recipeImportState,
+            hasPendingConsumption = pendingConsumption != null
+        )?.let { currentScreen = it }
     }
 
     BackHandler(enabled = backEnabled && currentScreen != Screen.Intelligence) {
