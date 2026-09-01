@@ -41,6 +41,8 @@ import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.RecipeOptionsResponse
 import com.agentickitchen.shared.ai.prompt.PromptFactory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -96,7 +98,8 @@ internal class FirebaseSdkModelGateway(
 }
 
 class FirebaseAiProvider internal constructor(
-    private val gateway: FirebaseModelGateway
+    private val gateway: FirebaseModelGateway,
+    private val requestTimeoutMillis: Long = REMOTE_AI_REQUEST_TIMEOUT_MILLIS
 ) : KitchenAiProvider {
 
     constructor(firebaseApp: FirebaseApp) : this(FirebaseSdkModelGateway(firebaseApp))
@@ -305,10 +308,14 @@ Return only valid JSON for the app's shopping import schema.""",
             return failure(AiFailureType.InvalidResponse, false, "request_too_large")
         }
         return try {
-            val response = gateway.generate(kind, prompt, image)
+            val response = withTimeout(requestTimeoutMillis) {
+                gateway.generate(kind, prompt, image)
+            }
             response.text.takeIf(String::isNotBlank)?.let {
                 AiResult.Success(it, AiProviderId.FIREBASE, response.modelName)
             } ?: failure(AiFailureType.InvalidResponse, true)
+        } catch (_: TimeoutCancellationException) {
+            failure(AiFailureType.Timeout, true)
         } catch (error: CancellationException) {
             throw error
         } catch (_: QuotaExceededException) {
@@ -366,6 +373,7 @@ ${if (photo) "Describe only visible evidence and state uncertainty." else "Answe
 Return only valid JSON matching the app response schema."""
 
     companion object {
+        const val REMOTE_AI_REQUEST_TIMEOUT_MILLIS = 45_000L
         const val MAX_INLINE_IMAGE_BYTES = 14 * 1024 * 1024
 
         private val json = Json {
