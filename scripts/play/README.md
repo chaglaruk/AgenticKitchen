@@ -6,19 +6,46 @@ AgenticKitchen uses Gradle Play Publisher (GPP) for repeatable Google Play listi
 
 The project is currently on Android Gradle Plugin 8.13.2. GPP 4.x requires AGP 9, so this branch intentionally pins GPP 3.13.0.
 
-## Credentials
+## Authentication: keyless ADC
 
-Never commit a Google service-account JSON key.
+The preferred workflow does not create or store a long-lived Google service-account JSON key. GPP is configured to use Google Application Default Credentials (ADC), and local development should impersonate a narrowly-permissioned service account.
 
-Recommended local workflow:
+Set up the Google Cloud side with:
 
 ```powershell
-.\scripts\play\set-play-credentials.ps1 -Path "C:\secure\agentickitchen-play-service-account.json"
+.\scripts\play\setup-google-cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID"
 ```
 
-This loads the JSON into `ANDROID_PUBLISHER_CREDENTIALS` for the current PowerShell process without printing the private key. GPP reads that environment variable directly.
+If you deliberately want the script to create a new Google Cloud project:
 
-The service account must be invited in Google Play Console and given only the permissions AgenticKitchen actually needs. After the connection is verified, do not leave broad Google Cloud Project Owner permissions on the account.
+```powershell
+.\scripts\play\setup-google-cloud.ps1 -ProjectId "YOUR_GLOBALLY_UNIQUE_PROJECT_ID" -CreateProject
+```
+
+The script enables `androidpublisher.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the currently authenticated gcloud user permission to impersonate it.
+
+Google no longer requires a Play developer account to be linked to the Google Cloud project used for Android Publisher API access.
+
+## Required Play Console permission step
+
+The Cloud service account still has to be invited in Play Console under `Settings > Users and permissions` and granted access to Agentic Kitchen.
+
+For the current pre-production workflow grant only:
+
+- Manage store presence
+- Release apps to testing tracks
+- Manage testing tracks and edit tester lists
+- Manage policy related pages
+
+Do not grant production-release or financial permissions at this stage.
+
+After the Play Console invitation is active, create local ADC by impersonating the service account:
+
+```powershell
+gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL
+```
+
+No private service-account key needs to be downloaded.
 
 ## First artifact limitation
 
@@ -30,7 +57,12 @@ Metadata is source-controlled under:
 
 `app-android/src/main/play/`
 
-Publish it with:
+Current source-controlled listings:
+
+- `en-GB`
+- `tr-TR`
+
+Publish them with:
 
 ```powershell
 .\scripts\play\publish-listing.ps1 -Execute
@@ -50,13 +82,13 @@ After the first manual artifact has registered the app and release signing is co
 
 ## Data Safety
 
-Publish an exported/reviewed Play Console CSV through Google's official `applications.dataSafety` endpoint:
+Publish an exported and reviewed Play Console CSV through Google's official `applications.dataSafety` endpoint:
 
 ```powershell
 .\scripts\play\publish-data-safety.ps1 -CsvPath "C:\path\data_safety_agentickitchen_filled.csv" -Execute
 ```
 
-The script uses `gcloud auth application-default print-access-token` with the Android Publisher OAuth scope. If `ANDROID_PUBLISHER_CREDENTIALS` is loaded, the script creates a temporary credential file only for the token request and deletes it in `finally`.
+The script uses the same ADC identity and requests the Android Publisher OAuth scope with `gcloud auth application-default print-access-token`.
 
 Keep the reviewed CSV outside the repository until its answers have been revalidated against the exact release SDK/data-flow state. Once final, it can be source-controlled deliberately.
 
