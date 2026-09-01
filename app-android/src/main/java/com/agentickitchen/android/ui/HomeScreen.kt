@@ -854,8 +854,8 @@ private fun EditorialHomeHeader(chips: List<String>, modifier: Modifier = Modifi
                 if (L.isTr) "Bu akşam ne pişirsek?" else "What are we cooking tonight?",
                 color = colors.onBackground,
                 style = MaterialTheme.typography.h1.copy(fontSize = 30.sp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2,
+                overflow = TextOverflow.Clip
             )
             Spacer(Modifier.height(10.dp))
             Text(
