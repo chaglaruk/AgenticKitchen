@@ -86,6 +86,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -187,7 +188,7 @@ fun HomeScreen(
     var showCameraModal by remember { mutableStateOf(false) }
     var showInventoryEditor by remember { mutableStateOf(false) }
     var showShoppingImport by remember { mutableStateOf(false) }
-    var showRecipeImport by remember { mutableStateOf(false) }
+    var showRecipeImport by rememberSaveable { mutableStateOf(false) }
     var showKitchenScan by remember { mutableStateOf(false) }
     var showInventoryRecipe by remember { mutableStateOf(false) }
     var editingInventoryItem by remember { mutableStateOf<PantryStockItem?>(null) }
