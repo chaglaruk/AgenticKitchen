@@ -48,6 +48,7 @@ import com.agentickitchen.android.L
 import com.agentickitchen.android.RecipeImportState
 import com.agentickitchen.shared.ai.ImportedRecipe
 import com.agentickitchen.shared.ai.RecipeImportResponse
+import com.agentickitchen.shared.ai.recipeImportAmountReviewCount
 import com.agentickitchen.shared.inventory.LocalIngredientResolver
 import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.RecipeImportAvailability
@@ -75,16 +76,7 @@ private val importedRecipeSaver = Saver<ImportedRecipe, String>(
 
 internal fun recipeImportUncertaintyText(response: RecipeImportResponse, isTurkish: Boolean): String? {
     val raw = response.uncertainty?.trim()?.takeIf(String::isNotEmpty) ?: return null
-    val deterministicAmountReview = Regex(
-        pattern = "^\\d+\\s+ingredient amount\\(s\\) need review$",
-        option = RegexOption.IGNORE_CASE
-    ).matches(raw)
-    if (!deterministicAmountReview) return raw
-
-    val reviewCount = response.recipe.ingredients.count { ingredient ->
-        ingredient.quantity == null || ingredient.unit.isNullOrBlank()
-    }
-    if (reviewCount == 0) return null
+    val reviewCount = recipeImportAmountReviewCount(raw) ?: return raw
     return if (isTurkish) {
         "$reviewCount malzeme miktarı kontrol edilmeli."
     } else if (reviewCount == 1) {
