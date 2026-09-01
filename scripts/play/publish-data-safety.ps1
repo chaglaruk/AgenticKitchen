@@ -18,12 +18,10 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
 }
 
 $resolvedCsv = (Resolve-Path $CsvPath).Path
-$tokenOutput = & gcloud auth application-default print-access-token `
-    --scopes=https://www.googleapis.com/auth/androidpublisher `
-    --quiet 2>&1
+$tokenOutput = & gcloud auth application-default print-access-token --quiet 2>&1
 
 if ($LASTEXITCODE -ne 0) {
-    throw ("Could not obtain an Android Publisher access token from Application Default Credentials. Run the setup/authentication step first.`n" + ($tokenOutput -join [Environment]::NewLine))
+    throw ("Could not obtain an access token from Application Default Credentials. Run .\scripts\play\auth-google-play.ps1 first.`n" + ($tokenOutput -join [Environment]::NewLine))
 }
 
 $token = ($tokenOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1).Trim()
