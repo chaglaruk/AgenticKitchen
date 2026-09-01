@@ -1,6 +1,5 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
     [string]$ProjectId,
     [string]$ServiceAccountName = "agentickitchen-play-publisher",
     [switch]$CreateProject
@@ -11,6 +10,26 @@ Set-StrictMode -Version Latest
 
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
     throw "gcloud was not found in PATH."
+}
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+if ([string]::IsNullOrWhiteSpace($ProjectId)) {
+    $googleServicesPath = Join-Path $repoRoot "app-android\google-services.json"
+    if (-not (Test-Path $googleServicesPath)) {
+        throw "ProjectId was not provided and app-android\google-services.json was not found. Pass -ProjectId explicitly."
+    }
+
+    try {
+        $googleServices = [System.IO.File]::ReadAllText($googleServicesPath) | ConvertFrom-Json
+        $ProjectId = [string]$googleServices.project_info.project_id
+    }
+    catch {
+        throw "Could not read project_info.project_id from app-android\google-services.json."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ProjectId)) {
+        throw "app-android\google-services.json does not contain project_info.project_id."
+    }
 }
 
 & gcloud projects describe $ProjectId --format="value(projectId)" --quiet 1>$null 2>$null
