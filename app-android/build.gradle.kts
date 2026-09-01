@@ -44,6 +44,7 @@ android {
 }
 
 play {
+    useApplicationDefaultCredentials = true
     defaultToAppBundles.set(true)
     track.set("internal")
     releaseStatus.set(ReleaseStatus.DRAFT)
@@ -89,5 +90,5 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.ktor:ktor-client-mock:$ktorVersion")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:$ktorVersion")
 }
