@@ -85,11 +85,11 @@ Write-Host "Manual Play Console step still required:"
 Write-Host "  Settings > Users and permissions > Invite new users"
 Write-Host ("  Invite: {0}" -f $serviceAccountEmail)
 Write-Host "  Grant this app: Agentic Kitchen"
-Write-Host "  Permissions: Manage store presence; Release apps to testing tracks; Manage testing tracks and edit tester lists; Manage policy related pages."
+Write-Host "  Permissions: Manage store presence; Release apps to testing tracks; Manage testing tracks and edit tester lists."
 Write-Host "  Do NOT grant production-release or financial permissions at this stage."
 Write-Host ""
 Write-Host "After the Play Console invitation is active, run:"
-Write-Host ("  gcloud auth application-default login --impersonate-service-account={0}" -f $serviceAccountEmail)
+Write-Host "  .\scripts\play\auth-google-play.ps1"
 Write-Host ""
 Write-Host "Then publish the listing with:"
 Write-Host "  .\scripts\play\publish-listing.ps1 -Execute"
