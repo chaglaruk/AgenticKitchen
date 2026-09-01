@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -31,13 +32,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -45,12 +47,52 @@ import androidx.core.content.ContextCompat
 import com.agentickitchen.android.L
 import com.agentickitchen.android.RecipeImportState
 import com.agentickitchen.shared.ai.ImportedRecipe
-import com.agentickitchen.shared.inventory.PantryStockItem
+import com.agentickitchen.shared.ai.RecipeImportResponse
 import com.agentickitchen.shared.inventory.LocalIngredientResolver
+import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.RecipeImportAvailability
 import com.agentickitchen.shared.inventory.RecipeImportDraftPolicy
 import com.agentickitchen.shared.inventory.RecipeImportPantryPlanner
 import java.math.BigDecimal
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+private val recipeDraftJson = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
+
+internal fun encodeRecipeDraftForSave(recipe: ImportedRecipe): String = recipeDraftJson.encodeToString(recipe)
+
+internal fun decodeRecipeDraftFromSave(value: String): ImportedRecipe? =
+    runCatching { recipeDraftJson.decodeFromString<ImportedRecipe>(value) }.getOrNull()
+
+private val importedRecipeSaver = Saver<ImportedRecipe, String>(
+    save = ::encodeRecipeDraftForSave,
+    restore = ::decodeRecipeDraftFromSave
+)
+
+internal fun recipeImportUncertaintyText(response: RecipeImportResponse, isTurkish: Boolean): String? {
+    val raw = response.uncertainty?.trim()?.takeIf(String::isNotEmpty) ?: return null
+    val deterministicAmountReview = Regex(
+        pattern = "^\\d+\\s+ingredient amount\\(s\\) need review$",
+        option = RegexOption.IGNORE_CASE
+    ).matches(raw)
+    if (!deterministicAmountReview) return raw
+
+    val reviewCount = response.recipe.ingredients.count { ingredient ->
+        ingredient.quantity == null || ingredient.unit.isNullOrBlank()
+    }
+    if (reviewCount == 0) return null
+    return if (isTurkish) {
+        "$reviewCount malzeme miktarı kontrol edilmeli."
+    } else if (reviewCount == 1) {
+        "1 ingredient amount needs review."
+    } else {
+        "$reviewCount ingredient amounts need review."
+    }
+}
 
 @Composable
 fun RecipeImportDialog(
@@ -218,19 +260,10 @@ private fun RecipeImportReview(
 ) {
     val colors = LocalAppColors.current
     val source = state.response.recipe
-    var name by remember(source) { mutableStateOf(source.name) }
-    var servingsText by remember(source) { mutableStateOf(source.servings?.toString().orEmpty()) }
-    var ingredients by remember(source) { mutableStateOf(source.ingredients) }
-    var instructions by remember(source) { mutableStateOf(source.instructions) }
-
-    val draft = source.copy(
-        name = name.trim(),
-        servings = servingsText.toIntOrNull()?.takeIf { it > 0 },
-        ingredients = ingredients,
-        instructions = instructions
-    )
-    val pantry = RecipeImportPantryPlanner.compare(draft, inventory)
-    val issues = RecipeImportDraftPolicy.issues(draft)
+    var draft by rememberSaveable(source, stateSaver = importedRecipeSaver) { mutableStateOf(source) }
+    val normalizedDraft = draft.copy(name = draft.name.trim())
+    val pantry = RecipeImportPantryPlanner.compare(normalizedDraft, inventory)
+    val issues = RecipeImportDraftPolicy.issues(normalizedDraft)
 
     Text(
         if (L.isTr) "Önizleme ve kontrol" else "Preview and review",
@@ -240,21 +273,23 @@ private fun RecipeImportReview(
     source.sourceLabel?.takeIf(String::isNotBlank)?.let {
         Text(it, color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
     }
-    state.response.uncertainty?.let {
+    recipeImportUncertaintyText(state.response, L.isTr)?.let {
         Text(it, color = colors.accent, style = MaterialTheme.typography.caption)
     }
     Spacer(Modifier.height(12.dp))
     OutlinedTextField(
-        value = name,
-        onValueChange = { name = it },
+        value = draft.name,
+        onValueChange = { draft = draft.copy(name = it) },
         label = { Text(if (L.isTr) "Tarif adı" else "Recipe name") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(
-        value = servingsText,
-        onValueChange = { servingsText = it.filter(Char::isDigit).take(3) },
+        value = draft.servings?.toString().orEmpty(),
+        onValueChange = { raw ->
+            draft = draft.copy(servings = raw.filter(Char::isDigit).take(3).toIntOrNull()?.takeIf { it > 0 })
+        },
         label = { Text(if (L.isTr) "Porsiyon" else "Servings") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true,
@@ -264,13 +299,20 @@ private fun RecipeImportReview(
     Divider(color = colors.divider)
     Spacer(Modifier.height(12.dp))
     Text(if (L.isTr) "Malzemeler" else "Ingredients", color = colors.onSurface, fontWeight = FontWeight.SemiBold)
-    ingredients.forEachIndexed { index, ingredient ->
+    draft.ingredients.forEachIndexed { index, ingredient ->
         val match = pantry.matches.getOrNull(index)
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = ingredient.displayName,
             onValueChange = { value ->
-                ingredients = ingredients.mapIndexed { i, item -> if (i == index) item.copy(displayName = value, canonicalIngredientId = LocalIngredientResolver.resolveCanonicalId(value)) else item }
+                draft = draft.copy(
+                    ingredients = draft.ingredients.mapIndexed { i, item ->
+                        if (i == index) item.copy(
+                            displayName = value,
+                            canonicalIngredientId = LocalIngredientResolver.resolveCanonicalId(value)
+                        ) else item
+                    }
+                )
             },
             label = { Text(if (L.isTr) "Malzeme ${index + 1}" else "Ingredient ${index + 1}") },
             singleLine = true,
@@ -281,7 +323,11 @@ private fun RecipeImportReview(
                 value = ingredient.quantity?.let { BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty(),
                 onValueChange = { raw ->
                     val parsed = raw.replace(',', '.').toDoubleOrNull()
-                    ingredients = ingredients.mapIndexed { i, item -> if (i == index) item.copy(quantity = parsed) else item }
+                    draft = draft.copy(
+                        ingredients = draft.ingredients.mapIndexed { i, item ->
+                            if (i == index) item.copy(quantity = parsed) else item
+                        }
+                    )
                 },
                 label = { Text(if (L.isTr) "Miktar" else "Amount") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -291,7 +337,11 @@ private fun RecipeImportReview(
             OutlinedTextField(
                 value = ingredient.unit.orEmpty(),
                 onValueChange = { value ->
-                    ingredients = ingredients.mapIndexed { i, item -> if (i == index) item.copy(unit = value.trim().takeIf(String::isNotEmpty)) else item }
+                    draft = draft.copy(
+                        ingredients = draft.ingredients.mapIndexed { i, item ->
+                            if (i == index) item.copy(unit = value.trim().takeIf(String::isNotEmpty)) else item
+                        }
+                    )
                 },
                 label = { Text(if (L.isTr) "Birim" else "Unit") },
                 singleLine = true,
@@ -313,12 +363,14 @@ private fun RecipeImportReview(
     Divider(color = colors.divider)
     Spacer(Modifier.height(12.dp))
     Text(if (L.isTr) "Adımlar" else "Instructions", color = colors.onSurface, fontWeight = FontWeight.SemiBold)
-    instructions.forEachIndexed { index, instruction ->
+    draft.instructions.forEachIndexed { index, instruction ->
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = instruction,
             onValueChange = { value ->
-                instructions = instructions.mapIndexed { i, item -> if (i == index) value else item }
+                draft = draft.copy(
+                    instructions = draft.instructions.mapIndexed { i, item -> if (i == index) value else item }
+                )
             },
             label = { Text(if (L.isTr) "Adım ${index + 1}" else "Step ${index + 1}") },
             minLines = 2,
@@ -345,7 +397,7 @@ private fun RecipeImportReview(
     }
     Spacer(Modifier.height(12.dp))
     Button(
-        onClick = { onPrepare(draft) },
+        onClick = { onPrepare(normalizedDraft) },
         enabled = issues.isEmpty(),
         colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
         shape = RoundedCornerShape(999.dp),
