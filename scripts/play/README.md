@@ -10,19 +10,21 @@ The project is currently on Android Gradle Plugin 8.13.2. GPP 4.x requires AGP 9
 
 The preferred workflow does not create or store a long-lived Google service-account JSON key. GPP is configured to use Google Application Default Credentials (ADC), and local development should impersonate a narrowly-permissioned service account.
 
-Set up the Google Cloud side with:
+With the normal AgenticKitchen local setup, run:
+
+```powershell
+.\scripts\play\setup-google-cloud.ps1
+```
+
+The script reads the existing Firebase/Google Cloud project ID locally from the git-ignored `app-android/google-services.json`, enables `androidpublisher.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the currently authenticated gcloud user permission to impersonate it. The project ID does not need to be copied into chat or source control.
+
+If `google-services.json` is unavailable, pass an existing project explicitly:
 
 ```powershell
 .\scripts\play\setup-google-cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID"
 ```
 
-If you deliberately want the script to create a new Google Cloud project:
-
-```powershell
-.\scripts\play\setup-google-cloud.ps1 -ProjectId "YOUR_GLOBALLY_UNIQUE_PROJECT_ID" -CreateProject
-```
-
-The script enables `androidpublisher.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the currently authenticated gcloud user permission to impersonate it.
+A separate project can also be deliberately created with `-CreateProject`.
 
 Google no longer requires a Play developer account to be linked to the Google Cloud project used for Android Publisher API access.
 
