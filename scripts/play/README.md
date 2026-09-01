@@ -18,7 +18,7 @@ The project is currently on Android Gradle Plugin 8.13.2. GPP 4.x requires AGP 9
 
 ## Authentication: keyless ADC
 
-The preferred workflow does not create or store a long-lived Google service-account JSON key. GPP is configured to use Google Application Default Credentials (ADC), and local development should impersonate a narrowly-permissioned service account.
+The preferred workflow does not create or store a long-lived Google service-account JSON key. GPP is configured to use Google Application Default Credentials (ADC), and local development impersonates a narrowly-permissioned service account.
 
 With the normal AgenticKitchen local setup, run:
 
@@ -26,7 +26,7 @@ With the normal AgenticKitchen local setup, run:
 .\scripts\play\setup-google-cloud.ps1
 ```
 
-The script reads the existing Firebase/Google Cloud project ID locally from the git-ignored `app-android/google-services.json`, enables `androidpublisher.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the currently authenticated gcloud user permission to impersonate it. The project ID does not need to be copied into chat or source control.
+The setup script reads the existing Firebase/Google Cloud project ID locally from the git-ignored `app-android/google-services.json`, enables `androidpublisher.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the currently authenticated gcloud user permission to impersonate it. The project ID does not need to be copied into chat or source control.
 
 If `google-services.json` is unavailable, pass an existing project explicitly:
 
@@ -47,15 +47,16 @@ For the current pre-production workflow grant only:
 - Manage store presence
 - Release apps to testing tracks
 - Manage testing tracks and edit tester lists
-- Manage policy related pages
 
 Do not grant production-release or financial permissions at this stage.
 
-After the Play Console invitation is active, create local ADC by impersonating the service account:
+After the Play Console invitation is active, create the correctly scoped ADC with:
 
 ```powershell
-gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL
+.\scripts\play\auth-google-play.ps1
 ```
+
+The helper impersonates the service account and requests both `cloud-platform` and `androidpublisher` during `gcloud auth application-default login`. The Android Publisher scope must be granted when ADC is created; the publish scripts deliberately do not try to add a new scope later with `print-access-token --scopes`.
 
 No private service-account key needs to be downloaded.
 
@@ -100,7 +101,7 @@ Publish an exported and reviewed Play Console CSV through Google's official `app
 .\scripts\play\publish-data-safety.ps1 -CsvPath "C:\path\data_safety_agentickitchen_filled.csv" -Execute
 ```
 
-The script uses the same ADC identity and requests the Android Publisher OAuth scope with `gcloud auth application-default print-access-token`.
+The script uses the same pre-scoped ADC token and does not dynamically rescope it.
 
 Keep the reviewed CSV outside the repository until its answers have been revalidated against the exact release SDK/data-flow state. Once final, it can be source-controlled deliberately.
 
