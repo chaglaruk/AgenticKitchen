@@ -29,10 +29,10 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,10 +69,10 @@ internal fun encodeRecipeDraftForSave(recipe: ImportedRecipe): String = recipeDr
 internal fun decodeRecipeDraftFromSave(value: String): ImportedRecipe? =
     runCatching { recipeDraftJson.decodeFromString<ImportedRecipe>(value) }.getOrNull()
 
-private val importedRecipeSaver = Saver<ImportedRecipe, String>(
-    save = ::encodeRecipeDraftForSave,
-    restore = ::decodeRecipeDraftFromSave
-)
+internal fun encodeRecipeResponseForSave(response: RecipeImportResponse): String = recipeDraftJson.encodeToString(response)
+
+internal fun decodeRecipeResponseFromSave(value: String): RecipeImportResponse? =
+    runCatching { recipeDraftJson.decodeFromString<RecipeImportResponse>(value) }.getOrNull()
 
 internal fun recipeImportUncertaintyText(response: RecipeImportResponse, isTurkish: Boolean): String? {
     val raw = response.uncertainty?.trim()?.takeIf(String::isNotEmpty) ?: return null
@@ -99,18 +99,60 @@ fun RecipeImportDialog(
 ) {
     val colors = LocalAppColors.current
     val context = LocalContext.current
-    var url by remember { mutableStateOf("") }
-    var pastedText by remember { mutableStateOf("") }
+    var url by rememberSaveable { mutableStateOf("") }
+    var pastedText by rememberSaveable { mutableStateOf("") }
+    var savedReviewJson by rememberSaveable { mutableStateOf<String?>(null) }
+    var savedDraftJson by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(state) {
+        when (state) {
+            is RecipeImportState.Review -> {
+                val incoming = encodeRecipeResponseForSave(state.response)
+                if (savedReviewJson != incoming) {
+                    savedReviewJson = incoming
+                    savedDraftJson = encodeRecipeDraftForSave(state.response.recipe)
+                }
+            }
+            is RecipeImportState.Loading -> {
+                if (state.source != "prepare") {
+                    savedReviewJson = null
+                    savedDraftJson = null
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    val restoredResponse = savedReviewJson?.let(::decodeRecipeResponseFromSave)
+    val effectiveState = if (state is RecipeImportState.Idle && restoredResponse != null) {
+        RecipeImportState.Review(
+            response = restoredResponse,
+            pantry = RecipeImportPantryPlanner.compare(restoredResponse.recipe, inventory)
+        )
+    } else {
+        state
+    }
+    val reviewDraft = savedDraftJson?.let(::decodeRecipeDraftFromSave)
+        ?: (effectiveState as? RecipeImportState.Review)?.response?.recipe
+
+    fun dismissAndClear() {
+        savedReviewJson = null
+        savedDraftJson = null
+        url = ""
+        pastedText = ""
+        onDismiss()
+    }
+
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
         bitmap?.let(onImportPhoto)
     }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) camera.launch(null)
     }
-    val importing = state is RecipeImportState.Loading
+    val importing = effectiveState is RecipeImportState.Loading
 
     Dialog(
-        onDismissRequest = { if (!importing) onDismiss() },
+        onDismissRequest = { if (!importing) dismissAndClear() },
         properties = DialogProperties(
             dismissOnBackPress = !importing,
             dismissOnClickOutside = false,
@@ -141,10 +183,10 @@ fun RecipeImportDialog(
                 )
                 Spacer(Modifier.height(16.dp))
 
-                when (state) {
+                when (effectiveState) {
                     RecipeImportState.Idle, is RecipeImportState.Error -> {
-                        if (state is RecipeImportState.Error) {
-                            Text(state.message, color = MaterialTheme.colors.error, style = MaterialTheme.typography.body2)
+                        if (effectiveState is RecipeImportState.Error) {
+                            Text(effectiveState.message, color = MaterialTheme.colors.error, style = MaterialTheme.typography.body2)
                             Spacer(Modifier.height(10.dp))
                         }
                         OutlinedTextField(
@@ -202,7 +244,7 @@ fun RecipeImportDialog(
                         ) {
                             Text(if (L.isTr) "Tarif fotoğrafını tara" else "Scan recipe photo", color = colors.primary)
                         }
-                        if (state is RecipeImportState.Error) {
+                        if (effectiveState is RecipeImportState.Error) {
                             TextButton(onClick = onConfigureGemini, modifier = Modifier.align(Alignment.End)) {
                                 Text(if (L.isTr) "AI ayarları" else "AI settings", color = colors.primary)
                             }
@@ -214,7 +256,7 @@ fun RecipeImportDialog(
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             CircularProgressIndicator(color = colors.primary)
                             Text(
-                                when (state.source) {
+                                when (effectiveState.source) {
                                     "prepare" -> if (L.isTr) "Tarifi güvenli pişirme planına dönüştürüyorum…" else "Turning the recipe into a validated cooking plan…"
                                     "url" -> if (L.isTr) "Tarif sayfasını okuyorum…" else "Reading the recipe page…"
                                     "photo" -> if (L.isTr) "Tarif fotoğrafını okuyorum…" else "Reading the recipe photo…"
@@ -227,15 +269,17 @@ fun RecipeImportDialog(
                     }
 
                     is RecipeImportState.Review -> RecipeImportReview(
-                        state = state,
+                        response = effectiveState.response,
+                        draft = reviewDraft ?: effectiveState.response.recipe,
                         inventory = inventory,
+                        onDraftChange = { savedDraftJson = encodeRecipeDraftForSave(it) },
                         onPrepare = onPrepare
                     )
                 }
 
                 if (!importing) {
                     Spacer(Modifier.height(14.dp))
-                    TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                    TextButton(onClick = ::dismissAndClear, modifier = Modifier.align(Alignment.End)) {
                         Text(if (L.isTr) "Kapat" else "Close", color = colors.onSurfaceSub)
                     }
                 }
@@ -246,13 +290,13 @@ fun RecipeImportDialog(
 
 @Composable
 private fun RecipeImportReview(
-    state: RecipeImportState.Review,
+    response: RecipeImportResponse,
+    draft: ImportedRecipe,
     inventory: List<PantryStockItem>,
+    onDraftChange: (ImportedRecipe) -> Unit,
     onPrepare: (ImportedRecipe) -> Unit
 ) {
     val colors = LocalAppColors.current
-    val source = state.response.recipe
-    var draft by rememberSaveable(source, stateSaver = importedRecipeSaver) { mutableStateOf(source) }
     val normalizedDraft = draft.copy(name = draft.name.trim())
     val pantry = RecipeImportPantryPlanner.compare(normalizedDraft, inventory)
     val issues = RecipeImportDraftPolicy.issues(normalizedDraft)
@@ -262,16 +306,16 @@ private fun RecipeImportReview(
         color = colors.primary,
         style = MaterialTheme.typography.overline
     )
-    source.sourceLabel?.takeIf(String::isNotBlank)?.let {
+    response.recipe.sourceLabel?.takeIf(String::isNotBlank)?.let {
         Text(it, color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
     }
-    recipeImportUncertaintyText(state.response, L.isTr)?.let {
+    recipeImportUncertaintyText(response, L.isTr)?.let {
         Text(it, color = colors.accent, style = MaterialTheme.typography.caption)
     }
     Spacer(Modifier.height(12.dp))
     OutlinedTextField(
         value = draft.name,
-        onValueChange = { draft = draft.copy(name = it) },
+        onValueChange = { onDraftChange(draft.copy(name = it)) },
         label = { Text(if (L.isTr) "Tarif adı" else "Recipe name") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
@@ -280,7 +324,9 @@ private fun RecipeImportReview(
     OutlinedTextField(
         value = draft.servings?.toString().orEmpty(),
         onValueChange = { raw ->
-            draft = draft.copy(servings = raw.filter(Char::isDigit).take(3).toIntOrNull()?.takeIf { it > 0 })
+            onDraftChange(
+                draft.copy(servings = raw.filter(Char::isDigit).take(3).toIntOrNull()?.takeIf { it > 0 })
+            )
         },
         label = { Text(if (L.isTr) "Porsiyon" else "Servings") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -297,13 +343,15 @@ private fun RecipeImportReview(
         OutlinedTextField(
             value = ingredient.displayName,
             onValueChange = { value ->
-                draft = draft.copy(
-                    ingredients = draft.ingredients.mapIndexed { i, item ->
-                        if (i == index) item.copy(
-                            displayName = value,
-                            canonicalIngredientId = LocalIngredientResolver.resolveCanonicalId(value)
-                        ) else item
-                    }
+                onDraftChange(
+                    draft.copy(
+                        ingredients = draft.ingredients.mapIndexed { i, item ->
+                            if (i == index) item.copy(
+                                displayName = value,
+                                canonicalIngredientId = LocalIngredientResolver.resolveCanonicalId(value)
+                            ) else item
+                        }
+                    )
                 )
             },
             label = { Text(if (L.isTr) "Malzeme ${index + 1}" else "Ingredient ${index + 1}") },
@@ -315,10 +363,12 @@ private fun RecipeImportReview(
                 value = ingredient.quantity?.let { BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty(),
                 onValueChange = { raw ->
                     val parsed = raw.replace(',', '.').toDoubleOrNull()
-                    draft = draft.copy(
-                        ingredients = draft.ingredients.mapIndexed { i, item ->
-                            if (i == index) item.copy(quantity = parsed) else item
-                        }
+                    onDraftChange(
+                        draft.copy(
+                            ingredients = draft.ingredients.mapIndexed { i, item ->
+                                if (i == index) item.copy(quantity = parsed) else item
+                            }
+                        )
                     )
                 },
                 label = { Text(if (L.isTr) "Miktar" else "Amount") },
@@ -329,10 +379,12 @@ private fun RecipeImportReview(
             OutlinedTextField(
                 value = ingredient.unit.orEmpty(),
                 onValueChange = { value ->
-                    draft = draft.copy(
-                        ingredients = draft.ingredients.mapIndexed { i, item ->
-                            if (i == index) item.copy(unit = value.trim().takeIf(String::isNotEmpty)) else item
-                        }
+                    onDraftChange(
+                        draft.copy(
+                            ingredients = draft.ingredients.mapIndexed { i, item ->
+                                if (i == index) item.copy(unit = value.trim().takeIf(String::isNotEmpty)) else item
+                            }
+                        )
                     )
                 },
                 label = { Text(if (L.isTr) "Birim" else "Unit") },
@@ -360,8 +412,10 @@ private fun RecipeImportReview(
         OutlinedTextField(
             value = instruction,
             onValueChange = { value ->
-                draft = draft.copy(
-                    instructions = draft.instructions.mapIndexed { i, item -> if (i == index) value else item }
+                onDraftChange(
+                    draft.copy(
+                        instructions = draft.instructions.mapIndexed { i, item -> if (i == index) value else item }
+                    )
                 )
             },
             label = { Text(if (L.isTr) "Adım ${index + 1}" else "Step ${index + 1}") },
