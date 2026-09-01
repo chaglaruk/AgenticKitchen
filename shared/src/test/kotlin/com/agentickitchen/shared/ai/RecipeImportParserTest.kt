@@ -56,6 +56,24 @@ class RecipeImportParserTest {
     }
 
     @Test
+    fun `deterministic parser exposes structured amount review count`() {
+        val text = """
+            Tomato Toast
+            Serves 1
+            Ingredients:
+            - bread
+            - tomato
+            Instructions:
+            1. Assemble and serve.
+        """.trimIndent()
+
+        val result = DeterministicRecipeImportParser.parsePlainText(text)
+
+        assertNotNull(result)
+        assertEquals(2, recipeImportAmountReviewCount(result?.uncertainty))
+    }
+
+    @Test
     fun `keeps implicit ingredient amount uncertain rather than inventing`() {
         val ingredient = DeterministicRecipeImportParser.parseIngredientLine("salt to taste")
         assertEquals("salt to taste", ingredient.displayName)
