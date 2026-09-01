@@ -46,9 +46,15 @@ if (-not $projectExists) {
     }
 }
 
-& gcloud services enable androidpublisher.googleapis.com --project=$ProjectId --quiet
+# Android Publisher is required for Google Play API calls.
+# IAM Service Account Credentials is required for keyless service-account impersonation.
+& gcloud services enable `
+    androidpublisher.googleapis.com `
+    iamcredentials.googleapis.com `
+    --project=$ProjectId `
+    --quiet
 if ($LASTEXITCODE -ne 0) {
-    throw "Failed to enable the Google Play Android Developer API."
+    throw "Failed to enable the Google Play Android Developer API and/or IAM Service Account Credentials API."
 }
 
 $serviceAccountEmail = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
@@ -80,6 +86,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "Google Cloud side is ready."
 Write-Host ("Service account: {0}" -f $serviceAccountEmail)
+Write-Host ("Impersonating user: {0}" -f $currentAccount)
+Write-Host "Enabled APIs: androidpublisher.googleapis.com, iamcredentials.googleapis.com"
 Write-Host ""
 Write-Host "Manual Play Console step still required:"
 Write-Host "  Settings > Users and permissions > Invite new users"
