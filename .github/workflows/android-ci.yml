@@ -50,6 +50,26 @@ jobs:
           fi
           git diff --check "$base_sha...HEAD"
 
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Path scripts -Recurse -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            foreach ($error in $errors) {
+              Write-Error ("{0}:{1}:{2} {3}" -f $_.FullName, $error.Extent.StartLineNumber, $error.Extent.StartColumnNumber, $error.Message)
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
       - name: Clean
         run: ./gradlew clean --no-daemon --console=plain
 
