@@ -18,20 +18,20 @@ The project is currently on Android Gradle Plugin 8.13.2. GPP 4.x requires AGP 9
 
 ## Authentication: keyless ADC
 
-The preferred workflow does not create or store a long-lived Google service-account JSON key. GPP is configured to use Google Application Default Credentials (ADC), and local development impersonates a narrowly-permissioned service account.
+The preferred workflow does not create or store a long-lived Google service-account JSON key. GPP is configured to use Google Application Default Credentials (ADC) and service-account impersonation.
 
 With the normal AgenticKitchen local setup, run:
 
 ```powershell
-.\scripts\play\setup-google-cloud.ps1
+.\scripts\play\setup-google-cloud.ps1 -GoogleAccount "YOUR_PLAY_CONSOLE_GOOGLE_ACCOUNT"
 ```
 
-The setup script reads the existing Firebase/Google Cloud project ID locally from the git-ignored `app-android/google-services.json`, enables `androidpublisher.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the currently authenticated gcloud user permission to impersonate it. The project ID does not need to be copied into chat or source control.
+The setup script reads the existing Firebase/Google Cloud project ID locally from the git-ignored `app-android/google-services.json`, enables `androidpublisher.googleapis.com` and `iamcredentials.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the explicitly supplied Google account permission to impersonate it. The project ID does not need to be copied into chat or source control.
 
 If `google-services.json` is unavailable, pass an existing project explicitly:
 
 ```powershell
-.\scripts\play\setup-google-cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID"
+.\scripts\play\setup-google-cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID" -GoogleAccount "YOUR_PLAY_CONSOLE_GOOGLE_ACCOUNT"
 ```
 
 A separate project can also be deliberately created with `-CreateProject`.
@@ -42,21 +42,24 @@ Google no longer requires a Play developer account to be linked to the Google Cl
 
 The Cloud service account still has to be invited in Play Console under `Settings > Users and permissions` and granted access to Agentic Kitchen.
 
-For the current pre-production workflow grant only:
+While the Play app itself is still a draft, grant these app-level permissions:
 
+- Edit and delete draft apps
 - Manage store presence
 - Release apps to testing tracks
 - Manage testing tracks and edit tester lists
 
+`Edit and delete draft apps` is required to commit edits while the app is still in draft state. It does not grant production rollout rights.
+
 Do not grant production-release or financial permissions at this stage.
 
-After the Play Console invitation is active, create the correctly scoped ADC with:
+After the Play Console invitation is active, authenticate with the explicit Play Console Google account:
 
 ```powershell
-.\scripts\play\auth-google-play.ps1
+.\scripts\play\auth-google-play.ps1 -GoogleAccount "YOUR_PLAY_CONSOLE_GOOGLE_ACCOUNT"
 ```
 
-The helper impersonates the service account and requests both `cloud-platform` and `androidpublisher` during `gcloud auth application-default login`. The Android Publisher scope must be granted when ADC is created; the publish scripts deliberately do not try to add a new scope later with `print-access-token --scopes`.
+On Windows, this helper uses `gcloud auth login ... --update-adc` rather than the older `gcloud auth application-default login` path that can fail in some CLI builds. It then verifies service-account impersonation directly through IAM Credentials before allowing Play publishing to continue.
 
 No private service-account key needs to be downloaded.
 
@@ -81,7 +84,7 @@ Publish them with:
 .\scripts\play\publish-listing.ps1 -Execute
 ```
 
-Do not run `bootstrapListing` casually: GPP documents that bootstrapping resets an existing `play` metadata folder.
+Do not place documentation or arbitrary files inside `src/main/play`; GPP validates this tree as Play metadata. Do not run `bootstrapListing` casually: GPP documents that bootstrapping resets an existing `play` metadata folder.
 
 ## Internal App Bundle
 
@@ -101,7 +104,7 @@ Publish an exported and reviewed Play Console CSV through Google's official `app
 .\scripts\play\publish-data-safety.ps1 -CsvPath "C:\path\data_safety_agentickitchen_filled.csv" -Execute
 ```
 
-The script uses the same pre-scoped ADC token and does not dynamically rescope it.
+The script uses the same ADC identity and short-lived impersonated service-account credentials.
 
 Keep the reviewed CSV outside the repository until its answers have been revalidated against the exact release SDK/data-flow state. Once final, it can be source-controlled deliberately.
 
