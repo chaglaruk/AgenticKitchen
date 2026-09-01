@@ -4,6 +4,7 @@ import com.agentickitchen.shared.ai.ImportedRecipe
 import com.agentickitchen.shared.ai.ImportedRecipeIngredient
 import com.agentickitchen.shared.ai.RecipeImportResponse
 import com.agentickitchen.shared.ai.RecipeImportSource
+import com.agentickitchen.shared.ai.recipeImportAmountReviewCode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -35,7 +36,7 @@ class RecipeImportDialogStateTest {
 
     @Test
     fun `deterministic uncertainty localizes to Turkish`() {
-        val response = uncertainResponse(2, "2 ingredient amount(s) need review")
+        val response = uncertainResponse(2, recipeImportAmountReviewCode(2))
         assertEquals("2 malzeme miktarı kontrol edilmeli.", recipeImportUncertaintyText(response, isTurkish = true))
     }
 
@@ -43,11 +44,11 @@ class RecipeImportDialogStateTest {
     fun `deterministic uncertainty uses natural English singular and plural`() {
         assertEquals(
             "1 ingredient amount needs review.",
-            recipeImportUncertaintyText(uncertainResponse(1, "1 ingredient amount(s) need review"), isTurkish = false)
+            recipeImportUncertaintyText(uncertainResponse(1, recipeImportAmountReviewCode(1)), isTurkish = false)
         )
         assertEquals(
             "2 ingredient amounts need review.",
-            recipeImportUncertaintyText(uncertainResponse(2, "2 ingredient amount(s) need review"), isTurkish = false)
+            recipeImportUncertaintyText(uncertainResponse(2, recipeImportAmountReviewCode(2)), isTurkish = false)
         )
     }
 
@@ -57,7 +58,7 @@ class RecipeImportDialogStateTest {
         assertEquals("The photo is partly obscured", recipeImportUncertaintyText(response, isTurkish = true))
     }
 
-    private fun uncertainResponse(count: Int, uncertainty: String): RecipeImportResponse =
+    private fun uncertainResponse(count: Int, uncertainty: String?): RecipeImportResponse =
         RecipeImportResponse(
             recipe = ImportedRecipe(
                 name = "Test recipe",
