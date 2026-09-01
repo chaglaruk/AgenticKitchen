@@ -10,9 +10,15 @@ if (-not $Execute) {
     throw "Refusing to modify Google Play without -Execute. Re-run with: .\scripts\play\publish-listing.ps1 -Execute"
 }
 
-if ([string]::IsNullOrWhiteSpace($env:ANDROID_PUBLISHER_CREDENTIALS) -and
-    [string]::IsNullOrWhiteSpace($env:GOOGLE_APPLICATION_CREDENTIALS)) {
-    throw "Google Play credentials are not configured. Set ANDROID_PUBLISHER_CREDENTIALS or GOOGLE_APPLICATION_CREDENTIALS first."
+if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
+    throw "gcloud is required for the keyless Google Play publishing workflow and was not found in PATH."
+}
+
+$tokenOutput = & gcloud auth application-default print-access-token `
+    --scopes=https://www.googleapis.com/auth/androidpublisher `
+    --quiet 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw ("Google Application Default Credentials are not ready for Android Publisher. Run the setup/authentication step first.`n" + ($tokenOutput -join [Environment]::NewLine))
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
