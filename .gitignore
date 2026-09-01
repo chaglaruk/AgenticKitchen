@@ -25,6 +25,11 @@ app-android/google-services.json
 *.aab_
 *.ktz
 
+# Google Play publishing credentials
+**/play-service-account*.json
+**/android-publisher*.json
+**/google-play*.json
+
 # Environment files
 .env
 .env.*
@@ -38,6 +43,7 @@ app-android/google-services.json
 !CONTINUE.md
 !AGENTS.md
 !README.md
+!app-android/src/main/play/**/*.txt
 
 # OS files
 .DS_Store
