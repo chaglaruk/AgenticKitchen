@@ -1,5 +1,7 @@
 [CmdletBinding()]
 param(
+    [Parameter(Mandatory = $true)]
+    [string]$GoogleAccount,
     [string]$ProjectId,
     [string]$ServiceAccountName = "agentickitchen-play-publisher"
 )
@@ -28,21 +30,14 @@ if ([string]::IsNullOrWhiteSpace($ProjectId)) {
 }
 
 $serviceAccountEmail = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
-$currentAccount = (& gcloud config get-value account --quiet).Trim()
-if ([string]::IsNullOrWhiteSpace($currentAccount)) {
-    throw "No active gcloud user account was found. Run 'gcloud auth login' first."
-}
 
-Write-Host ("Creating user ADC for: {0}" -f $currentAccount)
-Write-Host "GPP will impersonate the Play publisher service account itself."
+Write-Host ("Authenticating ADC explicitly as: {0}" -f $GoogleAccount)
+Write-Host ("Play publisher service account: {0}" -f $serviceAccountEmail)
 
-# Keep ADC as the human user. The human ADC only needs Cloud Platform access to call
-# IAM Service Account Credentials. GPP requests the Android Publisher scope on the
-# short-lived impersonated service-account token.
-& gcloud auth application-default login $currentAccount `
+& gcloud auth application-default login $GoogleAccount `
     --scopes=https://www.googleapis.com/auth/cloud-platform
 if ($LASTEXITCODE -ne 0) {
-    throw "Google Application Default Credentials login failed."
+    throw "Google Application Default Credentials login failed for '$GoogleAccount'."
 }
 
 $adcTokenOutput = & gcloud auth application-default print-access-token --quiet 2>&1
@@ -50,12 +45,10 @@ if ($LASTEXITCODE -ne 0) {
     throw ("User ADC was created but could not produce an access token.`n" + ($adcTokenOutput -join [Environment]::NewLine))
 }
 
-# Verify the exact CLI user granted Token Creator can impersonate the service account.
-# IAM changes can take a short time to propagate, so retry before failing.
 $impersonationError = $null
 $impersonationReady = $false
 for ($attempt = 1; $attempt -le 12; $attempt++) {
-    $impersonationOutput = & gcloud auth print-access-token $currentAccount `
+    $impersonationOutput = & gcloud auth print-access-token $GoogleAccount `
         "--impersonate-service-account=$serviceAccountEmail" `
         --quiet 2>&1
 
@@ -72,9 +65,9 @@ for ($attempt = 1; $attempt -le 12; $attempt++) {
 }
 
 if (-not $impersonationReady) {
-    throw ("User ADC is valid, but service-account impersonation is still denied. Re-run .\scripts\play\setup-google-cloud.ps1 and verify that the browser/CLI account is '$currentAccount'.`n" + $impersonationError)
+    throw ("'$GoogleAccount' has valid ADC but cannot impersonate the Play publisher service account. Re-run setup with -GoogleAccount '$GoogleAccount'.`n" + $impersonationError)
 }
 
+$env:AGENTICKITCHEN_PLAY_SERVICE_ACCOUNT = $serviceAccountEmail
 Write-Host "Google Play authentication is ready."
-Write-Host ("ADC user: {0}" -f $currentAccount)
-Write-Host ("Play publisher service account: {0}" -f $serviceAccountEmail)
+Write-Host ("ADC account: {0}" -f $GoogleAccount)
