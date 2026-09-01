@@ -45,6 +45,9 @@ android {
 
 play {
     useApplicationDefaultCredentials = true
+    System.getenv("ANDROID_PUBLISHER_IMPERSONATE_SERVICE_ACCOUNT")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { impersonateServiceAccount = it }
     defaultToAppBundles.set(true)
     track.set("internal")
     releaseStatus.set(ReleaseStatus.DRAFT)
