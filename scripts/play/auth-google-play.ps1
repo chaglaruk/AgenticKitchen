@@ -35,36 +35,38 @@ if ([string]::IsNullOrWhiteSpace($ProjectId)) {
 
 $serviceAccountEmail = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
 
-Write-Host ("Authenticating ADC explicitly as: {0}" -f $GoogleAccount)
+Write-Host ("Authenticating gcloud + ADC explicitly as: {0}" -f $GoogleAccount)
 Write-Host ("Play publisher service account: {0}" -f $serviceAccountEmail)
 
-# ACCOUNT is an official positional argument for `gcloud auth application-default login`.
-# Existing ADC is overwritten. --disable-quota-project avoids requiring this human
-# account to have Service Usage Consumer just to mint an impersonated Play token.
-& gcloud auth application-default login $GoogleAccount `
-    --scopes=https://www.googleapis.com/auth/cloud-platform `
-    --disable-quota-project
+# `gcloud auth application-default login` currently fails on some Windows/gcloud
+# builds with "None could not be converted to bytes". The documented
+# `gcloud auth login --update-adc` path writes the user login to ADC without that flow.
+# Keep the existing Cloud-admin account active so future setup runs can still manage IAM.
+& gcloud auth login $GoogleAccount `
+    --force `
+    --update-adc `
+    --no-activate
 if ($LASTEXITCODE -ne 0) {
-    throw "Google Application Default Credentials login failed for '$GoogleAccount'."
+    throw "Google login / ADC creation failed for '$GoogleAccount'."
 }
 
 $adcTokenOutput = & gcloud auth application-default print-access-token --quiet 2>&1
 if ($LASTEXITCODE -ne 0) {
-    throw ("User ADC was created but could not produce an access token.`n" + ($adcTokenOutput -join [Environment]::NewLine))
+    throw ("ADC was written but could not produce an access token.`n" + ($adcTokenOutput -join [Environment]::NewLine))
 }
 
 $adcToken = ($adcTokenOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1).Trim()
 if ([string]::IsNullOrWhiteSpace($adcToken)) {
-    throw "User ADC returned an empty access token."
+    throw "ADC returned an empty access token."
 }
 
-# Verify impersonation using the same ADC principal GPP will use. Do not use
-# `gcloud auth print-access-token ACCOUNT` here because gcloud CLI credentials and
-# ADC are separate credential stores.
-$impersonationUri = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${serviceAccountEmail}:generateAccessToken"
+# Verify impersonation with the exact ADC principal GPP will use. Do not continue
+# to Gradle until IAM Credentials can mint an Android Publisher token.
+$encodedServiceAccount = [uri]::EscapeDataString($serviceAccountEmail)
+$impersonationUri = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$encodedServiceAccount`:generateAccessToken"
 $impersonationBody = @{
     scope = @("https://www.googleapis.com/auth/androidpublisher")
-    lifetime = "3600s"
+    lifetime = "600s"
 } | ConvertTo-Json -Compress
 
 $impersonationReady = $false
@@ -100,5 +102,5 @@ if (-not $impersonationReady) {
 }
 
 Write-Host "Google Play authentication is ready."
-Write-Host ("ADC account: {0}" -f $GoogleAccount)
+Write-Host ("ADC account requested: {0}" -f $GoogleAccount)
 Write-Host ("Impersonation verified: {0}" -f $serviceAccountEmail)
