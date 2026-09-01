@@ -70,6 +70,9 @@ jobs:
           fi
           git diff --check "$base_sha...HEAD"
 
+      - name: Validate Google Play metadata
+        run: ./gradlew :app-android:generateReleasePlayResources --no-daemon --console=plain
+
       - name: Clean
         run: ./gradlew clean --no-daemon --console=plain
 
