@@ -1,7 +1,12 @@
 package com.agentickitchen.android
 
+import com.agentickitchen.shared.ai.ImportedRecipe
+import com.agentickitchen.shared.ai.RecipeImportResponse
+import com.agentickitchen.shared.ai.RecipeImportSource
+import com.agentickitchen.shared.inventory.RecipeImportPantrySummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,5 +43,43 @@ class MainNavigationTest {
     @Test
     fun kitchenRootRemainsTheRootDestination() {
         assertSame(Screen.Intelligence, backDestination(Screen.Intelligence, hasActiveRecipe = false))
+    }
+
+    @Test
+    fun recipeImportOwnsNavigationEvenWhenAnOlderRecipeOrConsumptionExists() {
+        val review = RecipeImportState.Review(
+            response = RecipeImportResponse(
+                recipe = ImportedRecipe("Shared recipe", 2, emptyList(), emptyList()),
+                confidence = 1.0,
+                source = RecipeImportSource.ANDROID_SHARE
+            ),
+            pantry = RecipeImportPantrySummary(emptyList())
+        )
+
+        assertSame(
+            Screen.Intelligence,
+            automaticDestination(PlanState.RecipeActive(), review, hasPendingConsumption = true)
+        )
+        assertSame(
+            Screen.Intelligence,
+            automaticDestination(PlanState.OptionsReady(emptyList()), RecipeImportState.Loading("url"), hasPendingConsumption = false)
+        )
+    }
+
+    @Test
+    fun normalAutomaticNavigationRemainsUnchangedWithoutImport() {
+        assertSame(
+            Screen.Options,
+            automaticDestination(PlanState.OptionsReady(emptyList()), RecipeImportState.Idle, hasPendingConsumption = false)
+        )
+        assertSame(
+            Screen.Operations,
+            automaticDestination(PlanState.RecipeActive(), RecipeImportState.Idle, hasPendingConsumption = false)
+        )
+        assertSame(
+            Screen.Operations,
+            automaticDestination(PlanState.Idle, RecipeImportState.Idle, hasPendingConsumption = true)
+        )
+        assertNull(automaticDestination(PlanState.Idle, RecipeImportState.Idle, hasPendingConsumption = false))
     }
 }
