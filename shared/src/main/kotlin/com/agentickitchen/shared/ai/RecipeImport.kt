@@ -51,6 +51,18 @@ data class RecipeImportResponse(
     val source: RecipeImportSource
 )
 
+private const val RECIPE_IMPORT_AMOUNT_REVIEW_PREFIX = "amount_review_required:"
+
+fun recipeImportAmountReviewCode(count: Int): String? =
+    count.takeIf { it > 0 }?.let { "$RECIPE_IMPORT_AMOUNT_REVIEW_PREFIX$it" }
+
+fun recipeImportAmountReviewCount(uncertainty: String?): Int? = uncertainty
+    ?.trim()
+    ?.takeIf { it.startsWith(RECIPE_IMPORT_AMOUNT_REVIEW_PREFIX) }
+    ?.removePrefix(RECIPE_IMPORT_AMOUNT_REVIEW_PREFIX)
+    ?.toIntOrNull()
+    ?.takeIf { it > 0 }
+
 data class RecipeTextImportRequest(
     val text: String,
     val language: String,
@@ -164,7 +176,7 @@ object DeterministicRecipeImportParser {
             return RecipeImportResponse(
                 recipe = parsed,
                 confidence = if (uncertain == 0) 1.0 else 0.92,
-                uncertainty = if (uncertain == 0) null else "$uncertain ingredient amount(s) need review",
+                uncertainty = recipeImportAmountReviewCode(uncertain),
                 source = RecipeImportSource.URL_JSON_LD
             )
         }
@@ -203,7 +215,7 @@ object DeterministicRecipeImportParser {
                 sourceUrl = sourceUrl
             ),
             confidence = if (uncertain == 0) 0.98 else 0.88,
-            uncertainty = if (uncertain == 0) null else "$uncertain ingredient amount(s) need review",
+            uncertainty = recipeImportAmountReviewCode(uncertain),
             source = RecipeImportSource.PLAIN_TEXT
         )
     }
