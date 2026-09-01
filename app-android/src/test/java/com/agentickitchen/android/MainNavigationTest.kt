@@ -58,7 +58,7 @@ class MainNavigationTest {
 
         assertSame(
             Screen.Intelligence,
-            automaticDestination(PlanState.RecipeActive(), review, hasPendingConsumption = true)
+            automaticDestination(activePlan(), review, hasPendingConsumption = true)
         )
         assertSame(
             Screen.Intelligence,
@@ -74,7 +74,7 @@ class MainNavigationTest {
         )
         assertSame(
             Screen.Operations,
-            automaticDestination(PlanState.RecipeActive(), RecipeImportState.Idle, hasPendingConsumption = false)
+            automaticDestination(activePlan(), RecipeImportState.Idle, hasPendingConsumption = false)
         )
         assertSame(
             Screen.Operations,
@@ -82,4 +82,14 @@ class MainNavigationTest {
         )
         assertNull(automaticDestination(PlanState.Idle, RecipeImportState.Idle, hasPendingConsumption = false))
     }
+
+    private fun activePlan() = PlanState.RecipeActive(
+        recipe = RecipeOption(
+            id = "test",
+            type = "test",
+            name = "Test recipe",
+            description = "Test description"
+        ),
+        events = emptyList()
+    )
 }
