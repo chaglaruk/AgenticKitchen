@@ -2,6 +2,7 @@
 param(
     [string]$ProjectId,
     [string]$ServiceAccountName = "agentickitchen-play-publisher",
+    [string]$GoogleAccount,
     [switch]$CreateProject
 )
 
@@ -32,12 +33,21 @@ if ([string]::IsNullOrWhiteSpace($ProjectId)) {
     }
 }
 
+$adminAccount = (& gcloud config get-value account --quiet).Trim()
+if ([string]::IsNullOrWhiteSpace($adminAccount)) {
+    throw "No active gcloud admin account was found. Run 'gcloud auth login' first."
+}
+
+if ([string]::IsNullOrWhiteSpace($GoogleAccount)) {
+    $GoogleAccount = $adminAccount
+}
+
 & gcloud projects describe $ProjectId --format="value(projectId)" --quiet 1>$null 2>$null
 $projectExists = $LASTEXITCODE -eq 0
 
 if (-not $projectExists) {
     if (-not $CreateProject) {
-        throw "Google Cloud project '$ProjectId' does not exist or is not accessible. Re-run with -CreateProject if you want this script to create it."
+        throw "Google Cloud project '$ProjectId' does not exist or is not accessible to the active gcloud admin account '$adminAccount'."
     }
 
     & gcloud projects create $ProjectId --name="AgenticKitchen Play Publisher" --quiet
@@ -46,8 +56,6 @@ if (-not $projectExists) {
     }
 }
 
-# Android Publisher is required for Google Play API calls.
-# IAM Service Account Credentials is required for keyless service-account impersonation.
 & gcloud services enable `
     androidpublisher.googleapis.com `
     iamcredentials.googleapis.com `
@@ -69,35 +77,27 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-$currentAccount = (& gcloud config get-value account --quiet).Trim()
-if ([string]::IsNullOrWhiteSpace($currentAccount)) {
-    throw "No active gcloud user account was found. Run 'gcloud auth login' first."
-}
-
 & gcloud iam service-accounts add-iam-policy-binding $serviceAccountEmail `
-    --member="user:$currentAccount" `
+    --member="user:$GoogleAccount" `
     --role="roles/iam.serviceAccountTokenCreator" `
     --project=$ProjectId `
     --quiet 1>$null
 if ($LASTEXITCODE -ne 0) {
-    throw "Failed to grant the current gcloud user permission to impersonate the service account."
+    throw "Failed to grant '$GoogleAccount' permission to impersonate '$serviceAccountEmail'."
 }
 
 Write-Host ""
 Write-Host "Google Cloud side is ready."
+Write-Host ("Cloud admin used for setup: {0}" -f $adminAccount)
+Write-Host ("Google account authorised to impersonate Play publisher: {0}" -f $GoogleAccount)
 Write-Host ("Service account: {0}" -f $serviceAccountEmail)
-Write-Host ("Impersonating user: {0}" -f $currentAccount)
 Write-Host "Enabled APIs: androidpublisher.googleapis.com, iamcredentials.googleapis.com"
 Write-Host ""
-Write-Host "Manual Play Console step still required:"
-Write-Host "  Settings > Users and permissions > Invite new users"
-Write-Host ("  Invite: {0}" -f $serviceAccountEmail)
-Write-Host "  Grant this app: Agentic Kitchen"
-Write-Host "  Permissions: Manage store presence; Release apps to testing tracks; Manage testing tracks and edit tester lists."
-Write-Host "  Do NOT grant production-release or financial permissions at this stage."
+Write-Host "Play Console access must be granted to the service account itself:"
+Write-Host ("  {0}" -f $serviceAccountEmail)
 Write-Host ""
-Write-Host "After the Play Console invitation is active, run:"
-Write-Host "  .\scripts\play\auth-google-play.ps1"
+Write-Host "Then authenticate locally with the explicit Google account:"
+Write-Host ("  .\scripts\play\auth-google-play.ps1 -GoogleAccount \"{0}\"" -f $GoogleAccount)
 Write-Host ""
 Write-Host "Then publish the listing with:"
 Write-Host "  .\scripts\play\publish-listing.ps1 -Execute"
