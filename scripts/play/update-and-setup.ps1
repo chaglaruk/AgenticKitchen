@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$GoogleAccount
+)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -43,7 +46,7 @@ try {
     Write-Host ("AgenticKitchen updated to {0}" -f $head)
     Write-Host ""
 
-    & (Join-Path $PSScriptRoot "setup-google-cloud.ps1")
+    & (Join-Path $PSScriptRoot "setup-google-cloud.ps1") -GoogleAccount $GoogleAccount
     if ($LASTEXITCODE -ne 0) {
         throw "Google Play setup failed with exit code $LASTEXITCODE."
     }
