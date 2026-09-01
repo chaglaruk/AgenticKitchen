@@ -12,9 +12,15 @@ import com.agentickitchen.shared.ai.SubstitutionPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class FirebaseAiProviderTest {
@@ -160,6 +166,49 @@ class FirebaseAiProviderTest {
     @Test
     fun `cooking photo uses vision model class`() {
         assertEquals(FirebaseAiTask.VISION, FirebaseResponseKind.COOKING_PHOTO.task)
+    }
+
+    @Test
+    fun `managed request timeout maps to retryable timeout failure`() = runBlocking {
+        val provider = FirebaseAiProvider(
+            gateway = FirebaseModelGateway { _, _, _ ->
+                delay(100)
+                FirebaseGatewayResponse("""{"status":"ok"}""", "slow-model")
+            },
+            requestTimeoutMillis = 10
+        )
+
+        val result = provider.testConnection()
+
+        assertEquals(AiFailureType.Timeout, result.failureOrNull()?.type)
+        assertTrue(result.failureOrNull()?.retryable == true)
+    }
+
+    @Test
+    fun `caller cancellation remains cancellation instead of timeout`() = runBlocking {
+        val provider = FirebaseAiProvider(
+            gateway = FirebaseModelGateway { _, _, _ ->
+                delay(10_000)
+                FirebaseGatewayResponse("""{"status":"ok"}""", "slow-model")
+            },
+            requestTimeoutMillis = 45_000
+        )
+        var cancellationObserved = false
+
+        val job = launch {
+            try {
+                provider.testConnection()
+                fail("Expected caller cancellation")
+            } catch (_: CancellationException) {
+                cancellationObserved = true
+                throw CancellationException()
+            }
+        }
+        yield()
+        job.cancelAndJoin()
+
+        assertTrue(cancellationObserved)
+        assertTrue(job.isCancelled)
     }
 
     @Test
