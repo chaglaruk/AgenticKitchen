@@ -55,19 +55,36 @@ class SafetyEnforcingAiProviderTest {
         assertEquals(listOf("Tomato"), result.value.items.map { it.displayName })
     }
 
-    private class FakeProvider : KitchenAiProvider {
+    @Test
+    fun shoppingPhotoCanReturnNoConfidentCandidatesWithoutTurningIntoAnError() = runTest {
+        val provider = SafetyEnforcingAiProvider(
+            FakeProvider(
+                shoppingCandidates = listOf(
+                    ShoppingCandidate(displayName = "Maybe onion", confidence = 0.3, estimated = true)
+                )
+            )
+        )
+
+        val result = provider.scanShoppingPhoto(
+            ShoppingPhotoRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "English")
+        ) as AiResult.Success
+
+        assertTrue(result.value.items.isEmpty())
+    }
+
+    private class FakeProvider(
+        private val shoppingCandidates: List<ShoppingCandidate> = listOf(
+            ShoppingCandidate(displayName = "Tomato", confidence = 0.95, estimated = false),
+            ShoppingCandidate(displayName = "Maybe onion", confidence = 0.3, estimated = true)
+        )
+    ) : KitchenAiProvider {
         override suspend fun generateRecipeOptions(request: RecipeOptionsRequest): AiResult<RecipeOptionsResponse> = error("unused")
         override suspend fun generateCookingPlan(request: CookingPlanRequest): AiResult<CookingPlanResponse> = error("unused")
         override suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse> = error("unused")
 
         override suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse> =
             AiResult.Success(
-                ShoppingImportResponse(
-                    listOf(
-                        ShoppingCandidate(displayName = "Tomato", confidence = 0.95, estimated = false),
-                        ShoppingCandidate(displayName = "Maybe onion", confidence = 0.3, estimated = true)
-                    )
-                ),
+                ShoppingImportResponse(shoppingCandidates),
                 AiProviderId.GEMINI,
                 "test"
             )
