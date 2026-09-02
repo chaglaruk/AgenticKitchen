@@ -1,6 +1,5 @@
 package com.agentickitchen.android.ai
 
-import com.agentickitchen.shared.ai.AiFailureType
 import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.CookingChatRequest
 import com.agentickitchen.shared.ai.CookingChatResponse
@@ -37,19 +36,9 @@ class SafetyEnforcingAiProvider(
     override suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse> =
         when (val result = delegate.scanShoppingPhoto(request)) {
             is AiResult.Failure -> result
-            is AiResult.Success -> {
-                val filtered = VisionSafetyPolicy.filterShoppingCandidates(result.value)
-                if (filtered.items.isEmpty()) {
-                    AiResult.Failure(
-                        AiFailureType.InvalidResponse,
-                        retryable = true,
-                        userMessage = AiFailureType.InvalidResponse.userMessageRes,
-                        technicalMessage = "low_confidence_vision"
-                    )
-                } else {
-                    result.copy(value = filtered)
-                }
-            }
+            is AiResult.Success -> result.copy(
+                value = VisionSafetyPolicy.filterShoppingCandidates(result.value)
+            )
         }
 
     override suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse> =
@@ -57,10 +46,10 @@ class SafetyEnforcingAiProvider(
             is AiResult.Failure -> result
             is AiResult.Success -> {
                 if (!VisionSafetyPolicy.validateCookingPhoto(result.value)) {
-                    AiResult.Failure(
-                        AiFailureType.InvalidResponse,
+                    com.agentickitchen.shared.ai.AiResult.Failure(
+                        com.agentickitchen.shared.ai.AiFailureType.InvalidResponse,
                         retryable = true,
-                        userMessage = AiFailureType.InvalidResponse.userMessageRes,
+                        userMessage = com.agentickitchen.shared.ai.AiFailureType.InvalidResponse.userMessageRes,
                         technicalMessage = "unsafe_vision_response"
                     )
                 } else {
