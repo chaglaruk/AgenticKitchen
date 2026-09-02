@@ -8,6 +8,7 @@ import com.agentickitchen.shared.ai.KitchenImage
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
 import com.agentickitchen.shared.ai.RecipePhotoImportRequest
 import com.agentickitchen.shared.ai.RecipeTextImportRequest
+import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.SubstitutionPlanRequest
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
@@ -120,7 +121,7 @@ class FirebaseAiProviderTest {
         })
 
         val result = provider.scanShoppingPhoto(
-            com.agentickitchen.shared.ai.ShoppingPhotoRequest(
+            ShoppingPhotoRequest(
                 KitchenImage(byteArrayOf(1, 2, 3), "image/jpeg"),
                 "Türkçe"
             )
@@ -130,6 +131,20 @@ class FirebaseAiProviderTest {
         assertEquals(FirebaseResponseKind.SHOPPING_IMPORT, responseKind)
         assertEquals(FirebaseAiTask.EXTRACTION, responseKind?.task)
         assertTrue(result is AiResult.Success)
+    }
+
+    @Test
+    fun `shopping photo accepts valid no-items response`() = runBlocking {
+        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+            FirebaseGatewayResponse("""{"items":[]}""", "extraction-test-model")
+        })
+
+        val result = provider.scanShoppingPhoto(
+            ShoppingPhotoRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "English")
+        )
+
+        assertTrue(result is AiResult.Success)
+        assertTrue(result.getOrNull()?.items?.isEmpty() == true)
     }
 
     @Test
