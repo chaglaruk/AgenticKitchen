@@ -186,7 +186,7 @@ Text: ${request.text}
 Never invent a quantity. Use null when quantity is not stated.
 Return only valid JSON for the app's shopping import schema.""",
             decode = json::decodeFromString,
-            validate = ::validShoppingResponse
+            validate = { validShoppingResponse(it, allowEmpty = false) }
         )
 
     override suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse> =
@@ -199,7 +199,7 @@ Never invent hidden items or quantities. Mark uncertainty conservatively.
 Return only valid JSON for the app's shopping import schema.""",
             image = request.image,
             decode = json::decodeFromString,
-            validate = ::validShoppingResponse
+            validate = { validShoppingResponse(it, allowEmpty = true) }
         )
 
     override suspend fun parseRecipeText(request: RecipeTextImportRequest): AiResult<RecipeImportResponse> =
@@ -381,8 +381,8 @@ Return only valid JSON matching the app response schema."""
             encodeDefaults = true
         }
 
-        private fun validShoppingResponse(response: ShoppingImportResponse): Boolean =
-            response.items.isNotEmpty() && response.items.all {
+        private fun validShoppingResponse(response: ShoppingImportResponse, allowEmpty: Boolean): Boolean =
+            (allowEmpty || response.items.isNotEmpty()) && response.items.all {
                 it.displayName.isNotBlank() &&
                     it.confidence.isFinite() && it.confidence in 0.0..1.0 &&
                     (it.quantity?.let { quantity -> quantity.isFinite() && quantity > 0 } != false)
