@@ -1,0 +1,37 @@
+CREATE TABLE PantryItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    canonicalIngredientId TEXT,
+    originalName TEXT NOT NULL,
+    displayNameTr TEXT,
+    displayNameEn TEXT,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    unitDimension TEXT NOT NULL,
+    packageLabel TEXT,
+    isEstimated INTEGER NOT NULL,
+    confidence REAL,
+    source TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+);
+
+CREATE TABLE InventoryAdjustment (
+    id TEXT NOT NULL PRIMARY KEY,
+    itemId TEXT NOT NULL,
+    amount REAL NOT NULL,
+    mode TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    source TEXT NOT NULL,
+    timestamp TEXT NOT NULL
+);
+
+CREATE TABLE PendingRecipeUsage (
+    sessionId TEXT NOT NULL,
+    itemId TEXT NOT NULL,
+    plannedQuantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    actualQuantity REAL,
+    status TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    PRIMARY KEY (sessionId, itemId)
+);

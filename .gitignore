@@ -17,12 +17,18 @@ shared/bin/
 # Android
 **/local.properties
 **/captures/
+app-android/google-services.json
 *.apk
 *.aab
 *.dex
 *.ap_
 *.aab_
 *.ktz
+
+# Google Play publishing credentials
+**/play-service-account*.json
+**/android-publisher*.json
+**/google-play*.json
 
 # Environment files
 .env
@@ -37,6 +43,7 @@ shared/bin/
 !CONTINUE.md
 !AGENTS.md
 !README.md
+!app-android/src/main/play/**/*.txt
 
 # OS files
 .DS_Store

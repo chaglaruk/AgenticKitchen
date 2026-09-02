@@ -1,0 +1,7 @@
+CREATE TABLE PantryItemMetadata (
+    itemId TEXT NOT NULL PRIMARY KEY,
+    location TEXT NOT NULL DEFAULT 'PANTRY',
+    customLocationLabel TEXT,
+    bestBefore TEXT,
+    useBy TEXT
+);

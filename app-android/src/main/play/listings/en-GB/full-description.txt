@@ -1,0 +1,28 @@
+Agentic Kitchen helps you decide what to cook from the ingredients you already have, then guides you through the cooking process with a structured, timed plan.
+
+Start with your pantry. Add ingredients, quantities, storage locations and expiry information so Agentic Kitchen can understand what is actually available in your kitchen.
+
+When you want to cook, the app can compare your pantry with recipe requirements, prioritise ingredients that should be used soon and help you choose practical options based on what you already have.
+
+Once you choose a recipe, Agentic Kitchen turns it into a structured cooking plan. Instead of presenting a long block of instructions, it coordinates cooking tasks, timing and dependencies so you can see what to do now and what comes next.
+
+Key features include:
+
+• Pantry inventory with quantities, locations and expiry tracking
+• Pantry-aware recipe suggestions
+• Ingredient availability and shortage checks
+• Structured cooking plans with timing and task coordination
+• Pause, resume, complete and recovery support during cooking
+• Cooking history and recipe reuse
+• Optional AI assistance through managed Firebase AI Logic
+• Optional Gemini API key support for advanced users
+• Deterministic offline fallback for supported core flows
+• Local-first storage for pantry and cooking data
+
+Agentic Kitchen is designed to keep deterministic application logic in control of pantry calculations, ingredient usage and cooking-plan validation. AI-generated suggestions are treated as assistance rather than unquestionable instructions.
+
+For image-based ingredient or cooking assistance, the app explains when an image will be sent to the active AI provider and asks you to review the result. Images selected for analysis are not stored by Agentic Kitchen.
+
+No account is required for the current core experience.
+
+Agentic Kitchen does not replace your own judgement about allergens, food safety, cooking temperatures or doneness. Always verify ingredients and food safety yourself.

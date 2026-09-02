@@ -1,35 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="192dp"
-    android:height="192dp"
-    android:viewportWidth="192"
-    android:viewportHeight="192">
-
-    <!-- Background circle using path -->
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
     <path
-        android:fillColor="#00695C"
-        android:pathData="M96,8 C148.627,8 192,51.373 192,104 C192,156.627 148.627,200 96,200 C43.373,200 0,156.627 0,104 C0,51.373 43.373,8 96,8 Z" />
-
-    <!-- Kitchen pot/stove symbol -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M50,70 L142,70 C147.5,70 152,74.5 152,80 L152,120 C152,130 145,138 136,138 L56,138 C47,138 40,130 40,120 L40,80 C40,74.5 44.5,70 50,70 Z" />
-
-    <!-- Stove burner 1 (circle via path: cx=70 cy=95 r=8) -->
-    <path
-        android:fillColor="#00695C"
-        android:pathData="M70,87 C74.418,87 78,90.582 78,95 C78,99.418 74.418,103 70,103 C65.582,103 62,99.418 62,95 C62,90.582 65.582,87 70,87 Z" />
-
-    <!-- Stove burner 2 (circle via path: cx=110 cy=95 r=8) -->
-    <path
-        android:fillColor="#00695C"
-        android:pathData="M110,87 C114.418,87 118,90.582 118,95 C118,99.418 114.418,103 110,103 C105.582,103 102,99.418 102,95 C102,90.582 105.582,87 110,87 Z" />
-
-    <!-- Handle -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M152,95 L165,95 C168,95 170,97 170,100 L170,110 C170,113 168,115 165,115 L152,115"
-        android:strokeColor="#00695C"
-        android:strokeWidth="3"
-        android:strokeLineCap="round" />
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#B7644C"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M27,57 C31,76 77,76 81,57 M25,57 L83,57 M34,47 C38,36 50,31 54,24 M54,47 C58,36 69,31 72,23" />
+    <path android:fillColor="#74806B" android:pathData="M50,78 L58,78 L58,85 L50,85 Z" />
 </vector>

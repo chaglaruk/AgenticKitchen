@@ -1,0 +1,116 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main, 'refactor/**']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Path scripts -Recurse -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            foreach ($error in $errors) {
+              Write-Error ("{0}:{1}:{2} {3}" -f $_.FullName, $error.Extent.StartLineNumber, $error.Extent.StartColumnNumber, $error.Message)
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          dependency-graph: generate-and-submit
+
+      - name: Check whitespace in change range
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+          fi
+          if [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          git diff --check "$base_sha...HEAD"
+
+      - name: Validate Google Play metadata
+        run: ./gradlew :app-android:generateReleasePlayResources --no-daemon --console=plain
+
+      - name: Clean
+        run: ./gradlew clean --no-daemon --console=plain
+
+      - name: Run shared module tests
+        run: ./gradlew :shared:test --no-daemon --console=plain
+
+      - name: Run Android unit tests
+        run: ./gradlew :app-android:testDebugUnitTest --no-daemon --console=plain
+
+      - name: Run Android lint
+        run: ./gradlew :app-android:lintDebug --no-daemon --console=plain
+
+      - name: Assemble debug APK
+        run: ./gradlew :app-android:assembleDebug --no-daemon --console=plain
+
+      - name: Run full build
+        run: ./gradlew build --no-daemon --console=plain
+
+      - name: Upload unit-test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: '**/build/reports/tests/**'
+          if-no-files-found: error
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: '**/build/reports/lint-results-*.html'
+          if-no-files-found: error
+
+      - name: Upload debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app-android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
