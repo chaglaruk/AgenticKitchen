@@ -218,13 +218,13 @@ private fun buildHardwareSummary(hw: HardwareSettings): String = when (hw.stoveT
     else -> if (L.isTr) "Ocak seçilmedi" else "No stove selected"
 }
 
-private fun appearanceLabel(theme: String): String = when (themeSpec(theme).id) {
-    ThemePreference.FOLLOW_SYSTEM.storageValue -> if (L.isTr) "Sistemi takip et" else "Follow system"
-    ThemePreference.MODERN_MINIMAL_A.storageValue -> "A — Modern Minimal"
-    ThemePreference.PREMIUM_DARK_B.storageValue -> "B — Premium Dark"
-    ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue -> "K — Luxe Appliance Dark"
-    ThemePreference.WARM_EDITORIAL_L.storageValue -> "L — Warm Editorial Utility"
-    ThemePreference.MINIMAL_PRO_M.storageValue -> "M — Minimal Pro Control"
+private fun appearanceLabel(theme: String): String = when (ThemePreference.fromStored(theme)) {
+    ThemePreference.FOLLOW_SYSTEM -> if (L.isTr) "Sistemi takip et" else "Follow system"
+    ThemePreference.MODERN_MINIMAL_A -> "A — Modern Minimal"
+    ThemePreference.PREMIUM_DARK_B -> "B — Premium Dark"
+    ThemePreference.LUXE_APPLIANCE_DARK_K -> "K — Luxe Appliance Dark"
+    ThemePreference.WARM_EDITORIAL_L -> "L — Warm Editorial Utility"
+    ThemePreference.MINIMAL_PRO_M -> "M — Minimal Pro Control"
     else -> "A — Modern Minimal"
 }
 
@@ -670,13 +670,18 @@ private fun AppearancePickerDialog(current: String, onSelect: (String) -> Unit, 
 private fun AppearanceSelectionRow(preference: ThemePreference, selected: Boolean, onSelect: () -> Unit) {
     val spec = themeSpec(preference.storageValue)
     val colors = LocalAppColors.current
+    val title = if (preference == ThemePreference.FOLLOW_SYSTEM) {
+        if (L.isTr) "Sistemi takip et" else "Follow system"
+    } else {
+        spec.title
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clickable(onClick = onSelect)
             .semantics {
-                contentDescription = "${spec.title}, ${if (selected) if (L.isTr) "seçili" else "selected" else if (L.isTr) "seçili değil" else "not selected"}"
+                contentDescription = "$title, ${if (selected) if (L.isTr) "seçili" else "selected" else if (L.isTr) "seçili değil" else "not selected"}"
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -696,7 +701,7 @@ private fun AppearanceSelectionRow(preference: ThemePreference, selected: Boolea
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(spec.title, color = colors.onSurface, style = MaterialTheme.typography.body1, fontWeight = FontWeight.SemiBold)
+            Text(title, color = colors.onSurface, style = MaterialTheme.typography.body1, fontWeight = FontWeight.SemiBold)
             Text(
                 if (preference == ThemePreference.FOLLOW_SYSTEM) {
                     if (L.isTr) "Açıkta A · koyuda K" else "A in light · K in dark"
