@@ -8,6 +8,7 @@ import com.agentickitchen.android.HardwareSettings
 import com.agentickitchen.android.security.CredentialMigrator
 import com.agentickitchen.android.security.CredentialStore
 import com.agentickitchen.android.security.LegacyCredentialSource
+import com.agentickitchen.android.ui.ThemePreference
 import org.json.JSONArray
 
 class PreferencesManager(
@@ -87,10 +88,10 @@ class PreferencesManager(
             .apply()
     }
 
-    override fun theme() = prefs.getString("theme", "editorial") ?: "editorial"
+    override fun theme() = ThemePreference.fromStored(prefs.getString("theme", null)).storageValue
 
     override fun saveTheme(theme: String) {
-        prefs.edit().putString("theme", theme).apply()
+        prefs.edit().putString("theme", ThemePreference.fromStored(theme).storageValue).apply()
     }
 
     override fun language() = prefs.getString("lang", "Türkçe") ?: "Türkçe"

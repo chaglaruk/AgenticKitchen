@@ -839,6 +839,7 @@ private fun adjustmentLabel(reason: AdjustmentReason): String = when (reason) {
 @Composable
 private fun EditorialHomeHeader(chips: List<String>, modifier: Modifier = Modifier) {
     val colors = LocalAppColors.current
+    val spec = LocalThemeSpec.current
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
@@ -847,14 +848,29 @@ private fun EditorialHomeHeader(chips: List<String>, modifier: Modifier = Modifi
         enter = fadeIn(tween(260)) + slideInVertically(tween(260)) { -it / 5 }
     ) {
         Column(
-            modifier = modifier.padding(vertical = 32.dp)
+            modifier = modifier
+                .background(
+                    color = if (spec.compact) colors.surfaceAlt else Color.Transparent,
+                    shape = RoundedCornerShape(spec.cornerRadius.dp)
+                )
+                .padding(horizontal = if (spec.compact) 16.dp else 0.dp, vertical = if (spec.compact) 18.dp else 32.dp)
         ) {
             EditorialBrandLockup()
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(if (spec.compact) 8.dp else 10.dp))
+            if (spec.id == ThemePreference.PREMIUM_DARK_B.storageValue ||
+                spec.id == ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue
+            ) {
+                Text(
+                    if (L.isTr) "KITCHEN CONTROL" else "KITCHEN CONTROL",
+                    color = colors.primary,
+                    style = MaterialTheme.typography.overline
+                )
+                Spacer(Modifier.height(6.dp))
+            }
             Text(
                 if (L.isTr) "Bu akşam ne pişirsek?" else "What are we cooking tonight?",
                 color = colors.onBackground,
-                style = MaterialTheme.typography.h1.copy(fontSize = 30.sp),
+                style = MaterialTheme.typography.h1.copy(fontSize = if (spec.compact) 26.sp else 30.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Clip
             )
@@ -890,6 +906,7 @@ private fun IngredientComposer(
     onOpenCamera: () -> Unit
 ) {
     val colors = LocalAppColors.current
+    val spec = LocalThemeSpec.current
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -905,8 +922,8 @@ private fun IngredientComposer(
     Column(
         modifier = Modifier.fillMaxWidth()
             .bringIntoViewRequester(bringIntoViewRequester)
-            .background(colors.surfaceAlt, RoundedCornerShape(14.dp))
-            .border(1.dp, colors.divider, RoundedCornerShape(14.dp))
+            .background(colors.surfaceAlt, RoundedCornerShape(spec.cornerRadius.dp))
+            .border(1.dp, colors.divider, RoundedCornerShape(spec.cornerRadius.dp))
             .padding(12.dp)
     ) {
         Text(

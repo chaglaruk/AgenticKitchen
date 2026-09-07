@@ -8,12 +8,11 @@ import org.junit.Test
 
 class PantryAndThemeUiTest {
     @Test
-    fun themeIdsResolveToTheTwoEditorialAppearances() {
-        assertEquals("editorial-light", themeSpec("editorial-light").id)
-        assertEquals("editorial-dark", themeSpec("editorial-dark").id)
+    fun themeIdsResolveToTheApprovedVisualSystems() {
+        assertEquals(ThemePreference.MODERN_MINIMAL_A.storageValue, themeSpec("editorial-light").id)
+        assertEquals(ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue, themeSpec("editorial-dark").id)
         assertFalse(themeSpec("editorial-dark").isLight)
-        (listOf("editorial", "heritage", "zen", "signal", "green", "blue", "orange", "dark", "unknown"))
-            .forEach { theme -> assertEquals("editorial-light", themeSpec(theme).id) }
+        assertEquals(ThemePreference.FOLLOW_SYSTEM, ThemePreference.fromStored("unknown"))
     }
 
     @Test

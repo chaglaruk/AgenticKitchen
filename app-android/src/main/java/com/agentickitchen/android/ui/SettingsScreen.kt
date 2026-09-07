@@ -153,7 +153,7 @@ fun SettingsScreen(
                 )
                 EditorialSettingsRow(
                     title = if (L.isTr) "Görünüm" else "Appearance",
-                    subtitle = appearanceLabel(theme),
+                    subtitle = appearanceLabel(ThemePreference.fromStored(theme).storageValue),
                     onClick = { showAppearanceDialog = true }
                 )
                 EditorialInfoRow(
@@ -197,7 +197,7 @@ fun SettingsScreen(
     }
     if (showAppearanceDialog) {
         AppearancePickerDialog(
-            current = themeSpec(theme).id,
+            current = ThemePreference.fromStored(theme).storageValue,
             onSelect = { appearance -> onSetTheme(appearance); showAppearanceDialog = false },
             onDismiss = { showAppearanceDialog = false }
         )
@@ -219,8 +219,13 @@ private fun buildHardwareSummary(hw: HardwareSettings): String = when (hw.stoveT
 }
 
 private fun appearanceLabel(theme: String): String = when (themeSpec(theme).id) {
-    "editorial-dark" -> if (L.isTr) "Koyu Editoryal" else "Dark Editorial"
-    else -> if (L.isTr) "Açık Editoryal" else "Light Editorial"
+    ThemePreference.FOLLOW_SYSTEM.storageValue -> if (L.isTr) "Sistemi takip et" else "Follow system"
+    ThemePreference.MODERN_MINIMAL_A.storageValue -> "A — Modern Minimal"
+    ThemePreference.PREMIUM_DARK_B.storageValue -> "B — Premium Dark"
+    ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue -> "K — Luxe Appliance Dark"
+    ThemePreference.WARM_EDITORIAL_L.storageValue -> "L — Warm Editorial Utility"
+    ThemePreference.MINIMAL_PRO_M.storageValue -> "M — Minimal Pro Control"
+    else -> "A — Modern Minimal"
 }
 
 private fun dietSummary(diet: DietSettings): String {
@@ -651,10 +656,58 @@ fun ListDialog(title: String, current: String, options: List<String>, colors: Ap
 private fun AppearancePickerDialog(current: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
     EditorialDialogSurface(onDismiss) {
         EditorialDialogHeader(if (L.isTr) "Görünüm seç" else "Choose appearance", onDismiss)
-        listOf("editorial-light", "editorial-dark").forEach { appearance ->
-            EditorialSelectionRow(appearanceLabel(appearance), appearance == current) { onSelect(appearance) }
+        ThemePreference.entries.forEach { appearance ->
+            AppearanceSelectionRow(
+                preference = appearance,
+                selected = appearance.storageValue == current,
+                onSelect = { onSelect(appearance.storageValue) }
+            )
         }
     }
+}
+
+@Composable
+private fun AppearanceSelectionRow(preference: ThemePreference, selected: Boolean, onSelect: () -> Unit) {
+    val spec = themeSpec(preference.storageValue)
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clickable(onClick = onSelect)
+            .semantics {
+                contentDescription = "${spec.title}, ${if (selected) if (L.isTr) "seçili" else "selected" else if (L.isTr) "seçili değil" else "not selected"}"
+            },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 56.dp, height = 36.dp)
+                .background(spec.colors.background, RoundedCornerShape(8.dp))
+                .border(1.dp, spec.colors.divider, RoundedCornerShape(8.dp))
+                .padding(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .background(spec.colors.primary, RoundedCornerShape(4.dp))
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(spec.title, color = colors.onSurface, style = MaterialTheme.typography.body1, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (preference == ThemePreference.FOLLOW_SYSTEM) {
+                    if (L.isTr) "Açıkta A · koyuda K" else "A in light · K in dark"
+                } else spec.subtitle,
+                color = colors.onSurfaceSub,
+                style = MaterialTheme.typography.caption
+            )
+        }
+        if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = colors.success)
+    }
+    Divider(color = colors.divider, thickness = 1.dp)
 }
 
 @Composable
