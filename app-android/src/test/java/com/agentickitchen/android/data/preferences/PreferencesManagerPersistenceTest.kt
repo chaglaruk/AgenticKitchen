@@ -43,6 +43,16 @@ class PreferencesManagerPersistenceTest {
             "editorial_light" to ThemePreference.MODERN_MINIMAL_A.storageValue,
             "editorial-dark" to ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue,
             "editorial_dark" to ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue,
+            "a_modern_minimal" to ThemePreference.MODERN_MINIMAL_A.storageValue,
+            "b_premium_dark" to ThemePreference.PREMIUM_DARK_B.storageValue,
+            "k_luxe_appliance_dark" to ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue,
+            "l_warm_editorial_utility" to ThemePreference.WARM_EDITORIAL_L.storageValue,
+            "m_minimal_pro_control" to ThemePreference.MINIMAL_PRO_M.storageValue,
+            "A" to ThemePreference.MODERN_MINIMAL_A.storageValue,
+            "B" to ThemePreference.PREMIUM_DARK_B.storageValue,
+            "K" to ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue,
+            "L" to ThemePreference.WARM_EDITORIAL_L.storageValue,
+            "M" to ThemePreference.MINIMAL_PRO_M.storageValue,
             "corrupt-value" to ThemePreference.FOLLOW_SYSTEM.storageValue
         )
 

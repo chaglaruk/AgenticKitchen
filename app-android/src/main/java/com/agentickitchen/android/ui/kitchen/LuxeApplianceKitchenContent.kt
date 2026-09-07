@@ -183,7 +183,7 @@ fun LuxeApplianceKitchenContent(
                 bgColor = colors.surface2,
                 borderColor = colors.accent.copy(alpha = 0.4f),
                 modifier = Modifier.weight(1f),
-                onClick = { actions.onOpenCookWithPantry() }
+                onClick = actions.onOpenPantry
             )
             ControlBlockK(
                 title = if (L.isTr) "Tara" else "Scan",
@@ -280,7 +280,7 @@ fun LuxeApplianceKitchenContent(
                         )
                     }
                     Row(
-                        modifier = Modifier.clickable { actions.onOpenCookWithPantry() },
+                        modifier = Modifier.clickable { actions.onOpenPantry() },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(

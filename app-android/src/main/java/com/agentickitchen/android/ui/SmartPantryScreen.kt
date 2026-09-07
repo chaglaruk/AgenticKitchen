@@ -72,34 +72,40 @@ fun KitchenHubScreen(
     onSaveInventoryItem: (PantryStockItem?, String, Double, String, String?) -> Unit,
     onDeleteInventoryItem: (PantryStockItem) -> Unit,
     onUpdateMetadata: (PantryStockItem) -> Boolean,
-    homeContent: @Composable () -> Unit
+    homeContent: @Composable (onOpenPantry: () -> Unit) -> Unit
 ) {
     val colors = LocalAppColors.current
     var mode by remember { mutableStateOf(KitchenHubMode.INGREDIENTS) }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            KitchenHubModeButton(
-                selected = mode == KitchenHubMode.INGREDIENTS,
-                label = if (L.isTr) "Malzemeler" else "Ingredients",
-                modifier = Modifier.weight(1f)
-            ) { mode = KitchenHubMode.INGREDIENTS }
-            KitchenHubModeButton(
-                selected = mode == KitchenHubMode.PANTRY,
-                label = if (L.isTr) "Stok" else "Pantry",
-                modifier = Modifier.weight(1f)
-            ) { mode = KitchenHubMode.PANTRY }
-        }
-        Divider(color = colors.divider)
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (mode == KitchenHubMode.INGREDIENTS) {
-                homeContent()
-            } else {
+    if (mode == KitchenHubMode.INGREDIENTS) {
+        homeContent { mode = KitchenHubMode.PANTRY }
+    } else {
+        Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { mode = KitchenHubMode.INGREDIENTS },
+                    modifier = Modifier.heightIn(min = 44.dp)
+                ) {
+                    Text(
+                        text = if (L.isTr) "← Mutfağa Dön" else "← Back to Kitchen",
+                        color = colors.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = if (L.isTr) "Akıllı Kiler" else "Smart Pantry",
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onBackground
+                )
+            }
+            Divider(color = colors.divider)
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 SmartPantryScreen(
                     inventory = inventory,
                     onSaveInventoryItem = onSaveInventoryItem,

@@ -328,7 +328,7 @@ fun AppNavigation(
                         if (updated) viewModel.refreshInventory()
                         updated
                     },
-                    homeContent = {
+                    homeContent = { onOpenPantry ->
                         HomeScreen(
                             chips = chips,
                             inventory = inventory,
@@ -373,7 +373,8 @@ fun AppNavigation(
                                 currentScreen = Screen.Options
                                 viewModel.startSession()
                             },
-                            onEditSetup = viewModel::startEditingSetup
+                            onEditSetup = viewModel::startEditingSetup,
+                            onOpenPantry = onOpenPantry
                         )
                     }
                 )

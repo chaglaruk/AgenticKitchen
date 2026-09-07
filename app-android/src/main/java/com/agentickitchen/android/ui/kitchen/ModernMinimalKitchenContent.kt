@@ -133,7 +133,7 @@ fun ModernMinimalKitchenContent(
                 icon = Icons.Filled.Kitchen,
                 iconColor = colors.primary,
                 modifier = Modifier.weight(1f),
-                onClick = { actions.onOpenCookWithPantry() }
+                onClick = actions.onOpenPantry
             )
             ActionTileA(
                 title = if (L.isTr) "Tara" else "Scan",
@@ -202,7 +202,7 @@ fun ModernMinimalKitchenContent(
                 color = colors.onBackground
             )
             Row(
-                modifier = Modifier.clickable { actions.onOpenCookWithPantry() },
+                modifier = Modifier.clickable { actions.onOpenPantry() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(

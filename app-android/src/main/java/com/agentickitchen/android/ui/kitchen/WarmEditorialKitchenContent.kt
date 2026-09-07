@@ -152,7 +152,7 @@ fun WarmEditorialKitchenContent(
                 iconColor = colors.primary,
                 bgColor = Color(0xFFEDF6F0),
                 modifier = Modifier.weight(1f),
-                onClick = { actions.onOpenCookWithPantry() }
+                onClick = actions.onOpenPantry
             )
             PastelActionCardL(
                 title = if (L.isTr) "Tara" else "Scan",
@@ -236,7 +236,7 @@ fun WarmEditorialKitchenContent(
                         color = colors.onBackground
                     )
                     Row(
-                        modifier = Modifier.clickable { actions.onOpenCookWithPantry() },
+                        modifier = Modifier.clickable { actions.onOpenPantry() },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -288,7 +288,7 @@ fun WarmEditorialKitchenContent(
                             .width(68.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(colors.surface2)
-                            .clickable { actions.onOpenCookWithPantry() }
+                            .clickable { actions.onOpenPantry() }
                             .padding(vertical = 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {

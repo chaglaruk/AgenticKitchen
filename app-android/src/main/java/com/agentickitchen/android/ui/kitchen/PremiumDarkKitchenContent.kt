@@ -153,7 +153,7 @@ fun PremiumDarkKitchenContent(
                 subtitle = if (L.isTr) "Göz at" else "See what you have",
                 icon = Icons.Filled.Kitchen,
                 modifier = Modifier.weight(1f),
-                onClick = { actions.onOpenCookWithPantry() }
+                onClick = actions.onOpenPantry
             )
             ActionTileB(
                 title = if (L.isTr) "Tara" else "Scan",
@@ -226,7 +226,7 @@ fun PremiumDarkKitchenContent(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.primary,
-                modifier = Modifier.clickable { actions.onOpenCookWithPantry() }
+                modifier = Modifier.clickable { actions.onOpenPantry() }
             )
         }
 

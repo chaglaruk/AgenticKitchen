@@ -188,7 +188,8 @@ fun HomeScreen(
     onStartInventorySession: (InventoryRecipeRequest) -> Unit = {},
     onClearAll: () -> Unit,
     onStart: () -> Unit,
-    onEditSetup: () -> Unit
+    onEditSetup: () -> Unit,
+    onOpenPantry: () -> Unit = {}
 ) {
     var input by remember { mutableStateOf("") }
     var showPicker by remember { mutableStateOf(false) }
@@ -251,7 +252,8 @@ fun HomeScreen(
         onToggleShoppingItem = onToggleShoppingItem,
         onDeleteShoppingItem = onDeleteShoppingItem,
         onClearCheckedShoppingItems = onClearCheckedShoppingItems,
-        onEditSetup = onEditSetup
+        onEditSetup = onEditSetup,
+        onOpenPantry = onOpenPantry
     )
 
     val currentThemeId = LocalThemeSpec.current.id

@@ -143,7 +143,7 @@ fun MinimalProKitchenContent(
                 iconColor = colors.primary,
                 bgColor = Color(0xFFEDF8F3),
                 modifier = Modifier.weight(1f),
-                onClick = { actions.onOpenCookWithPantry() }
+                onClick = actions.onOpenPantry
             )
             ActionTileM(
                 title = if (L.isTr) "Tara" else "Scan",
@@ -215,7 +215,7 @@ fun MinimalProKitchenContent(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(14.dp))
-                    .clickable { actions.onOpenCookWithPantry() },
+                    .clickable { actions.onOpenPantry() },
                 shape = RoundedCornerShape(14.dp),
                 backgroundColor = colors.surface,
                 border = BorderStroke(1.dp, colors.border),

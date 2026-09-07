@@ -37,5 +37,6 @@ data class KitchenUiActions(
     val onToggleShoppingItem: (String, Boolean) -> Unit,
     val onDeleteShoppingItem: (String) -> Unit,
     val onClearCheckedShoppingItems: () -> Unit,
-    val onEditSetup: () -> Unit
+    val onEditSetup: () -> Unit,
+    val onOpenPantry: () -> Unit = {}
 )
