@@ -16,6 +16,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+enum class TypographyProfile {
+    MODERN_SANS,
+    PREMIUM_CINEMATIC,
+    APPLIANCE_CONTROL,
+    WARM_EDITORIAL,
+    MINIMAL_PRO
+}
+
 data class AppColors(
     val primary: Color,
     val primaryDark: Color,
@@ -31,7 +39,15 @@ data class AppColors(
     val surfaceAlt: Color,
     val heroStart: Color,
     val heroEnd: Color,
-    val success: Color
+    val success: Color,
+    val accent2: Color = accent,
+    val surface2: Color = surfaceAlt,
+    val border: Color = divider,
+    val warn: Color = accent,
+    val danger: Color = Color(0xFFD34B3B),
+    val ai: Color = primary,
+    val aiBg: Color = surfaceAlt,
+    val nav: Color = surface
 )
 
 data class ThemeSpec(
@@ -41,7 +57,9 @@ data class ThemeSpec(
     val colors: AppColors,
     val isLight: Boolean,
     val cornerRadius: Int,
-    val compact: Boolean
+    val compact: Boolean,
+    val typographyProfile: TypographyProfile,
+    val dense: Boolean = compact
 )
 
 private fun palette(
@@ -49,40 +67,203 @@ private fun palette(
     primaryDark: Color,
     primaryLight: Color,
     accent: Color,
+    accent2: Color,
     background: Color,
     surface: Color,
-    onPrimary: Color,
-    onBackground: Color,
-    onSurface: Color,
-    onSurfaceSub: Color,
-    divider: Color,
-    surfaceAlt: Color,
-    success: Color = accent
+    surface2: Color,
+    text: Color,
+    muted: Color,
+    border: Color,
+    success: Color,
+    warn: Color,
+    danger: Color,
+    ai: Color,
+    aiBg: Color,
+    nav: Color,
+    onPrimary: Color = if (surface.luminance() > 0.5f && background.luminance() > 0.5f) Color.White else Color(0xFF101419)
 ) = AppColors(
-    primary, primaryDark, primaryLight, accent, background, surface, onPrimary,
-    onBackground, onSurface, onSurfaceSub, divider, surfaceAlt, background, background, success
+    primary = primary,
+    primaryDark = primaryDark,
+    primaryLight = primaryLight,
+    accent = accent,
+    background = background,
+    surface = surface,
+    onPrimary = onPrimary,
+    onBackground = text,
+    onSurface = text,
+    onSurfaceSub = muted,
+    divider = border,
+    surfaceAlt = surface2,
+    heroStart = background,
+    heroEnd = background,
+    success = success,
+    accent2 = accent2,
+    surface2 = surface2,
+    border = border,
+    warn = warn,
+    danger = danger,
+    ai = ai,
+    aiBg = aiBg,
+    nav = nav
 )
+
+private fun Color.luminance(): Float {
+    val red = red
+    val green = green
+    val blue = blue
+    return 0.2126f * red + 0.7152f * green + 0.0722f * blue
+}
 
 private val themeSpecs = mapOf(
     ThemePreference.MODERN_MINIMAL_A to ThemeSpec(
-        ThemePreference.MODERN_MINIMAL_A.storageValue, "A — Modern Minimal", "Calm, clear kitchen control",
-        palette(Color(0xFF347A54), Color(0xFF22583B), Color(0xFFB7D8C2), Color(0xFF6C9B79), Color(0xFFF7F9F6), Color.White, Color.White, Color(0xFF17201A), Color(0xFF17201A), Color(0xFF5B665E), Color(0xFFDDE6DF), Color(0xFFF0F5F1)), true, 18, false
+        id = ThemePreference.MODERN_MINIMAL_A.storageValue,
+        title = "A — Modern Minimal",
+        subtitle = "Calm, sharp, long-lived",
+        colors = palette(
+            primary = Color(0xFF0D7A54),
+            primaryDark = Color(0xFF095238),
+            primaryLight = Color(0xFFB7D8C2),
+            accent = Color(0xFF0D7A54),
+            accent2 = Color(0xFFC75D3B),
+            background = Color(0xFFF8F9F7),
+            surface = Color(0xFFFFFFFF),
+            surface2 = Color(0xFFEEF6F1),
+            text = Color(0xFF121514),
+            muted = Color(0xFF68706C),
+            border = Color(0xFFDFE5E1),
+            success = Color(0xFF137B58),
+            warn = Color(0xFFD86432),
+            danger = Color(0xFFD34B3B),
+            ai = Color(0xFF526BD8),
+            aiBg = Color(0xFFEEF1FF),
+            nav = Color(0xFFFBFCFA),
+            onPrimary = Color.White
+        ),
+        isLight = true,
+        cornerRadius = 22,
+        compact = false,
+        typographyProfile = TypographyProfile.MODERN_SANS,
+        dense = false
     ),
     ThemePreference.PREMIUM_DARK_B to ThemeSpec(
-        ThemePreference.PREMIUM_DARK_B.storageValue, "B — Premium Dark", "Layered, cinematic cooking",
-        palette(Color(0xFFD88956), Color(0xFFA85D39), Color(0xFFF1B18A), Color(0xFFD88956), Color(0xFF11100F), Color(0xFF1D1A18), Color(0xFF17120F), Color(0xFFF8F1EA), Color(0xFFF8F1EA), Color(0xFFB9AAA0), Color(0xFF3C332D), Color(0xFF28221E)), false, 20, false
+        id = ThemePreference.PREMIUM_DARK_B.storageValue,
+        title = "B — Premium Dark",
+        subtitle = "Layered, cinematic cooking",
+        colors = palette(
+            primary = Color(0xFFEE934C),
+            primaryDark = Color(0xFFC26E2E),
+            primaryLight = Color(0xFFF4B382),
+            accent = Color(0xFFEE934C),
+            accent2 = Color(0xFF53C98C),
+            background = Color(0xFF07090B),
+            surface = Color(0xFF101419),
+            surface2 = Color(0xFF13231C),
+            text = Color(0xFFF7F7F5),
+            muted = Color(0xFF9CA3AC),
+            border = Color(0xFF293039),
+            success = Color(0xFF56D29A),
+            warn = Color(0xFFF2A14F),
+            danger = Color(0xFFEF6D57),
+            ai = Color(0xFFB77CF0),
+            aiBg = Color(0xFF211827),
+            nav = Color(0xFF0C1014),
+            onPrimary = Color(0xFF101419)
+        ),
+        isLight = false,
+        cornerRadius = 24,
+        compact = false,
+        typographyProfile = TypographyProfile.PREMIUM_CINEMATIC,
+        dense = true
     ),
     ThemePreference.LUXE_APPLIANCE_DARK_K to ThemeSpec(
-        ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue, "K — Luxe Appliance Dark", "Precise appliance intelligence",
-        palette(Color(0xFFA8D66D), Color(0xFF6B963D), Color(0xFFD8F0AE), Color(0xFFE8A34A), Color(0xFF0C1512), Color(0xFF14211C), Color(0xFF122014), Color(0xFFF2F8EF), Color(0xFFF2F8EF), Color(0xFFA8B8AB), Color(0xFF2C4035), Color(0xFF1A2C24)), false, 12, true
+        id = ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue,
+        title = "K — Luxe Appliance Dark",
+        subtitle = "Precise appliance intelligence",
+        colors = palette(
+            primary = Color(0xFFF1A54F),
+            primaryDark = Color(0xFFC87E2C),
+            primaryLight = Color(0xFFF7C78B),
+            accent = Color(0xFF57C989),
+            accent2 = Color(0xFF57C989),
+            background = Color(0xFF05100E),
+            surface = Color(0xFF0B1815),
+            surface2 = Color(0xFF0D2A1E),
+            text = Color(0xFFF5F1E7),
+            muted = Color(0xFFAAB2AA),
+            border = Color(0xFF27433A),
+            success = Color(0xFF5AD08B),
+            warn = Color(0xFFF1AA4C),
+            danger = Color(0xFFE66E55),
+            ai = Color(0xFFF0A64A),
+            aiBg = Color(0xFF16251F),
+            nav = Color(0xFF07120F),
+            onPrimary = Color(0xFF0B1815)
+        ),
+        isLight = false,
+        cornerRadius = 22,
+        compact = true,
+        typographyProfile = TypographyProfile.APPLIANCE_CONTROL,
+        dense = true
     ),
     ThemePreference.WARM_EDITORIAL_L to ThemeSpec(
-        ThemePreference.WARM_EDITORIAL_L.storageValue, "L — Warm Editorial Utility", "Cookbook warmth, useful detail",
-        palette(Color(0xFF9A5D43), Color(0xFF744331), Color(0xFFDDB09C), Color(0xFF657B58), Color(0xFFF5EFE5), Color(0xFFFFFBF5), Color.White, Color(0xFF211B17), Color(0xFF211B17), Color(0xFF6D6258), Color(0xFFE0D4C6), Color(0xFFFBF6EE)), true, 16, false
+        id = ThemePreference.WARM_EDITORIAL_L.storageValue,
+        title = "L — Warm Editorial Utility",
+        subtitle = "Cookbook warmth, useful detail",
+        colors = palette(
+            primary = Color(0xFF13764E),
+            primaryDark = Color(0xFF0C5236),
+            primaryLight = Color(0xFFA8DEC7),
+            accent = Color(0xFFCE6248),
+            accent2 = Color(0xFFCE6248),
+            background = Color(0xFFFFF9EF),
+            surface = Color(0xFFFFFDFC),
+            surface2 = Color(0xFFEEF6E9),
+            text = Color(0xFF2B211C),
+            muted = Color(0xFF756961),
+            border = Color(0xFFE8DDD1),
+            success = Color(0xFF247C58),
+            warn = Color(0xFFC9673A),
+            danger = Color(0xFFD65245),
+            ai = Color(0xFF6D62D4),
+            aiBg = Color(0xFFF0ECFF),
+            nav = Color(0xFFFFFDF8),
+            onPrimary = Color.White
+        ),
+        isLight = true,
+        cornerRadius = 24,
+        compact = false,
+        typographyProfile = TypographyProfile.WARM_EDITORIAL,
+        dense = false
     ),
     ThemePreference.MINIMAL_PRO_M to ThemeSpec(
-        ThemePreference.MINIMAL_PRO_M.storageValue, "M — Minimal Pro Control", "Fast, organized kitchen operations",
-        palette(Color(0xFF356A9A), Color(0xFF234B70), Color(0xFFB7D1E8), Color(0xFF5D88B0), Color(0xFFF4F7FA), Color.White, Color.White, Color(0xFF17212B), Color(0xFF17212B), Color(0xFF53616D), Color(0xFFD8E1E8), Color(0xFFEDF2F6)), true, 10, true
+        id = ThemePreference.MINIMAL_PRO_M.storageValue,
+        title = "M — Minimal Pro Control",
+        subtitle = "Fast, organized kitchen operations",
+        colors = palette(
+            primary = Color(0xFF0B7A56),
+            primaryDark = Color(0xFF07553C),
+            primaryLight = Color(0xFF8FE0C4),
+            accent = Color(0xFFD46648),
+            accent2 = Color(0xFFD46648),
+            background = Color(0xFFF7FAFC),
+            surface = Color(0xFFFFFFFF),
+            surface2 = Color(0xFFEDF8F3),
+            text = Color(0xFF101820),
+            muted = Color(0xFF5E6B78),
+            border = Color(0xFFDDE4EC),
+            success = Color(0xFF187A59),
+            warn = Color(0xFFC9822F),
+            danger = Color(0xFFD94E47),
+            ai = Color(0xFF4A70E8),
+            aiBg = Color(0xFFEDF2FF),
+            nav = Color(0xFFF9FBFD),
+            onPrimary = Color.White
+        ),
+        isLight = true,
+        cornerRadius = 20,
+        compact = true,
+        typographyProfile = TypographyProfile.MINIMAL_PRO,
+        dense = true
     )
 )
 
@@ -105,7 +286,7 @@ fun AgenticTheme(themeName: String, content: @Composable () -> Unit) {
         secondaryVariant = colors.accent,
         background = colors.background,
         surface = colors.surface,
-        error = Color(0xFF9B3F32),
+        error = colors.danger,
         onPrimary = colors.onPrimary,
         onSecondary = colors.onPrimary,
         onBackground = colors.onBackground,
@@ -121,21 +302,45 @@ fun AgenticTheme(themeName: String, content: @Composable () -> Unit) {
     }
 }
 
-private fun themeTypography(spec: ThemeSpec) = Typography(
-    h1 = TextStyle(fontFamily = if (spec.compact) FontFamily.SansSerif else FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = if (spec.compact) 32.sp else 36.sp, letterSpacing = (-0.6).sp),
-    h2 = TextStyle(fontFamily = if (spec.compact) FontFamily.SansSerif else FontFamily.Serif, fontWeight = FontWeight.Medium, fontSize = 28.sp, letterSpacing = (-0.3).sp),
-    h3 = TextStyle(fontFamily = if (spec.compact) FontFamily.SansSerif else FontFamily.Serif, fontWeight = FontWeight.Medium, fontSize = 26.sp, letterSpacing = (-0.2).sp),
-    h4 = TextStyle(fontFamily = if (spec.compact) FontFamily.SansSerif else FontFamily.Serif, fontWeight = FontWeight.Medium, fontSize = 24.sp),
-    h5 = TextStyle(fontFamily = if (spec.compact) FontFamily.SansSerif else FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 22.sp),
-    h6 = TextStyle(fontFamily = if (spec.compact) FontFamily.SansSerif else FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
-    body1 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 16.sp),
-    body2 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 14.sp),
-    subtitle1 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = 0.5.sp),
-    subtitle2 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 13.sp, letterSpacing = .2.sp),
-    button = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, letterSpacing = 1.sp),
-    caption = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = .5.sp),
-    overline = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 1.1.sp)
-)
+private fun themeTypography(spec: ThemeSpec): Typography {
+    val displayFont = when (spec.typographyProfile) {
+        TypographyProfile.MODERN_SANS, TypographyProfile.MINIMAL_PRO -> FontFamily.SansSerif
+        TypographyProfile.PREMIUM_CINEMATIC, TypographyProfile.APPLIANCE_CONTROL, TypographyProfile.WARM_EDITORIAL -> FontFamily.Serif
+    }
+    val h1Size = when (spec.typographyProfile) {
+        TypographyProfile.MINIMAL_PRO -> 30.sp
+        TypographyProfile.APPLIANCE_CONTROL -> 32.sp
+        TypographyProfile.MODERN_SANS -> 34.sp
+        TypographyProfile.PREMIUM_CINEMATIC -> 36.sp
+        TypographyProfile.WARM_EDITORIAL -> 38.sp
+    }
+    val h1Spacing = when (spec.typographyProfile) {
+        TypographyProfile.MINIMAL_PRO -> (-0.8).sp
+        TypographyProfile.APPLIANCE_CONTROL -> (-0.4).sp
+        TypographyProfile.MODERN_SANS -> (-0.6).sp
+        else -> (-0.3).sp
+    }
+    return Typography(
+        h1 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Bold, fontSize = h1Size, letterSpacing = h1Spacing),
+        h2 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, letterSpacing = (-0.3).sp),
+        h3 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Medium, fontSize = 24.sp, letterSpacing = (-0.2).sp),
+        h4 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Medium, fontSize = 22.sp),
+        h5 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
+        h6 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.SemiBold, fontSize = 18.sp),
+        body1 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 16.sp),
+        body2 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 14.sp),
+        subtitle1 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = 0.4.sp),
+        subtitle2 = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 13.sp, letterSpacing = 0.2.sp),
+        button = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, letterSpacing = 0.8.sp),
+        caption = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.4.sp),
+        overline = TextStyle(
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            letterSpacing = if (spec.typographyProfile == TypographyProfile.APPLIANCE_CONTROL) 1.6.sp else 1.1.sp
+        )
+    )
+}
 
 @Composable
 fun getBgGradient(): Brush {

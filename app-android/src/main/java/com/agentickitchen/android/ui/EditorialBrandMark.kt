@@ -17,16 +17,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 @Composable
+fun EditorialBrandMark(
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 24.dp
+) {
+    val colors = LocalAppColors.current
+    Canvas(modifier = modifier.size(size).clearAndSetSemantics { }) {
+        val stroke = Stroke(width = this.size.minDimension * .08f)
+        drawOval(colors.primary, Offset(this.size.width * .16f, this.size.height * .46f), androidx.compose.ui.geometry.Size(this.size.width * .68f, this.size.height * .30f), style = stroke)
+        drawLine(colors.primary, Offset(this.size.width * .20f, this.size.height * .60f), Offset(this.size.width * .80f, this.size.height * .60f), strokeWidth = this.size.width * .08f)
+        drawLine(colors.accent, Offset(this.size.width * .37f, this.size.height * .36f), Offset(this.size.width * .34f, this.size.height * .14f), strokeWidth = this.size.width * .06f)
+        drawLine(colors.accent, Offset(this.size.width * .61f, this.size.height * .36f), Offset(this.size.width * .65f, this.size.height * .14f), strokeWidth = this.size.width * .06f)
+    }
+}
+
+@Composable
 fun EditorialBrandLockup(modifier: Modifier = Modifier) {
     val colors = LocalAppColors.current
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Canvas(modifier = Modifier.size(29.dp).clearAndSetSemantics { }) {
-            val stroke = Stroke(width = size.minDimension * .08f)
-            drawOval(colors.primary, Offset(size.width * .16f, size.height * .46f), androidx.compose.ui.geometry.Size(size.width * .68f, size.height * .30f), style = stroke)
-            drawLine(colors.primary, Offset(size.width * .20f, size.height * .60f), Offset(size.width * .80f, size.height * .60f), strokeWidth = size.width * .08f)
-            drawLine(colors.accent, Offset(size.width * .37f, size.height * .36f), Offset(size.width * .34f, size.height * .14f), strokeWidth = size.width * .06f)
-            drawLine(colors.accent, Offset(size.width * .61f, size.height * .36f), Offset(size.width * .65f, size.height * .14f), strokeWidth = size.width * .06f)
-        }
+        EditorialBrandMark(size = 29.dp)
         androidx.compose.foundation.layout.Spacer(Modifier.width(9.dp))
         Text(
             "Agentic Kitchen",

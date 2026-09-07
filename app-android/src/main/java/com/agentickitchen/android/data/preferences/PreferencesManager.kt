@@ -11,13 +11,18 @@ import com.agentickitchen.android.security.LegacyCredentialSource
 import com.agentickitchen.android.ui.ThemePreference
 import org.json.JSONArray
 
-class PreferencesManager(
-    context: Context,
+class PreferencesManager internal constructor(
+    private val prefs: SharedPreferences,
     private val credentialStore: CredentialStore
 ) : AppPreferences {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    constructor(
+        context: Context,
+        credentialStore: CredentialStore
+    ) : this(
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
+        credentialStore
+    )
 
     init {
         CredentialMigrator(

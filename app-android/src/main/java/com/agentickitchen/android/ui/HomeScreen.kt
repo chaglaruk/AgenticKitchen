@@ -1,5 +1,12 @@
 package com.agentickitchen.android.ui
 
+import com.agentickitchen.android.ui.kitchen.KitchenUiState
+import com.agentickitchen.android.ui.kitchen.KitchenUiActions
+import com.agentickitchen.android.ui.kitchen.ModernMinimalKitchenContent
+import com.agentickitchen.android.ui.kitchen.PremiumDarkKitchenContent
+import com.agentickitchen.android.ui.kitchen.LuxeApplianceKitchenContent
+import com.agentickitchen.android.ui.kitchen.WarmEditorialKitchenContent
+import com.agentickitchen.android.ui.kitchen.MinimalProKitchenContent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -209,179 +216,88 @@ fun HomeScreen(
         if (recipeImportState !is RecipeImportState.Idle) showRecipeImport = true
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .imePadding(),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 28.dp),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp),
-        userScrollEnabled = homeScrollEnabled(expandedAuto)
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            EditorialHomeHeader(chips = chips, modifier = Modifier.fillMaxWidth())
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            IngredientComposer(
+    val kitchenState = KitchenUiState(
+        chips = chips,
+        inventory = inventory,
+        inventoryAdjustments = inventoryAdjustments,
+        shoppingList = shoppingList,
+        pantryIntel = pantryIntel,
+        scannedIngredients = scannedIngredients,
+        kitchenScanState = kitchenScanState,
+        shoppingImportState = shoppingImportState,
+        recipeImportState = recipeImportState
+    )
+
+    val kitchenActions = KitchenUiActions(
+        onAddChip = onAddChip,
+        onAddMultipleChips = onAddMultipleChips,
+        onRemoveChip = onRemoveChip,
+        onClearAll = onClearAll,
+        onStart = onStart,
+        onOpenPantryEditor = { item ->
+            editingInventoryItem = item
+            showInventoryEditor = true
+        },
+        onDeleteInventoryItem = onDeleteInventoryItem,
+        onOpenIngredientLibrary = { showPicker = true },
+        onOpenIngredientCamera = { showCameraModal = true },
+        onOpenKitchenScan = {
+            onBeginKitchenScan()
+            showKitchenScan = true
+        },
+        onOpenShoppingImport = { showShoppingImport = true },
+        onOpenRecipeImport = { showRecipeImport = true },
+        onOpenCookWithPantry = { showInventoryRecipe = true },
+        onToggleShoppingItem = onToggleShoppingItem,
+        onDeleteShoppingItem = onDeleteShoppingItem,
+        onClearCheckedShoppingItems = onClearCheckedShoppingItems,
+        onEditSetup = onEditSetup
+    )
+
+    val currentThemeId = LocalThemeSpec.current.id
+    when (currentThemeId) {
+        ThemePreference.MODERN_MINIMAL_A.storageValue -> ModernMinimalKitchenContent(
+            state = kitchenState,
+            actions = kitchenActions,
             input = input,
             onInputChange = { input = it },
-            expandedAuto = expandedAuto,
-            filteredIngredients = filteredIngredients,
-            onAddSelection = {
-                onAddChip(it)
-                input = ""
-                expandedAuto = false
-            },
-            onDone = {
-                input.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach(onAddChip)
-                input = ""
-                keyboard?.hide()
-            },
-            canGenerate = chips.isNotEmpty(),
-            onStart = onStart,
-            onOpenCamera = { showCameraModal = true }
-            )
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            EditorialSectionHeading(
-                eyebrow = if (L.isTr) "SEÇİMLERİN" else "YOUR PICKS",
-                title = if (L.isTr) "Seçtiğin malzemeler" else "Selected ingredients"
-            )
-        }
-        if (chips.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) { EmptyIngredientCollection() }
-        } else {
-            itemsIndexed(chips, key = { _, ingredient -> ingredient.lowercase() }) { index, ingredient ->
-                CompactDraftIngredientCard(
-                    ingredient = ingredient,
-                    entranceDelay = index.coerceAtMost(8) * 35,
-                    onRemove = { onRemoveChip(ingredient) },
-                    modifier = Modifier.animateItem()
-                )
-            }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            EditorialSectionHeading(
-                eyebrow = if (L.isTr) "MUTFAĞIM" else "MY KITCHEN",
-                title = if (L.isTr) "Stoktakiler" else "Pantry inventory",
-                action = if (L.isTr) "Malzeme ekle" else "Add item",
-                onAction = {
-                    editingInventoryItem = null
-                    showInventoryEditor = true
-                }
-            )
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            OutlinedButton(
-                onClick = {
-                    onBeginKitchenScan()
-                    showKitchenScan = true
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                border = BorderStroke(1.dp, colors.primary),
-                shape = RoundedCornerShape(999.dp)
-            ) {
-                Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = colors.primary)
-                Spacer(Modifier.width(8.dp))
-                Text(if (L.isTr) "Mutfağını tara" else "Scan my kitchen", color = colors.primary)
-            }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { showShoppingImport = true },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    border = BorderStroke(1.dp, colors.divider),
-                    shape = RoundedCornerShape(999.dp)
-                ) {
-                    Text(if (L.isTr) "Alışveriş ekle" else "Add shopping", color = colors.primary)
-                }
-                Button(
-                    onClick = { showInventoryRecipe = true },
-                    enabled = inventory.isNotEmpty(),
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
-                    shape = RoundedCornerShape(999.dp)
-                ) {
-                    Text(if (L.isTr) "Elimdekilerle pişir" else "Cook with what I have", color = colors.onPrimary)
-                }
-            }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            OutlinedButton(
-                onClick = { showRecipeImport = true },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                border = BorderStroke(1.dp, colors.divider),
-                shape = RoundedCornerShape(999.dp)
-            ) {
-                Text(if (L.isTr) "Tarif içe aktar · URL / metin / fotoğraf" else "Import recipe · URL / text / photo", color = colors.primary)
-            }
-        }
-        if (inventory.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    if (L.isTr) "Henüz miktarlı stok eklenmedi." else "No quantified stock yet.",
-                    color = colors.onSurfaceSub,
-                    style = MaterialTheme.typography.body1,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-        } else {
-            itemsIndexed(inventory, key = { _, item -> item.id }) { _, item ->
-                InventoryIngredientCard(item, Modifier.animateItem()) {
-                    editingInventoryItem = item
-                    showInventoryEditor = true
-                }
-            }
-        }
-        if (shoppingList.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                SmartShoppingListSection(
-                    items = shoppingList,
-                    onToggle = onToggleShoppingItem,
-                    onDelete = onDeleteShoppingItem,
-                    onClearChecked = onClearCheckedShoppingItems
-                )
-            }
-        }
-        if (chips.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) { CompactKitchenSummary(pantryIntel) }
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-            EditorialTextAction(
-                modifier = Modifier.weight(1f),
-                title = if (L.isTr) "Tüm malzemeler" else "All ingredients",
-                icon = Icons.Filled.GridView,
-                onClick = { showPicker = true }
-            )
-            EditorialTextAction(
-                modifier = Modifier.weight(1f),
-                title = if (L.isTr) "Kurulum" else "Setup",
-                icon = Icons.Filled.Tune,
-                onClick = onEditSetup
-            )
-            if (chips.isNotEmpty()) {
-                EditorialTextAction(
-                    modifier = Modifier.weight(1f),
-                    title = if (L.isTr) "Temizle" else "Clear",
-                    icon = Icons.Filled.DeleteSweep,
-                    destructive = true,
-                    onClick = onClearAll
-                )
-            }
-            }
-        }
+            filteredSuggestions = filteredIngredients
+        )
+        ThemePreference.PREMIUM_DARK_B.storageValue -> PremiumDarkKitchenContent(
+            state = kitchenState,
+            actions = kitchenActions,
+            input = input,
+            onInputChange = { input = it },
+            filteredSuggestions = filteredIngredients
+        )
+        ThemePreference.LUXE_APPLIANCE_DARK_K.storageValue -> LuxeApplianceKitchenContent(
+            state = kitchenState,
+            actions = kitchenActions,
+            input = input,
+            onInputChange = { input = it },
+            filteredSuggestions = filteredIngredients
+        )
+        ThemePreference.WARM_EDITORIAL_L.storageValue -> WarmEditorialKitchenContent(
+            state = kitchenState,
+            actions = kitchenActions,
+            input = input,
+            onInputChange = { input = it },
+            filteredSuggestions = filteredIngredients
+        )
+        ThemePreference.MINIMAL_PRO_M.storageValue -> MinimalProKitchenContent(
+            state = kitchenState,
+            actions = kitchenActions,
+            input = input,
+            onInputChange = { input = it },
+            filteredSuggestions = filteredIngredients
+        )
+        else -> ModernMinimalKitchenContent(
+            state = kitchenState,
+            actions = kitchenActions,
+            input = input,
+            onInputChange = { input = it },
+            filteredSuggestions = filteredIngredients
+        )
     }
 
     if (showPicker) {
