@@ -154,15 +154,17 @@ fun ReferenceActiveCookingScreen(
         Spacer(Modifier.height(16.dp))
     }
 
-    pendingConsumption?.let {
-        ReferenceConsumptionDialog(
-            pending = it,
-            inventory = inventory,
-            onUsePlanned = onConsumePlanned,
-            onUseActual = onConsumeActual,
-            onCancel = onCancelConsumption
-        )
-    }
+    pendingConsumption
+        ?.takeIf { cookingState.status in setOf(CookingSessionStatus.COMPLETED, CookingSessionStatus.ENDED) }
+        ?.let {
+            ReferenceConsumptionDialog(
+                pending = it,
+                inventory = inventory,
+                onUsePlanned = onConsumePlanned,
+                onUseActual = onConsumeActual,
+                onCancel = onCancelConsumption
+            )
+        }
 }
 
 @Composable
@@ -223,7 +225,19 @@ private fun ReferenceRunningCooking(
             paused = state.status == CookingSessionStatus.PAUSED,
             onPause = onPause,
             onResume = onResume,
-            onAddMinute = { onComplete(cookingAddMinuteCommand(primary.event.id)) },
+            onAddMinute = {
+                val command = cookingAddMinuteCommand(primary.event.id)
+                if (state.status == CookingSessionStatus.PAUSED) {
+                    // Keep the visible paused state while routing the persisted timer mutation through the
+                    // existing ViewModel callback path. Resume starts the controller, Complete applies the
+                    // namespaced +1-minute command while RUNNING, and Pause immediately restores PAUSED.
+                    onResume()
+                    onComplete(command)
+                    onPause()
+                } else {
+                    onComplete(command)
+                }
+            },
             onEnd = onEnd
         )
         Spacer(Modifier.height(8.dp))
