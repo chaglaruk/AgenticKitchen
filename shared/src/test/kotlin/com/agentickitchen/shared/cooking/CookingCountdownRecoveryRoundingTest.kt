@@ -42,7 +42,8 @@ class CookingCountdownRecoveryRoundingTest {
         assertEquals(15L, paused.elapsedSeconds)
 
         val restoredClock = TestClock(monotonic = 100_000L, epoch = fixedEpoch + 60_000L)
-        val restored = CookingSessionController(restoredClock).restore(
+        val restoredController = CookingSessionController(restoredClock)
+        val restored = restoredController.restore(
             recipe = "Soup",
             schedule = schedule,
             status = CookingSessionStatus.PAUSED,
@@ -56,7 +57,6 @@ class CookingCountdownRecoveryRoundingTest {
 
         restoredClock.monotonic += 30_000L
         restoredClock.epoch += 30_000L
-        assertEquals(beforeRecovery, original = restored.active.single().remainingSeconds)
-        assertEquals(beforeRecovery, CookingSessionController(restoredClock).let { beforeRecovery })
+        assertEquals(beforeRecovery, restoredController.current().active.single().remainingSeconds)
     }
 }
