@@ -1,5 +1,10 @@
 package com.agentickitchen.android.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +31,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -40,6 +47,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
@@ -385,11 +394,16 @@ private fun RecipeCandidateCard(option: RecipeOption, index: Int, onClick: () ->
                     )
                     Spacer(Modifier.width(7.dp))
                     Text(
-                        recipeTypeLabel(option.type, L.isTr),
+                        listOfNotNull(
+                            recipeTypeLabel(option.type, L.isTr),
+                            localizedRecipeSourceLabel(option.sourceLabel, L.isTr)
+                        ).joinToString(" · "),
                         color = colors.primary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = .7.sp
+                        letterSpacing = .7.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Spacer(Modifier.height(5.dp))
@@ -421,6 +435,26 @@ private fun RecipeCandidateCard(option: RecipeOption, index: Int, onClick: () ->
                     Text(
                         if (L.isTr) "Eksik: ${option.shortages.joinToString()}" else "Missing: ${option.shortages.joinToString()}",
                         color = statusColor,
+                        style = MaterialTheme.typography.caption,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (option.expiresTodayMatches > 0 || option.useSoonMatches > 0) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        if (L.isTr) {
+                            listOfNotNull(
+                                option.expiresTodayMatches.takeIf { it > 0 }?.let { "$it bugün kullanılmalı" },
+                                option.useSoonMatches.takeIf { it > 0 }?.let { "$it yakında kullanılmalı" }
+                            ).joinToString(" · ")
+                        } else {
+                            listOfNotNull(
+                                option.expiresTodayMatches.takeIf { it > 0 }?.let { "$it expires today" },
+                                option.useSoonMatches.takeIf { it > 0 }?.let { "$it use soon" }
+                            ).joinToString(" · ")
+                        },
+                        color = colors.warn,
                         style = MaterialTheme.typography.caption,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -588,102 +622,152 @@ private fun RecipeDetailContent(
     var selectedTargetId by remember(recipe.id, initialTargetId) { mutableStateOf(initialTargetId) }
     var exactTime by remember(recipe.id) { mutableStateOf("19:30") }
     var servings by remember(recipe.id) { mutableStateOf(recipe.servings.coerceIn(1, 12)) }
+    var visible by remember { mutableStateOf(false) }
+    val exactSectionRequester = remember { BringIntoViewRequester() }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) { visible = true }
+
     val selected = presets.firstOrNull { it.id == selectedTargetId } ?: presets.first()
     val selectedChoice = if (selected.id == "exact") exactTargetTimeChoice(exactTime) else selected.choice
 
+    LaunchedEffect(selectedTargetId, exactTime) {
+        if (selectedTargetId == "exact") {
+            delay(200)
+            exactSectionRequester.bringIntoView()
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(colors.background)) {
         Spacer(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars))
-        Column(
+        RecipeDetailViewport(
+            visible = visible,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 16.dp)
+                .clipToBounds()
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (L.isTr) "Tarif ayrıntısı" else "Recipe detail",
-                    color = colors.onSurfaceSub,
-                    style = MaterialTheme.typography.overline,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = onDismiss, modifier = Modifier.semantics {
-                    contentDescription = if (L.isTr) "Tarif ayrıntısını kapat" else "Close recipe detail"
-                }) {
-                    Text(if (L.isTr) "Kapat" else "Close", color = colors.onSurfaceSub)
-                }
-            }
-
-            Box(
-                modifier = Modifier.fillMaxWidth().height(190.dp).background(colors.surface2, RoundedCornerShape(LocalThemeSpec.current.cornerRadius.dp)),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp, vertical = 16.dp)
             ) {
-                IngredientArtwork(recipe.name, Modifier.size(170.dp))
-            }
-
-            Spacer(Modifier.height(18.dp))
-            Text(recipeTypeLabel(recipe.type, L.isTr), color = colors.primary, style = MaterialTheme.typography.overline)
-            Spacer(Modifier.height(6.dp))
-            Text(recipe.name, color = colors.onSurface, style = MaterialTheme.typography.h1)
-            Spacer(Modifier.height(8.dp))
-            Text(recipe.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
-
-            Spacer(Modifier.height(20.dp))
-            Divider(color = colors.divider)
-            Spacer(Modifier.height(18.dp))
-            Text(if (L.isTr) "Kaç kişilik?" else "How many servings?", color = colors.onSurface, style = MaterialTheme.typography.h6)
-            Spacer(Modifier.height(10.dp))
-            RecipeServingsSelector(
-                servings = servings,
-                onDecrease = { servings = (servings - 1).coerceAtLeast(1) },
-                onIncrease = { servings = (servings + 1).coerceAtMost(12) }
-            )
-
-            Spacer(Modifier.height(18.dp))
-            Divider(color = colors.divider)
-            Spacer(Modifier.height(18.dp))
-            Text(if (L.isTr) "Ne zaman hazır olsun?" else "When should it be ready?", color = colors.onSurface, style = MaterialTheme.typography.h6)
-            Spacer(Modifier.height(10.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                presets.forEach { option ->
-                    TargetTimeChoicePill(option, option.id == selectedTargetId) { selectedTargetId = option.id }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (L.isTr) "Tarif ayrıntısı" else "Recipe detail",
+                        color = colors.onSurfaceSub,
+                        style = MaterialTheme.typography.overline,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onDismiss, modifier = Modifier.semantics {
+                        contentDescription = if (L.isTr) "Tarif ayrıntısını kapat" else "Close recipe detail"
+                    }) {
+                        Text(if (L.isTr) "Kapat" else "Close", color = colors.onSurfaceSub)
+                    }
                 }
-            }
 
-            if (selected.id == "exact") {
-                Spacer(Modifier.height(12.dp))
-                ExactTimeEditor(
-                    value = exactTime,
-                    onValueChange = { exactTime = formatExactTimeInput(it) },
-                    valid = selectedChoice != null
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(190.dp)
+                        .background(colors.surface2, RoundedCornerShape(LocalThemeSpec.current.cornerRadius.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IngredientArtwork(recipe.name, Modifier.size(170.dp))
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Text(recipeTypeLabel(recipe.type, L.isTr), color = colors.primary, style = MaterialTheme.typography.overline)
+                Spacer(Modifier.height(6.dp))
+                Text(recipe.name, color = colors.onSurface, style = MaterialTheme.typography.h1)
+                Spacer(Modifier.height(8.dp))
+                Text(recipe.description, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
+
+                Spacer(Modifier.height(20.dp))
+                Divider(color = colors.divider)
+                Spacer(Modifier.height(18.dp))
+                Text(if (L.isTr) "Kaç kişilik?" else "How many servings?", color = colors.onSurface, style = MaterialTheme.typography.h6)
+                Spacer(Modifier.height(10.dp))
+                RecipeServingsSelector(
+                    servings = servings,
+                    onDecrease = { servings = (servings - 1).coerceAtLeast(1) },
+                    onIncrease = { servings = (servings + 1).coerceAtMost(12) }
                 )
-            }
 
-            if (!recipe.canPrepareFromPantry) {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    if (L.isTr) "Bu fikir için 3 veya daha fazla ürün eksik. Şimdilik yalnızca fikir olarak gösteriliyor." else "This idea is missing 3 or more items. For now it is shown as inspiration only.",
-                    color = colors.danger,
-                    style = MaterialTheme.typography.body2
-                )
-            }
+                Spacer(Modifier.height(18.dp))
+                Divider(color = colors.divider)
+                Spacer(Modifier.height(18.dp))
+                Text(if (L.isTr) "Ne zaman hazır olsun?" else "When should it be ready?", color = colors.onSurface, style = MaterialTheme.typography.h6)
+                Spacer(Modifier.height(10.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    presets.forEach { option ->
+                        TargetTimeChoicePill(option, option.id == selectedTargetId) { selectedTargetId = option.id }
+                    }
+                }
 
-            Spacer(Modifier.height(22.dp))
-            Button(
-                onClick = { selectedChoice?.let { onConfirm(recipeRequestSelection(servings, it)) } },
-                enabled = selectedChoice != null && recipe.canPrepareFromPantry,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = colors.primary,
-                    disabledBackgroundColor = colors.divider
-                ),
-                shape = RoundedCornerShape(999.dp)
-            ) {
-                Text(if (L.isTr) "Tarifi Hazırla" else "Prepare Recipe", color = colors.onPrimary)
+                Column(modifier = Modifier.bringIntoViewRequester(exactSectionRequester)) {
+                    if (selected.id == "exact") {
+                        Spacer(Modifier.height(12.dp))
+                        ExactTimeEditor(
+                            value = exactTime,
+                            onValueChange = { exactTime = formatExactTimeInput(it) },
+                            valid = selectedChoice != null,
+                            onFocus = {
+                                coroutineScope.launch {
+                                    delay(200)
+                                    exactSectionRequester.bringIntoView()
+                                }
+                            }
+                        )
+                    }
+
+                    if (!recipe.canPrepareFromPantry) {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            if (L.isTr) "Bu fikir için 3 veya daha fazla ürün eksik. Şimdilik yalnızca fikir olarak gösteriliyor." else "This idea is missing 3 or more items. For now it is shown as inspiration only.",
+                            color = colors.danger,
+                            style = MaterialTheme.typography.body2
+                        )
+                    }
+
+                    Spacer(Modifier.height(22.dp))
+                    Button(
+                        onClick = { selectedChoice?.let { onConfirm(recipeRequestSelection(servings, it)) } },
+                        enabled = selectedChoice != null && recipe.canPrepareFromPantry,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = colors.primary,
+                            disabledBackgroundColor = colors.divider
+                        ),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text(if (L.isTr) "Tarifi Hazırla" else "Prepare Recipe", color = colors.onPrimary)
+                    }
+                }
             }
         }
         Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars))
+    }
+}
+
+@Composable
+private fun RecipeDetailViewport(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(modifier = modifier) {
+        AnimatedVisibility(
+            visible = visible,
+            modifier = Modifier.fillMaxSize().clipToBounds(),
+            enter = fadeIn(tween(320)) +
+                slideInVertically(tween(320)) { it / 12 } +
+                scaleIn(tween(320), initialScale = .96f)
+        ) {
+            content()
+        }
     }
 }
 
@@ -743,9 +827,13 @@ private fun TargetTimeChoicePill(option: TargetTimeUiOption, selected: Boolean, 
 }
 
 @Composable
-private fun ExactTimeEditor(value: String, onValueChange: (String) -> Unit, valid: Boolean) {
+private fun ExactTimeEditor(
+    value: String,
+    onValueChange: (String) -> Unit,
+    valid: Boolean,
+    onFocus: () -> Unit
+) {
     val colors = LocalAppColors.current
-    val scope = rememberCoroutineScope()
     Column {
         Text(if (L.isTr) "Hazır olma saati" else "Ready time", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
         Spacer(Modifier.height(5.dp))
@@ -754,18 +842,14 @@ private fun ExactTimeEditor(value: String, onValueChange: (String) -> Unit, vali
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .onFocusChanged {
-                    if (it.isFocused) {
-                        scope.launch { delay(120) }
-                    }
-                }
+                .onFocusChanged { if (it.isFocused) onFocus() }
                 .semantics { contentDescription = if (L.isTr) "Hazır olma saatini gir" else "Enter ready time" }
                 .background(colors.surface2, RoundedCornerShape(12.dp))
                 .border(1.dp, if (valid) colors.border else colors.danger, RoundedCornerShape(12.dp))
                 .padding(horizontal = 14.dp, vertical = 13.dp),
             textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(),
+            keyboardActions = KeyboardActions(onDone = { onFocus() }),
             singleLine = true
         )
         if (!valid) {
