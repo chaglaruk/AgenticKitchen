@@ -41,10 +41,12 @@ import com.agentickitchen.android.ui.HistoryScreen
 import com.agentickitchen.android.ui.HomeScreen
 import com.agentickitchen.android.ui.KitchenHubScreen
 import com.agentickitchen.android.ui.LocalAppColors
+import com.agentickitchen.android.ui.ReferenceActiveCookingScreen
 import com.agentickitchen.android.ui.ReferenceOperationsScreen
 import com.agentickitchen.android.ui.ReferenceOptionsScreen
 import com.agentickitchen.android.ui.SettingsScreen
 import com.agentickitchen.android.ui.SetupScreen
+import com.agentickitchen.shared.cooking.CookingSessionStatus
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels {
@@ -251,6 +253,7 @@ fun AppNavigation(
     val kitchenScanState by viewModel.kitchenScanState.collectAsState()
     val pendingConsumption by viewModel.pendingConsumption.collectAsState()
     val planState by viewModel.planState.collectAsState()
+    val cookingState by viewModel.cookingState.collectAsState()
     val hw by viewModel.hardwareSettings.collectAsState()
     val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsState()
     val history by viewModel.history.collectAsState()
@@ -403,33 +406,68 @@ fun AppNavigation(
                     onBackToOptions = viewModel::backToOptions
                 )
 
-                Screen.Operations -> ReferenceOperationsScreen(
-                    planState = planState,
-                    pantryIntel = pantryIntel,
-                    hardwareSettings = hw,
-                    selectedEquipment = selectedEquipment,
-                    onAskAgent = viewModel::askIngredientAgent,
-                    onClearChat = viewModel::clearAgentChat,
-                    onCheckPan = viewModel::checkVisionAgent,
-                    onClearVision = viewModel::clearVisionResponse,
-                    onBackToOptions = viewModel::backToOptions,
-                    cookingState = viewModel.cookingState.collectAsState().value,
-                    onStartCooking = viewModel::startCooking,
-                    onPauseCooking = viewModel::pauseCooking,
-                    onResumeCooking = viewModel::resumeCooking,
-                    onCompleteCookingStep = viewModel::completeCookingStep,
-                    onSkipCookingStep = viewModel::skipCookingStep,
-                    onEndCooking = viewModel::endCooking,
-                    pendingConsumption = pendingConsumption,
-                    inventory = inventory,
-                    onConsumePlanned = viewModel::consumePlannedInventory,
-                    onConsumeActual = viewModel::consumeActualInventory,
-                    onCancelConsumption = viewModel::cancelInventoryConsumption,
-                    onRequestSubstitution = viewModel::requestPantrySubstitution,
-                    onApplySubstitution = viewModel::applyPantrySubstitution,
-                    onDismissSubstitution = viewModel::dismissPantrySubstitution,
-                    onAddShortagesToShoppingList = viewModel::addCurrentShortagesToShoppingList
-                )
+                Screen.Operations -> {
+                    val active = planState as? PlanState.RecipeActive
+                    if (
+                        active != null && cookingState.status in setOf(
+                            CookingSessionStatus.RUNNING,
+                            CookingSessionStatus.PAUSED,
+                            CookingSessionStatus.COMPLETED,
+                            CookingSessionStatus.ENDED
+                        )
+                    ) {
+                        ReferenceActiveCookingScreen(
+                            active = active,
+                            pantryIntel = pantryIntel,
+                            hardwareSettings = hw,
+                            selectedEquipment = selectedEquipment,
+                            cookingState = cookingState,
+                            onAskAgent = viewModel::askIngredientAgent,
+                            onClearChat = viewModel::clearAgentChat,
+                            onCheckPan = viewModel::checkVisionAgent,
+                            onClearVision = viewModel::clearVisionResponse,
+                            onPauseCooking = viewModel::pauseCooking,
+                            onResumeCooking = viewModel::resumeCooking,
+                            onCompleteCookingStep = viewModel::completeCookingStep,
+                            onSkipCookingStep = viewModel::skipCookingStep,
+                            onEndCooking = viewModel::endCooking,
+                            onBackToOptions = viewModel::backToOptions,
+                            pendingConsumption = pendingConsumption,
+                            inventory = inventory,
+                            onConsumePlanned = viewModel::consumePlannedInventory,
+                            onConsumeActual = viewModel::consumeActualInventory,
+                            onCancelConsumption = viewModel::cancelInventoryConsumption
+                        )
+                    } else {
+                        ReferenceOperationsScreen(
+                            planState = planState,
+                            pantryIntel = pantryIntel,
+                            hardwareSettings = hw,
+                            selectedEquipment = selectedEquipment,
+                            onAskAgent = viewModel::askIngredientAgent,
+                            onClearChat = viewModel::clearAgentChat,
+                            onCheckPan = viewModel::checkVisionAgent,
+                            onClearVision = viewModel::clearVisionResponse,
+                            onBackToOptions = viewModel::backToOptions,
+                            cookingState = cookingState,
+                            onStartCooking = viewModel::startCooking,
+                            onPauseCooking = viewModel::pauseCooking,
+                            onResumeCooking = viewModel::resumeCooking,
+                            onCompleteCookingStep = viewModel::completeCookingStep,
+                            onSkipCookingStep = viewModel::skipCookingStep,
+                            onEndCooking = viewModel::endCooking,
+                            pendingConsumption = pendingConsumption,
+                            inventory = inventory,
+                            onConsumePlanned = viewModel::consumePlannedInventory,
+                            onConsumeActual = viewModel::consumeActualInventory,
+                            onCancelConsumption = viewModel::cancelInventoryConsumption,
+                            onRequestSubstitution = viewModel::requestPantrySubstitution,
+                            onApplySubstitution = viewModel::applyPantrySubstitution,
+                            onDismissSubstitution = viewModel::dismissPantrySubstitution,
+                            onAddShortagesToShoppingList = viewModel::addCurrentShortagesToShoppingList
+                        )
+                    }
+                }
 
                 Screen.History -> HistoryScreen(history) { ingredients ->
                     viewModel.reuseHistoryIngredients(ingredients)
