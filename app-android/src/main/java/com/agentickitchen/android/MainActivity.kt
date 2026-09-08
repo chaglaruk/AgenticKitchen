@@ -328,6 +328,17 @@ fun AppNavigation(
                         if (updated) viewModel.refreshInventory()
                         updated
                     },
+                    onCookWithPantry = {
+                        currentScreen = Screen.Options
+                        viewModel.startInventorySession(
+                            InventoryRecipeRequest(
+                                servings = 2,
+                                strictStock = false,
+                                maxMissingStaples = 2,
+                                prioritizedIngredients = emptyList()
+                            )
+                        )
+                    },
                     homeContent = { onOpenPantry ->
                         HomeScreen(
                             chips = chips,
