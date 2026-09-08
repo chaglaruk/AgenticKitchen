@@ -1,5 +1,6 @@
 package com.agentickitchen.android.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,11 +9,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,12 +18,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -47,8 +45,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,68 +70,21 @@ fun KitchenHubScreen(
     onUpdateMetadata: (PantryStockItem) -> Boolean,
     homeContent: @Composable (onOpenPantry: () -> Unit) -> Unit
 ) {
-    val colors = LocalAppColors.current
     var mode by remember { mutableStateOf(KitchenHubMode.INGREDIENTS) }
+
+    BackHandler(enabled = mode == KitchenHubMode.PANTRY) {
+        mode = KitchenHubMode.INGREDIENTS
+    }
 
     if (mode == KitchenHubMode.INGREDIENTS) {
         homeContent { mode = KitchenHubMode.PANTRY }
     } else {
-        Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = { mode = KitchenHubMode.INGREDIENTS },
-                    modifier = Modifier.heightIn(min = 44.dp)
-                ) {
-                    Text(
-                        text = if (L.isTr) "← Mutfağa Dön" else "← Back to Kitchen",
-                        color = colors.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = if (L.isTr) "Akıllı Kiler" else "Smart Pantry",
-                    fontWeight = FontWeight.Bold,
-                    color = colors.onBackground
-                )
-            }
-            Divider(color = colors.divider)
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                SmartPantryScreen(
-                    inventory = inventory,
-                    onSaveInventoryItem = onSaveInventoryItem,
-                    onDeleteInventoryItem = onDeleteInventoryItem,
-                    onUpdateMetadata = onUpdateMetadata
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun KitchenHubModeButton(
-    selected: Boolean,
-    label: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    TextButton(
-        onClick = onClick,
-        modifier = modifier
-            .heightIn(min = 44.dp)
-            .border(1.dp, if (selected) colors.primary else colors.divider, RoundedCornerShape(999.dp))
-            .semantics { contentDescription = label }
-    ) {
-        Text(
-            label,
-            color = if (selected) colors.primary else colors.onSurfaceSub,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        SmartPantryScreen(
+            inventory = inventory,
+            onBack = { mode = KitchenHubMode.INGREDIENTS },
+            onSaveInventoryItem = onSaveInventoryItem,
+            onDeleteInventoryItem = onDeleteInventoryItem,
+            onUpdateMetadata = onUpdateMetadata
         )
     }
 }
@@ -143,82 +92,75 @@ private fun KitchenHubModeButton(
 @Composable
 private fun SmartPantryScreen(
     inventory: List<PantryStockItem>,
+    onBack: () -> Unit,
     onSaveInventoryItem: (PantryStockItem?, String, Double, String, String?) -> Unit,
     onDeleteInventoryItem: (PantryStockItem) -> Unit,
     onUpdateMetadata: (PantryStockItem) -> Boolean
 ) {
     val colors = LocalAppColors.current
+    val spec = LocalThemeSpec.current
     var selectedLocation by remember { mutableStateOf<PantryLocation?>(null) }
     var sortOrder by remember { mutableStateOf(PantrySortOrder.EXPIRY) }
+    var searchQuery by remember { mutableStateOf("") }
     var editingItem by remember { mutableStateOf<PantryStockItem?>(null) }
-    val visibleItems = PantryInventoryView.filterAndSort(inventory, selectedLocation, sortOrder)
+
+    val locationItems = PantryInventoryView.filterAndSort(inventory, selectedLocation, sortOrder)
+    val visibleItems = locationItems.filter {
+        searchQuery.isBlank() || it.originalName.contains(searchQuery.trim(), ignoreCase = true)
+    }
     val useFirst = PantryInventoryView.useFirst(inventory)
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier.fillMaxSize().background(colors.background),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 28.dp),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .padding(horizontal = if (spec.dense) 16.dp else 18.dp)
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    if (L.isTr) "AKILLI STOK" else "SMART PANTRY",
-                    color = colors.primary,
-                    style = MaterialTheme.typography.overline
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    if (L.isTr) "Önce neyi kullanalım?" else "What should we use first?",
-                    color = colors.onSurface,
-                    style = MaterialTheme.typography.h2
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    if (L.isTr) "Konum ve tarihlere göre mutfağındaki stoğu takip et." else "Track your kitchen by location and freshness dates.",
-                    color = colors.onSurfaceSub,
-                    style = MaterialTheme.typography.body1
-                )
-            }
-        }
+        PantryHeader(
+            inventoryCount = inventory.size,
+            filteredCount = visibleItems.size,
+            selectedLocation = selectedLocation,
+            onBack = onBack
+        )
+
+        PantryLocationFilters(selectedLocation) { selectedLocation = it }
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(if (L.isTr) "Kilerde ara" else "Search pantry") }
+        )
+
+        Spacer(Modifier.height(8.dp))
+        PantrySortControls(sortOrder) { sortOrder = it }
 
         if (useFirst.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                UseFirstStrip(useFirst) { editingItem = it }
-            }
+            Spacer(Modifier.height(8.dp))
+            UseFirstSummary(useFirst)
         }
 
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            PantryLocationFilters(selectedLocation) { selectedLocation = it }
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            PantrySortControls(sortOrder) { sortOrder = it }
-        }
+        Spacer(Modifier.height(8.dp))
+        Divider(color = colors.divider)
 
         if (visibleItems.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp)) {
-                    Text(
-                        if (inventory.isEmpty()) {
-                            if (L.isTr) "Henüz stok kaydı yok." else "No pantry items yet."
-                        } else {
-                            if (L.isTr) "Bu konumda ürün yok." else "No items in this location."
-                        },
-                        color = colors.onSurface,
-                        style = MaterialTheme.typography.h6
-                    )
-                    Text(
-                        if (L.isTr) "Yeni ürünü Malzemeler görünümünden ekleyebilirsin." else "Add new items from the Ingredients view.",
-                        color = colors.onSurfaceSub,
-                        style = MaterialTheme.typography.body2
-                    )
-                }
-            }
+            PantryEmptyState(
+                inventoryEmpty = inventory.isEmpty(),
+                filtered = selectedLocation != null || searchQuery.isNotBlank(),
+                modifier = Modifier.weight(1f)
+            )
         } else {
-            items(visibleItems, key = { it.id }) { item ->
-                SmartPantryCard(item) { editingItem = item }
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(if (spec.dense) 7.dp else 9.dp)
+            ) {
+                item { Spacer(Modifier.height(8.dp)) }
+                items(visibleItems, key = { it.id }) { item ->
+                    PantryInventoryRow(item) { editingItem = item }
+                }
+                item { Spacer(Modifier.height(16.dp)) }
             }
         }
     }
@@ -249,31 +191,84 @@ private fun SmartPantryScreen(
 }
 
 @Composable
-private fun UseFirstStrip(items: List<PantryStockItem>, onOpen: (PantryStockItem) -> Unit) {
+private fun PantryHeader(
+    inventoryCount: Int,
+    filteredCount: Int,
+    selectedLocation: PantryLocation?,
+    onBack: () -> Unit
+) {
     val colors = LocalAppColors.current
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Divider(color = colors.divider)
-        Spacer(Modifier.height(12.dp))
-        Text(if (L.isTr) "ÖNCE BUNLARI KULLAN" else "USE FIRST", color = colors.success, style = MaterialTheme.typography.overline)
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items.forEach { item ->
-                val info = PantryFreshnessPolicy.evaluate(item)
-                Column(
-                    modifier = Modifier
-                        .width(148.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.surfaceAlt)
-                        .clickable { onOpen(item) }
-                        .padding(12.dp)
-                ) {
-                    Text(item.originalName, color = colors.onSurface, style = MaterialTheme.typography.subtitle2, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(freshnessLabel(info, L.isTr), color = freshnessColor(info.status), style = MaterialTheme.typography.caption)
-                }
+    val spec = LocalThemeSpec.current
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        EditorialBrandMark(size = 20.dp)
+        Spacer(Modifier.width(7.dp))
+        Text(
+            "AgenticKitchen",
+            color = colors.onBackground,
+            style = MaterialTheme.typography.subtitle2,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 44.dp)) {
+            Text(if (L.isTr) "Mutfağa dön" else "Kitchen", color = colors.primary)
+        }
+    }
+
+    Text(
+        if (L.isTr) "Akıllı Kiler" else "Smart Pantry",
+        color = colors.onBackground,
+        style = if (spec.dense) MaterialTheme.typography.h3 else MaterialTheme.typography.h2
+    )
+    Spacer(Modifier.height(3.dp))
+    Text(
+        when {
+            selectedLocation != null -> if (L.isTr) {
+                "${locationLabel(selectedLocation, true)} filtresi · $filteredCount ürün"
+            } else {
+                "Filtered: ${locationLabel(selectedLocation, false)} · $filteredCount items"
             }
+            else -> if (L.isTr) {
+                "$inventoryCount ürün · tazelik ve konum takibi"
+            } else {
+                "$inventoryCount items · freshness and storage tracked"
+            }
+        },
+        color = colors.onSurfaceSub,
+        style = MaterialTheme.typography.caption
+    )
+    Spacer(Modifier.height(if (spec.dense) 8.dp else 10.dp))
+}
+
+@Composable
+private fun UseFirstSummary(items: List<PantryStockItem>) {
+    val colors = LocalAppColors.current
+    val preview = items.take(3).joinToString(" · ") { it.originalName }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = colors.surface2,
+        border = BorderStroke(1.dp, colors.border),
+        elevation = 0.dp,
+        shape = RoundedCornerShape(if (LocalThemeSpec.current.dense) 12.dp else 16.dp)
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (L.isTr) "ÖNCE KULLAN" else "USE FIRST",
+                color = colors.success,
+                style = MaterialTheme.typography.overline
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                preview,
+                color = colors.onSurfaceSub,
+                style = MaterialTheme.typography.caption,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -282,7 +277,7 @@ private fun UseFirstStrip(items: List<PantryStockItem>, onOpen: (PantryStockItem
 private fun PantryLocationFilters(selected: PantryLocation?, onSelect: (PantryLocation?) -> Unit) {
     val choices = listOf<PantryLocation?>(null) + PantryLocation.entries
     Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 10.dp),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         choices.forEach { location ->
@@ -314,64 +309,143 @@ private fun PantrySortControls(selected: PantrySortOrder, onSelect: (PantrySortO
 @Composable
 private fun PantryFilterPill(selected: Boolean, label: String, onClick: () -> Unit) {
     val colors = LocalAppColors.current
+    val spec = LocalThemeSpec.current
     TextButton(
         onClick = onClick,
         modifier = Modifier
-            .heightIn(min = 42.dp)
-            .border(1.dp, if (selected) colors.primary else colors.divider, RoundedCornerShape(999.dp))
+            .heightIn(min = 40.dp)
+            .background(
+                if (selected) colors.surface2 else colors.surface,
+                RoundedCornerShape(if (spec.dense) 10.dp else 999.dp)
+            )
+            .border(
+                1.dp,
+                if (selected) colors.primary.copy(alpha = .65f) else colors.border,
+                RoundedCornerShape(if (spec.dense) 10.dp else 999.dp)
+            )
+            .semantics { contentDescription = label }
     ) {
-        Text(label, color = if (selected) colors.primary else colors.onSurfaceSub, fontSize = 12.sp)
+        Text(
+            label,
+            color = if (selected) colors.primary else colors.onSurfaceSub,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 
 @Composable
-private fun SmartPantryCard(item: PantryStockItem, onOpen: () -> Unit) {
+private fun PantryInventoryRow(item: PantryStockItem, onOpen: () -> Unit) {
     val colors = LocalAppColors.current
+    val spec = LocalThemeSpec.current
     val freshness = PantryFreshnessPolicy.evaluate(item)
     val statusText = freshnessLabel(freshness, L.isTr)
     val locationText = displayLocation(item, L.isTr)
-    Column(
+    val statusColor = freshnessColor(freshness.status)
+    val radius = when (spec.typographyProfile) {
+        TypographyProfile.APPLIANCE_CONTROL -> 10.dp
+        TypographyProfile.MINIMAL_PRO -> 12.dp
+        TypographyProfile.PREMIUM_CINEMATIC -> 16.dp
+        TypographyProfile.WARM_EDITORIAL -> 18.dp
+        TypographyProfile.MODERN_SANS -> 16.dp
+    }
+
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(.78f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.surfaceAlt)
             .clickable(onClick = onOpen)
-            .padding(8.dp)
             .semantics {
                 contentDescription = "${item.originalName}, ${formatPantryQuantity(item)}, $locationText, $statusText"
             },
-        horizontalAlignment = Alignment.CenterHorizontally
+        backgroundColor = colors.surface,
+        border = BorderStroke(1.dp, colors.border),
+        elevation = 0.dp,
+        shape = RoundedCornerShape(radius)
     ) {
-        Text(locationText.uppercase(), color = colors.onSurfaceSub, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        IngredientArtwork(item.originalName, Modifier.weight(1f).fillMaxWidth().padding(3.dp))
-        Text(
-            item.originalName,
-            color = colors.onSurface,
-            style = MaterialTheme.typography.subtitle2,
-            maxLines = 2,
-            textAlign = TextAlign.Center,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(formatPantryQuantity(item), color = colors.primary, style = MaterialTheme.typography.caption, maxLines = 1)
-        Spacer(Modifier.height(3.dp))
-        Box(
-            modifier = Modifier
-                .border(1.dp, freshnessColor(freshness.status), RoundedCornerShape(999.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = if (spec.dense) 8.dp else 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(statusText, color = freshnessColor(freshness.status), fontSize = 9.sp, maxLines = 1)
+            Box(
+                modifier = Modifier
+                    .size(if (spec.dense) 34.dp else 38.dp)
+                    .clip(CircleShape)
+                    .background(colors.surface2),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    item.originalName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "•",
+                    color = colors.primary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.subtitle2
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    item.originalName,
+                    color = colors.onSurface,
+                    style = MaterialTheme.typography.subtitle2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    formatPantryQuantity(item),
+                    color = colors.onSurfaceSub,
+                    style = MaterialTheme.typography.caption,
+                    maxLines = 1
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    statusText,
+                    color = statusColor,
+                    style = MaterialTheme.typography.caption,
+                    maxLines = 1
+                )
+                Text(
+                    locationText,
+                    color = colors.onSurfaceSub,
+                    fontSize = 10.sp,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
 
 @Composable
+private fun PantryEmptyState(inventoryEmpty: Boolean, filtered: Boolean, modifier: Modifier = Modifier) {
+    val colors = LocalAppColors.current
+    Column(
+        modifier = modifier.fillMaxWidth().padding(top = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            when {
+                inventoryEmpty -> if (L.isTr) "Henüz stok kaydı yok." else "No pantry items yet."
+                filtered -> if (L.isTr) "Bu görünümde ürün yok." else "No items match this view."
+                else -> if (L.isTr) "Gösterilecek ürün yok." else "Nothing to show."
+            },
+            color = colors.onSurface,
+            style = MaterialTheme.typography.h6
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (L.isTr) "Malzemeler görünümünden stok ekleyebilirsin." else "Add inventory from the Kitchen ingredients view.",
+            color = colors.onSurfaceSub,
+            style = MaterialTheme.typography.body2
+        )
+    }
+}
+
+@Composable
 private fun freshnessColor(status: PantryFreshnessStatus) = when (status) {
-    PantryFreshnessStatus.EXPIRED -> MaterialTheme.colors.error
-    PantryFreshnessStatus.EXPIRES_TODAY -> LocalAppColors.current.primary
-    PantryFreshnessStatus.USE_SOON -> LocalAppColors.current.success
+    PantryFreshnessStatus.EXPIRED -> LocalAppColors.current.danger
+    PantryFreshnessStatus.EXPIRES_TODAY -> LocalAppColors.current.warn
+    PantryFreshnessStatus.USE_SOON -> LocalAppColors.current.warn
     PantryFreshnessStatus.LOW_STOCK -> LocalAppColors.current.primary
-    PantryFreshnessStatus.FRESH -> LocalAppColors.current.onSurfaceSub
+    PantryFreshnessStatus.FRESH -> LocalAppColors.current.success
 }
 
 private fun freshnessLabel(info: PantryFreshnessInfo, isTurkish: Boolean): String = when (info.status) {
@@ -443,13 +517,13 @@ private fun SmartPantryItemDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Card(
-            modifier = Modifier.fillMaxWidth(.94f).fillMaxHeight(.92f),
+            modifier = Modifier.fillMaxWidth(.94f),
             backgroundColor = colors.surface,
             elevation = 0.dp,
             border = BorderStroke(1.dp, colors.divider),
-            shape = RoundedCornerShape(20.dp)
+            shape = RoundedCornerShape(LocalThemeSpec.current.cornerRadius.dp)
         ) {
-            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
                 Text(if (L.isTr) "STOK DETAYI" else "PANTRY DETAIL", color = colors.primary, style = MaterialTheme.typography.overline)
                 Text(item.originalName, color = colors.onSurface, style = MaterialTheme.typography.h3)
                 Spacer(Modifier.height(16.dp))
@@ -537,7 +611,7 @@ private fun SmartPantryItemDialog(
 
                 error?.let {
                     Spacer(Modifier.height(8.dp))
-                    Text(it, color = MaterialTheme.colors.error, style = MaterialTheme.typography.caption)
+                    Text(it, color = colors.danger, style = MaterialTheme.typography.caption)
                 }
 
                 Spacer(Modifier.height(18.dp))
@@ -576,7 +650,7 @@ private fun SmartPantryItemDialog(
                     Text(if (L.isTr) "Kaydet" else "Save", color = colors.onPrimary)
                 }
                 TextButton(onClick = onRanOut, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Text(if (L.isTr) "Bitti — stoktan çıkar" else "Ran out — remove from pantry", color = MaterialTheme.colors.error)
+                    Text(if (L.isTr) "Bitti — stoktan çıkar" else "Ran out — remove from pantry", color = colors.danger)
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Text(if (L.isTr) "İptal" else "Cancel", color = colors.onSurfaceSub)
