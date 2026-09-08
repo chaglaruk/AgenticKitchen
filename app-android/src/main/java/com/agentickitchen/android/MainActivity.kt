@@ -41,8 +41,8 @@ import com.agentickitchen.android.ui.HistoryScreen
 import com.agentickitchen.android.ui.HomeScreen
 import com.agentickitchen.android.ui.KitchenHubScreen
 import com.agentickitchen.android.ui.LocalAppColors
-import com.agentickitchen.android.ui.OperationsScreen
-import com.agentickitchen.android.ui.OptionsScreen
+import com.agentickitchen.android.ui.ReferenceOperationsScreen
+import com.agentickitchen.android.ui.ReferenceOptionsScreen
 import com.agentickitchen.android.ui.SettingsScreen
 import com.agentickitchen.android.ui.SetupScreen
 
@@ -390,7 +390,7 @@ fun AppNavigation(
                     }
                 )
 
-                Screen.Options -> OptionsScreen(
+                Screen.Options -> ReferenceOptionsScreen(
                     chips = chips,
                     planState = planState,
                     pantryIntel = pantryIntel,
@@ -403,7 +403,7 @@ fun AppNavigation(
                     onBackToOptions = viewModel::backToOptions
                 )
 
-                Screen.Operations -> OperationsScreen(
+                Screen.Operations -> ReferenceOperationsScreen(
                     planState = planState,
                     pantryIntel = pantryIntel,
                     hardwareSettings = hw,
