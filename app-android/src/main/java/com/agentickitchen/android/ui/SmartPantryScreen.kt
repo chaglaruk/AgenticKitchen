@@ -69,6 +69,7 @@ fun KitchenHubScreen(
     onSaveInventoryItem: (PantryStockItem?, String, Double, String, String?) -> Unit,
     onDeleteInventoryItem: (PantryStockItem) -> Unit,
     onUpdateMetadata: (PantryStockItem) -> Boolean,
+    onCookWithPantry: () -> Unit,
     homeContent: @Composable (onOpenPantry: () -> Unit) -> Unit
 ) {
     var mode by remember { mutableStateOf(KitchenHubMode.INGREDIENTS) }
@@ -83,6 +84,7 @@ fun KitchenHubScreen(
         SmartPantryScreen(
             inventory = inventory,
             onBack = { mode = KitchenHubMode.INGREDIENTS },
+            onCookWithPantry = onCookWithPantry,
             onSaveInventoryItem = onSaveInventoryItem,
             onDeleteInventoryItem = onDeleteInventoryItem,
             onUpdateMetadata = onUpdateMetadata
@@ -94,6 +96,7 @@ fun KitchenHubScreen(
 private fun SmartPantryScreen(
     inventory: List<PantryStockItem>,
     onBack: () -> Unit,
+    onCookWithPantry: () -> Unit,
     onSaveInventoryItem: (PantryStockItem?, String, Double, String, String?) -> Unit,
     onDeleteInventoryItem: (PantryStockItem) -> Unit,
     onUpdateMetadata: (PantryStockItem) -> Boolean
@@ -163,6 +166,29 @@ private fun SmartPantryScreen(
                 }
                 item { Spacer(Modifier.height(16.dp)) }
             }
+        }
+
+        Button(
+            onClick = onCookWithPantry,
+            enabled = inventory.isNotEmpty(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp)
+                .height(48.dp)
+                .semantics {
+                    contentDescription = if (L.isTr) "Elimdekilerle pişir" else "Cook with what I have"
+                },
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = colors.primary,
+                disabledBackgroundColor = colors.divider
+            ),
+            shape = RoundedCornerShape(if (spec.dense) 12.dp else 999.dp)
+        ) {
+            Text(
+                if (L.isTr) "Elimdekilerle pişir" else "Cook with what I have",
+                color = if (inventory.isNotEmpty()) colors.onPrimary else colors.onSurfaceSub,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 
