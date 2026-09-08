@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -517,13 +518,13 @@ private fun SmartPantryItemDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Card(
-            modifier = Modifier.fillMaxWidth(.94f),
+            modifier = Modifier.fillMaxWidth(.94f).fillMaxHeight(.92f),
             backgroundColor = colors.surface,
             elevation = 0.dp,
             border = BorderStroke(1.dp, colors.divider),
             shape = RoundedCornerShape(LocalThemeSpec.current.cornerRadius.dp)
         ) {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
                 Text(if (L.isTr) "STOK DETAYI" else "PANTRY DETAIL", color = colors.primary, style = MaterialTheme.typography.overline)
                 Text(item.originalName, color = colors.onSurface, style = MaterialTheme.typography.h3)
                 Spacer(Modifier.height(16.dp))
