@@ -68,6 +68,11 @@ private fun timerExtensionRecord(marker: String): TimerExtensionRecord? {
     return TimerExtensionRecord(sequence, payload.substring(separator + 1))
 }
 
+private fun remainingWholeSeconds(remainingMillis: Long): Long {
+    val clamped = remainingMillis.coerceAtLeast(0)
+    return (clamped / 1000L) + if (clamped % 1000L == 0L) 0L else 1L
+}
+
 class CookingSessionController(
     private val clock: ClockDomain = object : ClockDomain {
         override fun monotonicMillis(): Long = System.nanoTime() / 1_000_000
@@ -284,7 +289,9 @@ class CookingSessionController(
         val done = visibleCompleted + visibleSkipped
         val active = events
             .filter { it.id !in done && starts.getValue(it.id) <= elapsed && ends.getValue(it.id) > elapsed }
-            .map { LiveOperation(it, ((ends.getValue(it.id) - elapsed) / 1000).coerceAtLeast(0)) }
+            .map { event ->
+                LiveOperation(event, remainingWholeSeconds(ends.getValue(event.id) - elapsed))
+            }
         val autoCompleted = events
             .filter { it.id !in done && ends.getValue(it.id) <= elapsed }
             .map { it.id }
