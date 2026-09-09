@@ -367,6 +367,8 @@ internal fun readerSafeAiError(error: Throwable?): String {
                 if (L.isTr) "Gemini'ye bağlanılamadı. Bağlantını kontrol et veya çevrimdışı modu seç." else "Could not reach Gemini. Check your connection or choose Offline mode."
             AiFailureType.SafetyBlocked ->
                 if (L.isTr) "Gemini bu isteğe yanıt veremedi." else "Gemini could not answer this request."
+            AiFailureType.ProviderUnavailable ->
+                if (L.isTr) "Sağlayıcı şu anda kullanılamıyor. Daha sonra tekrar dene veya çevrimdışı modu seç." else "The AI provider is unavailable. Try later or choose Offline mode."
             else ->
                 if (L.isTr) "Gemini yanıtı kullanılamadı. Tekrar dene veya çevrimdışı modu seç." else "The Gemini response could not be used. Retry or choose Offline mode."
         }
@@ -1851,13 +1853,23 @@ class AppViewModel(
         else -> "none"
     }
 
+    private fun missingProviderFailure(providerId: String = _hw.value.aiProvider): AiResult.Failure {
+        val normalized = CookingProviderSelection.normalize(providerId)
+        val failureType = if (normalized == CookingProviderSelection.Gemini) {
+            AiFailureType.MissingCredential
+        } else {
+            AiFailureType.ProviderUnavailable
+        }
+        return AiResult.Failure(
+            type = failureType,
+            retryable = false,
+            userMessage = failureType.userMessageRes
+        )
+    }
+
     private suspend fun <T> executeAiWithProvider(action: suspend (KitchenAiProvider) -> T): T {
         val provider = getActiveProvider() ?: throw AiRequestException(
-            AiResult.Failure(
-                AiFailureType.MissingCredential,
-                false,
-                AiFailureType.MissingCredential.userMessageRes
-            )
+            missingProviderFailure(_hw.value.aiProvider)
         )
         return action(provider)
     }
@@ -2029,11 +2041,7 @@ class AppViewModel(
             _scannedIngredients.value = null
             try {
                 val provider = getActiveProvider() ?: throw AiRequestException(
-                    AiResult.Failure(
-                        AiFailureType.MissingCredential,
-                        false,
-                        AiFailureType.MissingCredential.userMessageRes
-                    )
+                    missingProviderFailure(_hw.value.aiProvider)
                 )
                 val result = provider.scanShoppingPhoto(
                     ShoppingPhotoRequest(
@@ -2169,11 +2177,7 @@ class AppViewModel(
         _aiConnectionStatus.value = AiConnectionStatus.TESTING
         viewModelScope.launch {
             val result = providerFactory.provider(normalized)?.testConnection()
-                ?: AiResult.Failure(
-                    AiFailureType.MissingCredential,
-                    false,
-                    AiFailureType.MissingCredential.userMessageRes
-                )
+                ?: missingProviderFailure(normalized.aiProvider)
             _aiConnectionStatus.value = aiConnectionStatusFor(result)
         }
     }

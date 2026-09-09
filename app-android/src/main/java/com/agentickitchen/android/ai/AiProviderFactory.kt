@@ -20,7 +20,7 @@ class DefaultAiProviderFactory(
     private val runtimeOfflineProvider: KitchenAiProvider = protect(offlineProvider)
 
     override fun provider(settings: HardwareSettings): KitchenAiProvider? = when (settings.aiProvider) {
-        "FIREBASE" -> runtimeManagedProvider ?: runtimeOfflineProvider
+        "FIREBASE" -> runtimeManagedProvider
         "GEMINI" -> settings.geminiApiKey.takeIf(String::isNotBlank)?.let { key ->
             if (key != geminiKey) {
                 closeProvider(geminiProvider)

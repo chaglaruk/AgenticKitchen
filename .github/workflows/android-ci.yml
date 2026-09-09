@@ -70,6 +70,22 @@ jobs:
           fi
           git diff --check "$base_sha...HEAD"
 
+      - name: Provision Firebase configuration
+        shell: bash
+        env:
+          FIREBASE_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -z "$FIREBASE_B64" ]; then
+            echo "::error::FIREBASE_GOOGLE_SERVICES_JSON_B64 secret is missing or empty"
+            exit 1
+          fi
+          echo "$FIREBASE_B64" | base64 -d > app-android/google-services.json
+          if [ ! -s app-android/google-services.json ]; then
+            echo "::error::Failed to decode app-android/google-services.json or file is empty"
+            exit 1
+          fi
+          echo "Firebase configuration provisioned successfully."
+
       - name: Validate Google Play metadata
         run: ./gradlew :app-android:generateReleasePlayResources --no-daemon --console=plain
 
@@ -87,6 +103,37 @@ jobs:
 
       - name: Assemble debug APK
         run: ./gradlew :app-android:assembleDebug --no-daemon --console=plain
+
+      - name: Verify Firebase Android resources in build
+        shell: bash
+        run: |
+          python3 -c "
+          import xml.etree.ElementTree as ET, zipfile, glob, sys, os
+
+          res_path = 'app-android/build/generated/res/processDebugGoogleServices/values/values.xml'
+          if not os.path.exists(res_path):
+              print('ERROR: Firebase generated resources missing at ' + res_path, file=sys.stderr)
+              sys.exit(1)
+          root = ET.parse(res_path).getroot()
+          names = sorted([e.attrib.get('name') for e in root if e.attrib.get('name')])
+          required = {'google_app_id', 'project_id', 'google_api_key'}
+          missing = required - set(names)
+          if missing:
+              print(f'ERROR: Missing expected Firebase resource names: {missing}', file=sys.stderr)
+              sys.exit(1)
+          print(f'Verified Firebase generated resource names in build output: {names}')
+
+          apks = glob.glob('app-android/build/outputs/apk/debug/*.apk')
+          if not apks:
+              print('ERROR: Debug APK not found', file=sys.stderr)
+              sys.exit(1)
+          with zipfile.ZipFile(apks[0], 'r') as z:
+              arsc = z.read('resources.arsc')
+              if b'google_app_id' not in arsc or b'project_id' not in arsc:
+                  print('ERROR: Firebase resource identifiers not found in APK resources.arsc', file=sys.stderr)
+                  sys.exit(1)
+          print('Verified Firebase resource entries compiled into debug APK resources.arsc.')
+          "
 
       - name: Run full build
         run: ./gradlew build --no-daemon --console=plain

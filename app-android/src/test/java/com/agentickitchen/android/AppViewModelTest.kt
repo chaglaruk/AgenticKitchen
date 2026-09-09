@@ -144,6 +144,46 @@ class AppViewModelTest {
     }
 
     @Test
+    fun absentFirebaseRuntimeProducesExplicitProviderUnavailableBehavior() {
+        L.applyLanguage(L.English)
+        val preferences = FakePreferences().apply {
+            hardware = HardwareSettings(aiProvider = CookingProviderSelection.Firebase)
+            ingredientDraftValue = listOf("Tomato")
+        }
+        val viewModel = newViewModel(preferences, FakeHistoryRepository())
+
+        viewModel.testAiConnection()
+        assertEquals(AiConnectionStatus.NETWORK_FAILURE, viewModel.aiConnectionStatus.value)
+
+        viewModel.startSession()
+        assertTrue(viewModel.planState.value is PlanState.Error)
+        val errorState = viewModel.planState.value as PlanState.Error
+        assertEquals("The AI provider is unavailable. Try later or choose Offline mode.", errorState.message)
+        assertFalse(errorState.canUseOffline)
+        L.applyLanguage(L.Turkish)
+    }
+
+    @Test
+    fun missingGeminiApiKeyPreservesMissingCredentialBehavior() {
+        L.applyLanguage(L.English)
+        val preferences = FakePreferences().apply {
+            hardware = HardwareSettings(aiProvider = CookingProviderSelection.Gemini, geminiApiKey = "")
+            ingredientDraftValue = listOf("Tomato")
+        }
+        val viewModel = newViewModel(preferences, FakeHistoryRepository())
+
+        viewModel.testAiConnection()
+        assertEquals(AiConnectionStatus.NOT_CONFIGURED, viewModel.aiConnectionStatus.value)
+
+        viewModel.startSession()
+        assertTrue(viewModel.planState.value is PlanState.Error)
+        val errorState = viewModel.planState.value as PlanState.Error
+        assertEquals("The Gemini key is missing. Add it in Settings.", errorState.message)
+        assertTrue(errorState.canUseOffline)
+        L.applyLanguage(L.Turkish)
+    }
+
+    @Test
     fun aiFailuresUseReaderSafeMessages() {
         L.applyLanguage(L.English)
         assertEquals("The selected provider is missing its credential. Add it in Settings.", readerSafeAiError(Exception("API_KEY_MISSING")))

@@ -23,7 +23,7 @@ Do not add Firebase Auth, Firestore, Analytics, cloud sync, Storage, or unrelate
 4. Place it locally at `app-android/google-services.json`.
 5. Never commit this file. It is gitignored.
 
-CI deliberately builds without `google-services.json`; the Google Services Gradle plugin is applied only when the local file exists. With no Firebase configuration, selecting the managed provider falls back safely to the existing offline provider.
+CI provisions Firebase Android configuration securely through a base64-encoded GitHub Actions secret (`FIREBASE_GOOGLE_SERVICES_JSON_B64`), decoding it to `app-android/google-services.json` before Gradle tasks execute. The JSON file remains untracked and gitignored. When managed configuration or runtime is unavailable, the `FIREBASE` provider fails explicitly with `AiFailureType.ProviderUnavailable`. There is no automatic fallback to `FREE`; users select `FREE` explicitly in Settings for offline mode.
 
 ## Managed model routing
 
@@ -97,9 +97,9 @@ The product roadmap also requires application-level AI usage metering before com
 
 ## Provider behavior
 
-- `FIREBASE`: managed Firebase AI Logic. If Firebase is not locally configured, use the offline provider rather than crash.
-- `GEMINI`: direct Gemini Developer API using the user's Keystore-backed Gemini API key.
-- `FREE`: deterministic offline provider.
+- `FIREBASE`: managed Firebase AI Logic. If managed Firebase configuration or runtime is unavailable, fail explicitly with `AiFailureType.ProviderUnavailable` instead of silently falling back to offline operation.
+- `GEMINI`: direct Gemini Developer API using the user's Keystore-backed Gemini API key. Missing or blank API keys fail with `AiFailureType.MissingCredential`.
+- `FREE`: deterministic offline provider, selected explicitly by the user.
 
 Existing saved `GEMINI` and `FREE` choices remain valid. Fresh installs default to `FIREBASE`.
 
