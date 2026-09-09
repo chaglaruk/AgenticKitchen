@@ -384,7 +384,7 @@ fun HardwareDialog(
         Spacer(Modifier.size(14.dp))
         when (aiProvider) {
             CookingProviderSelection.Firebase -> Text(
-                if (L.isTr) "Yönetilen Gemini erişimi. Kişisel API anahtarı gerekmez; Firebase yapılandırması yoksa çevrimdışı moda düşer." else "Managed Gemini access. No personal API key is required; if Firebase is not configured, the app falls back offline.",
+                firebaseProviderExplanation(),
                 color = colors.success,
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.padding(vertical = 8.dp)
@@ -546,6 +546,13 @@ private fun connectionStatusLabel(status: AiConnectionStatus): String = when (st
     AiConnectionStatus.QUOTA_UNAVAILABLE -> if (L.isTr) "Kullanım sınırı uygun değil" else "Quota unavailable"
     AiConnectionStatus.NETWORK_FAILURE -> if (L.isTr) "Ağ bağlantısı kurulamadı" else "Network failure"
 }
+
+internal fun firebaseProviderExplanation(isTr: Boolean = L.isTr): String =
+    if (isTr) {
+        "Yönetilen Gemini erişimi. Kişisel API anahtarı gerekmez. Firebase kullanılamıyorsa istek açıkça başarısız olur; çevrimdışı modu kullanmak için kendin seç."
+    } else {
+        "Managed Gemini access. No personal API key is required. If Firebase is unavailable, requests fail explicitly; choose Offline manually if you want to use it."
+    }
 
 @Composable
 private fun EditorialChoiceButton(label: String, selected: Boolean, onClick: () -> Unit) {
