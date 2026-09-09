@@ -14,7 +14,7 @@ internal enum class FirebaseResponseKind(
     RECIPE_IMPORT_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.recipeImport),
     COOKING_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.cookingPhoto),
     COOKING_CHAT(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingChat),
-    CONNECTION_TEST(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.connectionTest)
+    CONNECTION_TEST(FirebaseAiTask.REASONING, FirebaseResponseSchemas.connectionTest)
 }
 
 private object FirebaseResponseSchemas {
