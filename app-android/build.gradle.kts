@@ -1,4 +1,5 @@
 import com.github.triplet.gradle.androidpublisher.ReleaseStatus
+import java.io.File
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -30,9 +31,55 @@ android {
         buildConfig = true
     }
 
+    val uploadKeystorePath = System.getenv("AK_UPLOAD_KEYSTORE_PATH")
+    val uploadStorePassword = System.getenv("AK_UPLOAD_STORE_PASSWORD")
+    val uploadKeyAlias = System.getenv("AK_UPLOAD_KEY_ALIAS")
+    val uploadKeyPassword = System.getenv("AK_UPLOAD_KEY_PASSWORD")
+
+    val signingEnvVars = mapOf(
+        "AK_UPLOAD_KEYSTORE_PATH" to uploadKeystorePath,
+        "AK_UPLOAD_STORE_PASSWORD" to uploadStorePassword,
+        "AK_UPLOAD_KEY_ALIAS" to uploadKeyAlias,
+        "AK_UPLOAD_KEY_PASSWORD" to uploadKeyPassword,
+    )
+    val providedSigningVars = signingEnvVars.filterValues { !it.isNullOrBlank() }
+    val missingSigningVars = signingEnvVars.keys - providedSigningVars.keys
+
+    val releaseSigningConfig = if (providedSigningVars.isNotEmpty()) {
+        if (missingSigningVars.isNotEmpty()) {
+            throw GradleException(
+                "Release signing configuration is incomplete. Missing required environment variable(s): " +
+                    missingSigningVars.sorted().joinToString(", ")
+            )
+        }
+
+        val keystorePath = uploadKeystorePath!!
+        val keystoreFile = sequenceOf(
+            File(keystorePath),
+            rootProject.file(keystorePath),
+            file(keystorePath)
+        ).firstOrNull { it.isFile } ?: rootProject.file(keystorePath)
+
+        if (!keystoreFile.isFile) {
+            throw GradleException("AK_UPLOAD_KEYSTORE_PATH does not resolve to an existing regular file: $keystorePath")
+        }
+
+        signingConfigs.maybeCreate("release").apply {
+            storeFile = keystoreFile
+            storePassword = uploadStorePassword
+            keyAlias = uploadKeyAlias
+            keyPassword = uploadKeyPassword
+        }
+    } else {
+        null
+    }
+
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            if (releaseSigningConfig != null) {
+                signingConfig = releaseSigningConfig
+            }
         }
     }
 

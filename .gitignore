@@ -30,6 +30,12 @@ app-android/google-services.json
 **/android-publisher*.json
 **/google-play*.json
 
+# Signing keystores
+*.p12
+*.jks
+*.keystore
+
+
 # Environment files
 .env
 .env.*
