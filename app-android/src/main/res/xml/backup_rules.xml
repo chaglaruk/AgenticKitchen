@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="agentic_prefs.xml"/>
+    <exclude domain="sharedpref" path="agentic_secure_credentials_v2.xml"/>
+    <exclude domain="file" path="agentic_log.txt"/>
+    <exclude domain="file" path="files/"/>
+</full-backup-content>

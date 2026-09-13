@@ -1,0 +1,22 @@
+CREATE TABLE ActiveCookingSession (
+    sessionId TEXT NOT NULL PRIMARY KEY,
+    recipeOptionId TEXT NOT NULL,
+    recipeName TEXT NOT NULL,
+    recipeType TEXT NOT NULL,
+    description TEXT NOT NULL,
+    sourceLabel TEXT,
+    servings INTEGER NOT NULL,
+    resolvedReadyTimeIso TEXT NOT NULL,
+    cookingPlanJson TEXT NOT NULL,
+    eventsJson TEXT NOT NULL,
+    plannedUsageJson TEXT NOT NULL,
+    status TEXT NOT NULL,
+    startedAtMillis INTEGER NOT NULL,
+    accumulatedElapsedSeconds INTEGER NOT NULL,
+    lastRunningStartMillis INTEGER,
+    pausedAtMillis INTEGER,
+    completedStepIds TEXT NOT NULL,
+    skippedStepIds TEXT NOT NULL,
+    recentChatTurnsJson TEXT NOT NULL,
+    updatedAtIso TEXT NOT NULL
+);

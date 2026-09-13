@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     kotlin("jvm")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -13,14 +15,11 @@ java {
 }
 
 kotlin {
-    sourceSets["main"].kotlin.srcDir("src/commonMain/kotlin")
-    sourceSets["test"].kotlin.srcDir("src/commonTest/kotlin")
-}
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    kotlinOptions {
-        jvmTarget = "17"
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
+    sourceSets["main"].kotlin.srcDir("src/main/kotlin")
+    sourceSets["test"].kotlin.srcDir("src/test/kotlin")
 }
 
 sqldelight {
@@ -47,6 +46,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.10")
     testImplementation("org.junit.jupiter:junit-jupiter:5.9.3")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    testImplementation("app.cash.sqldelight:sqlite-driver:2.0.0")
 }
 
 tasks.test {

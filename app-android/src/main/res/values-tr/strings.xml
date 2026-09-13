@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Agentic Kitchen</string>
+    <string name="app_tagline">Mutfağının Yapay Zekası</string>
+    <string name="add_ingredient">Malzeme ekle…</string>
+    <string name="clear_all">Temizle</string>
+    <string name="generate_options">Tarif Alternatifleri Üret</string>
+    <string name="thinking">Yapay Zeka Planlıyor…</string>
+    <string name="no_ingredient_error">Lütfen en az bir malzeme ekleyin.</string>
+    <string name="no_equipment_error">Pişirme aracı seçilmedi.</string>
+    <string name="ingredients">Malzemeler</string>
+    <string name="settings">Ayarlar</string>
+    <string name="home">Ana Sayfa</string>
+    <string name="setup_title">Mutfağını Tanıtalım</string>
+    <string name="setup_servings">Kaç kişilik yemek yapacaksın?</string>
+    <string name="options">Seçenekler</string>
+    <string name="operations">Operasyonlar</string>
+    <string name="intelligence">İstihbarat</string>
+    <string name="done">Tamam</string>
+    <string name="cancel">İptal</string>
+    <string name="save">Kaydet</string>
+    <string name="delete">Sil</string>
+    <string name="retry">Tekrar Dene</string>
+    <string name="error_generic">Bir hata oluştu.</string>
+    <string name="error_network">Ağ hatası. Bağlantını kontrol et.</string>
+    <string name="api_key_title">API Anahtarı</string>
+    <string name="api_key_hint">API anahtarını gir</string>
+    <string name="language">Dil</string>
+    <string name="theme">Tema</string>
+    <string name="servings">Porsiyon</string>
+    <string name="equipment">Ekipman</string>
+    <string name="diet">Diyet</string>
+    <string name="history">Geçmiş</string>
+    <string name="notifications">Bildirimler</string>
+    <string name="version">Sürüm</string>
+    <string name="green">Yeşil</string>
+    <string name="blue">Mavi</string>
+    <string name="orange">Turuncu</string>
+    <string name="dark">Koyu</string>
+</resources>

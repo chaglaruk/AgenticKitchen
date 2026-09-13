@@ -6,6 +6,52 @@ CREATE TABLE RecipeHistory (
     status TEXT NOT NULL
 );
 
+CREATE TABLE PantryItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    canonicalIngredientId TEXT,
+    originalName TEXT NOT NULL,
+    displayNameTr TEXT,
+    displayNameEn TEXT,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    unitDimension TEXT NOT NULL,
+    packageLabel TEXT,
+    isEstimated INTEGER NOT NULL,
+    confidence REAL,
+    source TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+);
+
+CREATE TABLE PantryItemMetadata (
+    itemId TEXT NOT NULL PRIMARY KEY,
+    location TEXT NOT NULL DEFAULT 'PANTRY',
+    customLocationLabel TEXT,
+    bestBefore TEXT,
+    useBy TEXT
+);
+
+CREATE TABLE InventoryAdjustment (
+    id TEXT NOT NULL PRIMARY KEY,
+    itemId TEXT NOT NULL,
+    amount REAL NOT NULL,
+    mode TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    source TEXT NOT NULL,
+    timestamp TEXT NOT NULL
+);
+
+CREATE TABLE PendingRecipeUsage (
+    sessionId TEXT NOT NULL,
+    itemId TEXT NOT NULL,
+    plannedQuantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    actualQuantity REAL,
+    status TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    PRIMARY KEY (sessionId, itemId)
+);
+
 selectAll:
 SELECT * FROM RecipeHistory ORDER BY timestamp DESC;
 
@@ -13,8 +59,168 @@ insertRecipe:
 INSERT OR REPLACE INTO RecipeHistory(id, name, ingredients, timestamp, status)
 VALUES (?, ?, ?, ?, ?);
 
+updateRecipeStatus:
+UPDATE RecipeHistory SET status = ? WHERE id = ?;
+
 deleteRecipe:
 DELETE FROM RecipeHistory WHERE id = ?;
 
 clearHistory:
 DELETE FROM RecipeHistory;
+
+selectAllPantryItems:
+SELECT * FROM PantryItem ORDER BY updatedAt DESC;
+
+selectPantryItem:
+SELECT * FROM PantryItem WHERE id = ?;
+
+upsertPantryItem:
+INSERT OR REPLACE INTO PantryItem(
+    id, canonicalIngredientId, originalName, displayNameTr, displayNameEn,
+    quantity, unit, unitDimension, packageLabel, isEstimated, confidence,
+    source, createdAt, updatedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deletePantryItem:
+DELETE FROM PantryItem WHERE id = ?;
+
+selectPantryItemMetadata:
+SELECT * FROM PantryItemMetadata WHERE itemId = ?;
+
+upsertPantryItemMetadata:
+INSERT OR REPLACE INTO PantryItemMetadata(
+    itemId, location, customLocationLabel, bestBefore, useBy
+) VALUES (?, ?, ?, ?, ?);
+
+deletePantryItemMetadata:
+DELETE FROM PantryItemMetadata WHERE itemId = ?;
+
+insertInventoryAdjustment:
+INSERT INTO InventoryAdjustment(id, itemId, amount, mode, reason, source, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectInventoryAdjustments:
+SELECT * FROM InventoryAdjustment WHERE itemId = ? ORDER BY timestamp DESC;
+
+upsertPendingRecipeUsage:
+INSERT OR REPLACE INTO PendingRecipeUsage(
+    sessionId, itemId, plannedQuantity, unit, actualQuantity, status, timestamp
+) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectPendingRecipeUsage:
+SELECT * FROM PendingRecipeUsage WHERE sessionId = ? ORDER BY itemId;
+
+selectAllPendingRecipeUsage:
+SELECT * FROM PendingRecipeUsage ORDER BY timestamp;
+
+deletePendingRecipeUsage:
+DELETE FROM PendingRecipeUsage WHERE sessionId = ?;
+
+CREATE TABLE ShoppingListItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    canonicalIngredientId TEXT,
+    originalName TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL,
+    category TEXT NOT NULL,
+    sourceRecipeId TEXT NOT NULL,
+    sourceRecipeName TEXT NOT NULL,
+    checked INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+);
+
+selectAllShoppingListItems:
+SELECT * FROM ShoppingListItem ORDER BY checked ASC, category ASC, createdAt ASC;
+
+upsertShoppingListItem:
+INSERT OR REPLACE INTO ShoppingListItem(
+    id, canonicalIngredientId, originalName, quantity, unit, category,
+    sourceRecipeId, sourceRecipeName, checked, createdAt, updatedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateShoppingItemChecked:
+UPDATE ShoppingListItem SET checked = ? WHERE id = ?;
+
+deleteShoppingListItem:
+DELETE FROM ShoppingListItem WHERE id = ?;
+
+deleteShoppingItemsForRecipe:
+DELETE FROM ShoppingListItem WHERE sourceRecipeId = ?;
+
+deleteCheckedShoppingItems:
+DELETE FROM ShoppingListItem WHERE checked != 0;
+
+CREATE TABLE SavedRecipe (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    recipeJson TEXT NOT NULL,
+    sourceKind TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    lastCookedAt TEXT,
+    cookCount INTEGER NOT NULL DEFAULT 0
+);
+
+selectAllSavedRecipes:
+SELECT * FROM SavedRecipe
+ORDER BY updatedAt DESC, name COLLATE NOCASE ASC;
+
+selectSavedRecipeById:
+SELECT * FROM SavedRecipe WHERE id = ?;
+
+upsertSavedRecipe:
+INSERT OR REPLACE INTO SavedRecipe(
+    id, name, recipeJson, sourceKind, createdAt, updatedAt, lastCookedAt, cookCount
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteSavedRecipe:
+DELETE FROM SavedRecipe WHERE id = ?;
+
+recordSavedRecipeCooked:
+UPDATE SavedRecipe
+SET lastCookedAt = ?, updatedAt = ?, cookCount = cookCount + 1
+WHERE id = ?;
+
+CREATE TABLE ActiveCookingSession (
+    sessionId TEXT NOT NULL PRIMARY KEY,
+    recipeOptionId TEXT NOT NULL,
+    recipeName TEXT NOT NULL,
+    recipeType TEXT NOT NULL,
+    description TEXT NOT NULL,
+    sourceLabel TEXT,
+    servings INTEGER NOT NULL,
+    resolvedReadyTimeIso TEXT NOT NULL,
+    cookingPlanJson TEXT NOT NULL,
+    eventsJson TEXT NOT NULL,
+    plannedUsageJson TEXT NOT NULL,
+    status TEXT NOT NULL,
+    startedAtMillis INTEGER NOT NULL,
+    accumulatedElapsedSeconds INTEGER NOT NULL,
+    lastRunningStartMillis INTEGER,
+    pausedAtMillis INTEGER,
+    completedStepIds TEXT NOT NULL,
+    skippedStepIds TEXT NOT NULL,
+    recentChatTurnsJson TEXT NOT NULL,
+    updatedAtIso TEXT NOT NULL
+);
+
+upsertActiveCookingSession:
+INSERT OR REPLACE INTO ActiveCookingSession(
+    sessionId, recipeOptionId, recipeName, recipeType, description, sourceLabel,
+    servings, resolvedReadyTimeIso, cookingPlanJson, eventsJson, plannedUsageJson,
+    status, startedAtMillis, accumulatedElapsedSeconds, lastRunningStartMillis,
+    pausedAtMillis, completedStepIds, skippedStepIds, recentChatTurnsJson, updatedAtIso
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectActiveCookingSession:
+SELECT * FROM ActiveCookingSession WHERE sessionId = ?;
+
+selectAllActiveCookingSessions:
+SELECT * FROM ActiveCookingSession ORDER BY updatedAtIso DESC;
+
+deleteActiveCookingSession:
+DELETE FROM ActiveCookingSession WHERE sessionId = ?;
+
+clearActiveCookingSessions:
+DELETE FROM ActiveCookingSession;
