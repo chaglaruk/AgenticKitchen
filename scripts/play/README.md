@@ -88,7 +88,9 @@ Do not place documentation or arbitrary files inside `src/main/play`; GPP valida
 
 ## Internal App Bundle
 
-The Gradle configuration defaults to App Bundles, the `internal` track, and `DRAFT` release status to avoid accidental public rollout.
+The base Gradle configuration remains conservative: App Bundles target the `internal` track and default to `DRAFT` release status so ad-hoc publishing commands cannot accidentally create an installable release.
+
+The explicit internal publishing helper is intentionally stricter. Before it invokes GPP it requires all four `AK_UPLOAD_*` signing environment variables, and when `-Execute` is supplied it explicitly publishes to the `internal` track with `--release-status completed` so enrolled internal testers can receive the update through Google Play.
 
 After the first manual artifact has registered the app and release signing is configured:
 

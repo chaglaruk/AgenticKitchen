@@ -21,6 +21,22 @@ if (-not (Test-Path $googleServicesPath)) {
     throw "app-android\google-services.json was not found; cannot resolve the local Play publisher service account."
 }
 
+$requiredSigningEnvVars = @(
+    "AK_UPLOAD_KEYSTORE_PATH",
+    "AK_UPLOAD_STORE_PASSWORD",
+    "AK_UPLOAD_KEY_ALIAS",
+    "AK_UPLOAD_KEY_PASSWORD"
+)
+$missingSigningEnvVars = @(
+    $requiredSigningEnvVars | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) }
+)
+if ($missingSigningEnvVars.Count -gt 0) {
+    throw (
+        "Release upload signing is not ready. Missing required environment variable(s): " +
+        (($missingSigningEnvVars | Sort-Object) -join ", ")
+    )
+}
+
 try {
     $googleServices = [System.IO.File]::ReadAllText($googleServicesPath) | ConvertFrom-Json
     $projectId = [string]$googleServices.project_info.project_id
@@ -44,7 +60,7 @@ $env:ANDROID_PUBLISHER_IMPERSONATE_SERVICE_ACCOUNT = $serviceAccountEmail
 
 Push-Location $repoRoot
 try {
-    & .\gradlew.bat :app-android:publishReleaseBundle --no-daemon --console=plain
+    & .\gradlew.bat :app-android:publishReleaseBundle --track internal --release-status completed --no-daemon --console=plain
     if ($LASTEXITCODE -ne 0) {
         throw "App Bundle upload failed with exit code $LASTEXITCODE."
     }
