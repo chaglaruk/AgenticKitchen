@@ -1,5 +1,7 @@
 package com.agentickitchen.android.ui
 
+import com.agentickitchen.android.PlanStage
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -112,7 +114,7 @@ fun OptionsScreen(
 
         when (planState) {
             is PlanState.Idle -> RecipeCandidatesEmpty(chips = chips, onStart = onStart)
-            is PlanState.Loading -> RecipeCandidatesLoading()
+            is PlanState.Loading -> RecipeCandidatesLoading(stage = planState.stage)
 
             is PlanState.OptionsReady -> ThemedRecipeCandidateList(
                 options = planState.options,
@@ -125,6 +127,7 @@ fun OptionsScreen(
             is PlanState.Error -> RecipeCandidatesError(
                 message = planState.message,
                 canUseOffline = planState.canUseOffline,
+                stage = planState.stage,
                 onRetry = onStart,
                 onUseOffline = onUseOffline
             )
@@ -528,14 +531,21 @@ private fun RecipeCandidatesEmpty(chips: List<String>, onStart: () -> Unit) {
 }
 
 @Composable
-private fun RecipeCandidatesLoading() {
+private fun RecipeCandidatesLoading(stage: PlanStage) {
     val colors = LocalAppColors.current
     Column(modifier = Modifier.fillMaxWidth().padding(top = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         IngredientArtwork("", Modifier.size(82.dp))
         Spacer(Modifier.height(14.dp))
-        Text(L.thinking, color = colors.onSurface, style = MaterialTheme.typography.h6)
+        Text(planLoadingText(stage, L.isTr), color = colors.onSurface, style = MaterialTheme.typography.h6)
         Spacer(Modifier.height(6.dp))
-        Text(if (L.isTr) "Kiler ve seçili malzemeler eşleştiriliyor." else "Matching your pantry and selected ingredients.", color = colors.onSurfaceSub)
+        Text(
+            if (stage == PlanStage.COOKING_PLAN) {
+                if (L.isTr) "Pişirme planı oluşturuluyor ve doğrulanıyor." else "Preparing and validating the cooking plan."
+            } else {
+                if (L.isTr) "Kiler ve seçili malzemeler eşleştiriliyor." else "Matching your pantry and selected ingredients."
+            },
+            color = colors.onSurfaceSub
+        )
     }
 }
 
@@ -543,6 +553,7 @@ private fun RecipeCandidatesLoading() {
 private fun RecipeCandidatesError(
     message: String,
     canUseOffline: Boolean,
+    stage: PlanStage,
     onRetry: () -> Unit,
     onUseOffline: () -> Unit
 ) {
@@ -555,7 +566,7 @@ private fun RecipeCandidatesError(
         shape = RoundedCornerShape(LocalThemeSpec.current.cornerRadius.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(if (L.isTr) "Tarifler hazırlanamadı." else "Recipes could not be prepared.", color = colors.danger, style = MaterialTheme.typography.h6)
+            Text(planErrorTitle(stage, L.isTr), color = colors.danger, style = MaterialTheme.typography.h6)
             Spacer(Modifier.height(7.dp))
             Text(message, color = colors.onSurfaceSub, style = MaterialTheme.typography.body1)
             Spacer(Modifier.height(8.dp))

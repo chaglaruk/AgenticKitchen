@@ -199,7 +199,7 @@ sealed interface SubstitutionState {
 
 sealed class PlanState {
     object Idle : PlanState()
-    object Loading : PlanState()
+    data class Loading(val stage: PlanStage) : PlanState()
     data class OptionsReady(val options: List<RecipeOption>) : PlanState()
     data class RecipeActive(
         val sessionId: String = "",
@@ -214,8 +214,14 @@ sealed class PlanState {
         val agentChatResponse: String? = null,
         val visionScanResponse: String? = null
     ) : PlanState()
-    data class Error(val message: String, val canUseOffline: Boolean = false) : PlanState()
+    data class Error(
+        val message: String,
+        val canUseOffline: Boolean = false,
+        val stage: PlanStage
+    ) : PlanState()
 }
+
+enum class PlanStage { RECIPE_OPTIONS, COOKING_PLAN }
 
 sealed interface ShoppingImportState {
     data object Idle : ShoppingImportState
@@ -1045,7 +1051,7 @@ class AppViewModel(
 
         viewModelScope.launch {
             _recipeImportState.value = RecipeImportState.Loading("prepare")
-            _planState.value = PlanState.Loading
+            _planState.value = PlanState.Loading(PlanStage.COOKING_PLAN)
             try {
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
@@ -1161,7 +1167,7 @@ class AppViewModel(
                     else -> recipeImportError(error)
                 }
                 _recipeImportState.value = RecipeImportState.Review(normalizedResponse, importedPantry)
-                _planState.value = PlanState.Error(message, canUseOffline = false)
+                _planState.value = PlanState.Error(message, canUseOffline = false, stage = PlanStage.COOKING_PLAN)
                 emitUiEvent(message)
             }
         }
@@ -1184,7 +1190,7 @@ class AppViewModel(
 
     fun startInventorySession(request: InventoryRecipeRequest) {
         if (_inventory.value.isEmpty()) {
-            _planState.value = PlanState.Error(if (L.isTr) "Önce mutfak stoğuna ürün ekle." else "Add items to your kitchen inventory first.")
+            _planState.value = PlanState.Error(if (L.isTr) "Önce mutfak stoğuna ürün ekle." else "Add items to your kitchen inventory first.", stage = PlanStage.RECIPE_OPTIONS)
             return
         }
         inventoryRecipeRequest = request
@@ -1205,10 +1211,10 @@ class AppViewModel(
         ingredients: List<String>,
         inventoryRequest: InventoryRecipeRequest?
     ) {
-        if (ingredients.isEmpty()) { _planState.value = PlanState.Error(L.noIngredientError); return }
+        if (ingredients.isEmpty()) { _planState.value = PlanState.Error(L.noIngredientError, stage = PlanStage.RECIPE_OPTIONS); return }
         AppLogger.i("Session", "Recipe option request started")
         viewModelScope.launch {
-            _planState.value = PlanState.Loading
+            _planState.value = PlanState.Loading(PlanStage.RECIPE_OPTIONS)
             try {
                 executeAiWithProvider { provider ->
                     val result = provider.generateRecipeOptions(
@@ -1326,7 +1332,8 @@ class AppViewModel(
                 emitUiEvent(errorMsg)
                 _planState.value = PlanState.Error(
                     errorMsg,
-                    canUseOffline = CookingProviderSelection.normalize(_hw.value.aiProvider) == CookingProviderSelection.Gemini
+                    canUseOffline = CookingProviderSelection.normalize(_hw.value.aiProvider) == CookingProviderSelection.Gemini,
+                    stage = PlanStage.RECIPE_OPTIONS
                 )
             }
         }
@@ -1761,7 +1768,7 @@ class AppViewModel(
             return
         }
         viewModelScope.launch {
-            _planState.value = PlanState.Loading
+            _planState.value = PlanState.Loading(PlanStage.COOKING_PLAN)
             try {
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
@@ -1836,7 +1843,8 @@ class AppViewModel(
                 emitUiEvent(message)
                 _planState.value = PlanState.Error(
                     message,
-                    canUseOffline = CookingProviderSelection.normalize(_hw.value.aiProvider) == CookingProviderSelection.Gemini
+                    canUseOffline = CookingProviderSelection.normalize(_hw.value.aiProvider) == CookingProviderSelection.Gemini,
+                    stage = PlanStage.COOKING_PLAN
                 )
             }
         }
