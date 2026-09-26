@@ -1283,6 +1283,10 @@ class AppViewModel(
                             requestedReadyMinutes = requestedReadyMinutes(inventoryRequest.targetTime)
                         )
                         val optionById = response.options.associateBy { it.id }
+                        RecipeMatchDiagnostics.logMatches(
+                            ranked,
+                            response.options.associate { it.id to it.proposedIngredients.size }
+                        )
                         val allowed = ranked.filter { match ->
                             RecipeMatcher.shouldSurface(
                                 result = match,
