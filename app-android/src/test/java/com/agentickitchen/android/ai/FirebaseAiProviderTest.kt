@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
+import org.junit.BeforeClass
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -249,6 +250,11 @@ class FirebaseAiProviderTest {
     }
 
     private companion object {
+        @BeforeClass
+        @JvmStatic
+        fun silenceDiagnosticsLogcat() {
+            FirebaseAiDiagnostics.emit = { _, _ -> }
+        }
         val recipeOptionsJson = """
             {"options":[
               {"id":"r1","name":"Pirinç ve Soğan Tavası","summary":"Pratik tava yemeği","difficulty":"easy","estimatedMinutes":20,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]},
