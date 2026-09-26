@@ -126,9 +126,9 @@ Return ONLY valid JSON in this exact schema:
   "steps": [
     {
       "id": "step_1",
-      "type": "prep|cook|rest|serve",
+      "type": "prep|cook|rest|serve|combine|heat|cool",
       "instruction": "Cook with the appropriate heat for 4 minutes",
-      "resource": "stove|oven|airfryer|counter|knife|bowl",
+      "resource": "stove|oven|airfryer|counter|knife|bowl|fridge|sink|cutting_board|pan|pot|baking_tray|mixer|blender",
       "durationSeconds": 240,
       "targetTemperatureC": null,
       "powerLevel": $examplePowerLevel,
@@ -139,15 +139,20 @@ Return ONLY valid JSON in this exact schema:
   "safetyNotes": ["Watch for burning"]
 }
 
+The plan is validated against the following contract before it is shown. A plan that violates any rule is rejected.
 Rules:
 - Give exact oven temperatures and practical stove guidance
-- Resource must be one of: stove, oven, airfryer, counter, knife, bowl
+- servings MUST equal the requested servings exactly: $servings
+- Every step id MUST be unique
+- type MUST be exactly one of: prep, cook, rest, serve, combine, heat, cool. Never output synonyms such as bake, toast, assemble, mix, or fry as the type field; describe those actions naturally in the instruction instead
+- Every dependsOn id MUST refer to an existing step; a step must never depend on itself; the dependency graph MUST be acyclic; dependencies MUST point to logically earlier steps
+- Exclusive heat-resource sequencing: if more than one step uses the SAME exclusive heat resource (stove, oven, or airfryer), each later use of that resource MUST list the previous use of that same resource directly in its dependsOn, in addition to any other dependencies. Never emit multiple independent steps that appear to use the same exclusive heat resource concurrently; chaining only through intermediate non-heating steps is not sufficient
+- durationSeconds MUST be between 30 and 3600 inclusive
+- Use canonical ingredient units where possible: g, kg, ml, l, tsp, tbsp, cup, piece, package, bunch, slice, clove, pinch, unit, to taste
+- Resource MUST be one of: stove, oven, airfryer, counter, knife, bowl, fridge, sink, cutting_board, pan, pot, baking_tray, mixer, blender. Do not invent resource identifiers
 - $powerLevelRule
 - Oven steps only if ovenAvailable is true
 - Airfryer steps only if airfryerAvailable is true
-- Duration must be reasonable (30-3600 seconds)
-- Each step ID must be unique
-- Dependencies must refer to existing step IDs
 - Respect diet and allergies strictly"""
     }
 
