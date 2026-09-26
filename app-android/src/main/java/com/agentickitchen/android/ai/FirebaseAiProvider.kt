@@ -125,9 +125,14 @@ class FirebaseAiProvider internal constructor(
             validate = { response ->
                 response.options.size == 3 &&
                     response.options.map { it.id }.toSet().size == 3 &&
-                    response.options.all {
-                        it.id.isNotBlank() && it.name.isNotBlank() &&
-                            it.summary.isNotBlank() && it.estimatedMinutes > 0
+                    response.options.all { option ->
+                        option.id.isNotBlank() && option.name.isNotBlank() &&
+                            option.summary.isNotBlank() && option.estimatedMinutes > 0 &&
+                            option.proposedIngredients.isNotEmpty() &&
+                            option.proposedIngredients.all { ingredient ->
+                                ingredient.name.isNotBlank() && ingredient.quantity.isFinite() &&
+                                    ingredient.quantity > 0.0 && ingredient.unit.isNotBlank()
+                            }
                     }
             }
         )

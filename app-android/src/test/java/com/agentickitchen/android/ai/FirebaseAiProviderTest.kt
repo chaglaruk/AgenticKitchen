@@ -257,9 +257,9 @@ class FirebaseAiProviderTest {
         }
         val recipeOptionsJson = """
             {"options":[
-              {"id":"r1","name":"Pirinç ve Soğan Tavası","summary":"Pratik tava yemeği","difficulty":"easy","estimatedMinutes":20,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]},
-              {"id":"r2","name":"Sebzeli Pirinç","summary":"Sebzeli sıcak kase","difficulty":"easy","estimatedMinutes":25,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]},
-              {"id":"r3","name":"Soğanlı Pirinç","summary":"Sade ve hızlı","difficulty":"easy","estimatedMinutes":18,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[]}
+              {"id":"r1","name":"Pirinç ve Soğan Tavası","summary":"Pratik tava yemeği","difficulty":"easy","estimatedMinutes":20,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[{"name":"Pirinç","quantity":100.0,"unit":"g"},{"name":"Soğan","quantity":1.0,"unit":"adet"}]},
+              {"id":"r2","name":"Sebzeli Pirinç","summary":"Sebzeli sıcak kase","difficulty":"easy","estimatedMinutes":25,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[{"name":"Pirinç","quantity":120.0,"unit":"g"},{"name":"Bezelye","quantity":50.0,"unit":"g"}]},
+              {"id":"r3","name":"Soğanlı Pirinç","summary":"Sade ve hızlı","difficulty":"easy","estimatedMinutes":18,"requiredEquipment":["pan"],"missingIngredients":[],"proposedIngredients":[{"name":"Pirinç","quantity":90.0,"unit":"g"},{"name":"Soğan","quantity":2.0,"unit":"adet"}]}
             ]}
         """.trimIndent()
 
