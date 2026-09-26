@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.agents.Orchestrator
 import com.agentickitchen.shared.agents.PantryIntelAgent
 import com.agentickitchen.shared.models.*
@@ -13,6 +14,8 @@ import com.agentickitchen.shared.inventory.AdjustmentMode
 import com.agentickitchen.shared.inventory.AdjustmentReason
 import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
 import com.agentickitchen.shared.inventory.InventoryWorkflow
+import com.agentickitchen.shared.inventory.SelectedRecipeBill
+import com.agentickitchen.shared.inventory.SelectedRecipeContractValidator
 import com.agentickitchen.shared.inventory.PlannedPantryUsage
 import com.agentickitchen.shared.inventory.PendingRecipeUsageRecord
 import com.agentickitchen.shared.inventory.ShoppingImportMode
@@ -385,6 +388,8 @@ internal fun readerSafeAiError(error: Throwable?): String {
                 if (L.isTr) "Sağlayıcı şu anda yoğun veya kullanım sınırına ulaşıldı. Biraz sonra tekrar dene." else "The provider is busy or has reached its usage limit. Try again shortly."
             error.category == ProviderFailureCategory.TIMEOUT || error.category == ProviderFailureCategory.NETWORK ->
                 if (L.isTr) "İnternet bağlantısı kurulamadı. Bağlantını kontrol edip tekrar dene." else "Could not connect. Check your internet connection and try again."
+            error.providerId == "INVENTORY" ->
+                if (L.isTr) "Pişirme planı seçtiğin tarifin malzeme ve stok planıyla uyuşmadı." else "The cooking plan did not match the selected recipe's ingredient and pantry plan."
             error.category == ProviderFailureCategory.CONSTRAINT_CONFLICT ->
                 if (L.isTr) "Seçili malzemeler diyet, alerji veya güvenli pişirme koşullarıyla uyuşmuyor." else "The selected ingredients conflict with the diet, allergy, or safe cooking setup."
             else ->
@@ -1780,10 +1785,15 @@ class AppViewModel(
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
                     val stoveType = selectedStoveType()
+                    val selectedBill: List<PlannedIngredientDto> = if (inventoryRecipeRequest == null) {
+                        emptyList()
+                    } else {
+                        SelectedRecipeBill.scaled(option.proposedIngredients, selection.servings, option.servings)
+                    }
                     val selectedIngredients = if (inventoryRecipeRequest == null) {
                         _chips.value
                     } else {
-                        _inventory.value.map(PantryStockItem::originalName)
+                        SelectedRecipeBill.names(selectedBill)
                     }
                     val plan = normalizeCookingPlan(provider.generateCookingPlan(
                         CookingPlanRequest(
@@ -1801,7 +1811,8 @@ class AppViewModel(
                             language = language.value,
                             inventoryLines = if (inventoryRecipeRequest == null) emptyList() else _inventory.value.map {
                                 "${it.quantity} ${it.unit} ${it.originalName}"
-                            }
+                            },
+                            selectedRecipeIngredients = selectedBill
                         )
                     ).requireValue())
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
@@ -1810,13 +1821,27 @@ class AppViewModel(
                         AppLogger.w("PlanValidation", validation.errors.joinToString("_") { it.type.name })
                         throw PlanValidationException(validation.errors)
                     }
-                    val target = targetTimeResolver.resolve(selection.targetTime).getOrElse { throw it }
-                    val readyTimeIso = target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-                    val sessionId = UUID.randomUUID().toString()
                     val usagePlan = if (inventoryRecipeRequest == null) {
                         com.agentickitchen.shared.inventory.InventoryUsagePlan(emptyList(), emptyList())
                     } else {
                         InventoryWorkflow.planUsage(plan, _inventory.value, reservedQuantities())
+                    }
+                    val contract = if (inventoryRecipeRequest == null) {
+                        null
+                    } else {
+                        SelectedRecipeContractValidator.validate(selectedBill, plan.ingredients)
+                    }
+                    PlanInventoryDiagnostics.logContract(
+                        contract,
+                        expectedCount = selectedBill.size,
+                        planCount = plan.ingredients.size,
+                        optionShortageCount = option.shortages.size,
+                        planShortageCount = usagePlan.shortages.size,
+                        allowedMissing = inventoryRecipeRequest?.maxMissingStaples ?: 0,
+                        strict = inventoryRecipeRequest?.strictStock == true
+                    )
+                    if (contract != null && !contract.valid) {
+                        throw ProviderFailure("INVENTORY", ProviderFailureCategory.CONSTRAINT_CONFLICT)
                     }
                     val allowedMissing = inventoryRecipeRequest?.maxMissingStaples ?: 0
                     if (
@@ -1825,6 +1850,9 @@ class AppViewModel(
                     ) {
                         throw ProviderFailure("INVENTORY", ProviderFailureCategory.CONSTRAINT_CONFLICT)
                     }
+                    val target = targetTimeResolver.resolve(selection.targetTime).getOrElse { throw it }
+                    val readyTimeIso = target.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                    val sessionId = UUID.randomUUID().toString()
                     val session = RecipeSession(sessionId, readyTimeIso, plan.ingredients.map { IngredientAmount(slugify(it.name), quantityToGrams(it.quantity, it.unit)) }, "kitchen", plan.steps.map { RecipeStep(it.id, it.type, it.resource, it.targetTemperatureC, it.durationSeconds, it.instruction, it.dependsOn) })
                     val result = orchestrator.startSession(session)
                     historyRepo.insertRecipe(session.sessionId, option.name, plan.ingredients.joinToString { "${it.quantity} ${it.unit} ${it.name}" }, ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), "started")
