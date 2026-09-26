@@ -128,7 +128,10 @@ fun OptionsScreen(
                 message = planState.message,
                 canUseOffline = planState.canUseOffline,
                 stage = planState.stage,
-                onRetry = onStart,
+                // refreshSession() re-runs the same flow that failed: the pantry-backed
+                // session when one is active, otherwise the chip-based session. Wiring the
+                // retry to startSession() would silently drop the pantry context.
+                onRetry = onRefresh,
                 onUseOffline = onUseOffline
             )
         }
