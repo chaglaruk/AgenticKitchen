@@ -68,6 +68,17 @@ ${inventoryLines.joinToString("\n")}
 Servings: $servings
 Prioritize: ${prioritizedIngredients.joinToString(", ")}
 $candidateGuidance
+
+proposedIngredients is the application's authoritative structured bill of ingredients. The app recomputes pantry coverage and shortages locally from it.
+- Every ingredient actually required by the recipe MUST appear in proposedIngredients.
+- Never mention an ingredient in the recipe name or summary while omitting it from proposedIngredients.
+- Never return an empty proposedIngredients list.
+- For an ingredient intended to be covered by pantry stock, use a quantity and unit dimension compatible with the supplied pantry line: match gram-based pantry lines with g or kg, millilitre lines with ml or L, and count lines with adet.
+- Do not arbitrarily turn a pantry weight into a count requirement or vice versa when that would make deterministic local comparison impossible.
+- Do not require more of a pantry-covered ingredient than the supplied available amount unless that ingredient is intentionally one of the shortages.
+- missingIngredients is advisory only; the app recomputes shortages locally from proposedIngredients.
+- In non-strict mode, options 1 and 2 should stay within the user's missing-item allowance whenever a reasonable recipe exists; option 3 may remain a broader AI idea.
+- In strict-stock mode, every proposed ingredient must be satisfiable from the pantry quantity/unit data.
 Include exact proposedIngredients for every option so the app can compare quantities deterministically.
 Never claim an ingredient is available unless the pantry list supports it.
 Respect diet and allergies strictly for every option.
