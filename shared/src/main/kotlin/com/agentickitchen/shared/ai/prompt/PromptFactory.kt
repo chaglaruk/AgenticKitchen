@@ -1,6 +1,7 @@
 package com.agentickitchen.shared.ai.prompt
 
 import com.agentickitchen.shared.ai.SubstitutionPlanRequest
+import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 
 object PromptFactory {
 
@@ -165,6 +166,32 @@ Rules:
 - Oven steps only if ovenAvailable is true
 - Airfryer steps only if airfryerAvailable is true
 - Respect diet and allergies strictly"""
+    }
+
+    /**
+     * Authoritative selected-recipe ingredient bill for Cooking Plan generation. The plan must
+     * not drift from the selected Recipe Option candidate; the app enforces this contract
+     * deterministically after generation.
+     */
+    fun selectedRecipeBillContext(bill: List<PlannedIngredientDto>): String {
+        if (bill.isEmpty()) return ""
+        val lines = bill.joinToString("\n") { ingredient ->
+            val quantity = java.math.BigDecimal.valueOf(ingredient.quantity)
+                .stripTrailingZeros()
+                .toPlainString()
+            "- $quantity ${ingredient.unit} ${ingredient.name}"
+        }
+        return """
+
+Selected recipe ingredient bill (AUTHORITATIVE):
+$lines
+- plan.ingredients MUST contain the same ingredient identities as this bill.
+- Do NOT add ingredients. Do NOT remove ingredients. Do NOT substitute ingredients at cooking plan generation time.
+- Preserve the quantities and unit dimensions of this bill; equivalent unit normalization (1000 g = 1 kg, 1000 ml = 1 L) is acceptable as long as the semantic amount stays equivalent.
+- Pantry availability is context only; keep the already-known shortage from the selected option.
+- Do not introduce a second shortage by changing quantities or adding ingredients.
+- Cooking instructions must reference only ingredients present in this bill.
+""".trimEnd()
     }
 
     fun substitutionPrompt(

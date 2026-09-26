@@ -1,6 +1,7 @@
 package com.agentickitchen.shared.ai
 
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
+import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.ai.dto.RecipeOptionsResponse
 import kotlinx.serialization.Serializable
 
@@ -62,6 +63,7 @@ data class CookingPlanRequest(
     val allergies: Set<String>,
     val language: String,
     val inventoryLines: List<String> = emptyList(),
+    val selectedRecipeIngredients: List<PlannedIngredientDto> = emptyList(),
     val sourceRecipeIngredientLines: List<String> = emptyList(),
     val sourceRecipeInstructions: List<String> = emptyList()
 )

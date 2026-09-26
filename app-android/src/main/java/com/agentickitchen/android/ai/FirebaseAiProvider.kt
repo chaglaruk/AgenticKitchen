@@ -153,7 +153,7 @@ class FirebaseAiProvider internal constructor(
                 request.dietType,
                 request.allergies,
                 request.language
-            ) + inventoryPlanContext(request) + PromptFactory.importedRecipeContext(request.sourceRecipeIngredientLines, request.sourceRecipeInstructions),
+            ) + PromptFactory.selectedRecipeBillContext(request.selectedRecipeIngredients) + inventoryPlanContext(request) + PromptFactory.importedRecipeContext(request.sourceRecipeIngredientLines, request.sourceRecipeInstructions),
             decode = json::decodeFromString,
             validate = { plan ->
                 plan.recipeName.isNotBlank() && plan.servings > 0 &&
