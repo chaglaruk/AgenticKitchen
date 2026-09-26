@@ -1094,6 +1094,7 @@ class AppViewModel(
                         dietSettings.value.allergies,
                         servings
                     ).validate(plan)
+                    PlanValidationDiagnostics.logValidation(validation)
                     if (!validation.valid) throw PlanValidationException(validation.errors)
 
                     val usagePlan = InventoryWorkflow.planUsage(plan, _inventory.value, reservedQuantities())
@@ -1427,6 +1428,7 @@ class AppViewModel(
                     dietSettings.value.allergies,
                     current.servings
                 ).validate(result.mutatedPlan)
+                PlanValidationDiagnostics.logValidation(validation)
                 if (!validation.valid) throw PlanValidationException(validation.errors)
                 val usage = InventoryWorkflow.planUsage(result.mutatedPlan, _inventory.value, reservedQuantities())
                 if (usage.shortages.size >= current.shortages.size || usage.shortages.any {
@@ -1483,6 +1485,7 @@ class AppViewModel(
                     dietSettings.value.allergies,
                     active.servings
                 ).validate(response.mutatedPlan)
+                PlanValidationDiagnostics.logValidation(validation)
                 if (!validation.valid) throw PlanValidationException(validation.errors)
                 val usage = InventoryWorkflow.planUsage(response.mutatedPlan, _inventory.value, reservedQuantities())
                 if (usage.shortages.size >= active.shortages.size || usage.shortages.any {
@@ -1798,6 +1801,7 @@ class AppViewModel(
                         )
                     ).requireValue())
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
+                    PlanValidationDiagnostics.logValidation(validation)
                     if (!validation.valid) {
                         AppLogger.w("PlanValidation", validation.errors.joinToString("_") { it.type.name })
                         throw PlanValidationException(validation.errors)
