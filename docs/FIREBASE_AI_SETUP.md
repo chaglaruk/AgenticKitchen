@@ -32,7 +32,7 @@ Firebase AI requests are classified by task rather than sending every operation 
 In-app defaults:
 
 - extraction/parsing: `gemini-3.5-flash-lite`;
-- recipe reasoning, cooking plans, and cooking chat: `gemini-3.7-flash`;
+- recipe reasoning, cooking plans, and cooking chat: `gemini-3.5-flash-lite`;
 - cooking-photo judgement: `gemini-3.7-flash`.
 
 Remote Config keys:

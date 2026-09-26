@@ -12,7 +12,7 @@ internal enum class FirebaseAiTask {
 
 internal object FirebaseAiModelDefaults {
     const val EXTRACTION = "gemini-3.5-flash-lite"
-    const val REASONING = "gemini-3.7-flash"
+    const val REASONING = "gemini-3.5-flash-lite"
     const val VISION = "gemini-3.7-flash"
 
     fun forTask(task: FirebaseAiTask): String = when (task) {

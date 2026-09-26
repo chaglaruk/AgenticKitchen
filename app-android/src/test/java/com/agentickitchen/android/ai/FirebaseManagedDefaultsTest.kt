@@ -22,9 +22,9 @@ class FirebaseManagedDefaultsTest {
     }
 
     @Test
-    fun `managed provider defaults keep reasoning and vision on audited flash model`() {
+    fun `managed provider defaults keep reasoning on 3_5 flash lite and vision on audited flash model`() {
         val config = StaticFirebaseAiModelConfig()
-        assertEquals("gemini-3.7-flash", config.modelFor(FirebaseAiTask.REASONING))
+        assertEquals("gemini-3.5-flash-lite", config.modelFor(FirebaseAiTask.REASONING))
         assertEquals("gemini-3.7-flash", config.modelFor(FirebaseAiTask.VISION))
     }
 }
