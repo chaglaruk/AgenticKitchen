@@ -76,6 +76,7 @@ internal class FirebaseSdkModelGateway(
         image: KitchenImage?
     ): FirebaseGatewayResponse {
         val modelName = modelConfig.modelFor(kind.task)
+        FirebaseAiDiagnostics.logRequest(kind, modelName)
         val model = ai.generativeModel(
             modelName = modelName,
             generationConfig = generationConfig {
@@ -287,15 +288,27 @@ Return only valid JSON for the app's shopping import schema.""",
         decode: (String) -> T,
         validate: (T) -> Boolean
     ): AiResult<T> = when (val result = invoke(kind, prompt, image)) {
-        is AiResult.Failure -> result
+        is AiResult.Failure -> {
+            FirebaseAiDiagnostics.logOutcome(kind, result)
+            result
+        }
         is AiResult.Success -> try {
             val decoded = decode(result.value)
-            if (validate(decoded)) AiResult.Success(decoded, AiProviderId.FIREBASE, result.model)
-            else failure(AiFailureType.InvalidResponse, false)
+            if (validate(decoded)) {
+                FirebaseAiDiagnostics.logOutcome(kind, result)
+                AiResult.Success(decoded, AiProviderId.FIREBASE, result.model)
+            } else {
+                FirebaseAiDiagnostics.logOutcome(kind, failure(AiFailureType.InvalidResponse, false))
+                failure(AiFailureType.InvalidResponse, false)
+            }
         } catch (_: SerializationException) {
-            failure(AiFailureType.InvalidResponse, true)
+            val failed = failure(AiFailureType.InvalidResponse, true)
+            FirebaseAiDiagnostics.logOutcome(kind, failed)
+            failed
         } catch (_: IllegalArgumentException) {
-            failure(AiFailureType.InvalidResponse, true)
+            val failed = failure(AiFailureType.InvalidResponse, true)
+            FirebaseAiDiagnostics.logOutcome(kind, failed)
+            failed
         }
     }
 
@@ -339,7 +352,7 @@ Return only valid JSON for the app's shopping import schema.""",
         } catch (_: IOException) {
             failure(AiFailureType.NetworkUnavailable, true)
         } catch (_: FirebaseAIException) {
-            failure(AiFailureType.Unknown, true)
+            failure(AiFailureType.Unknown, true, "firebase_ai_exception")
         } catch (_: Exception) {
             failure(AiFailureType.Unknown, true)
         }

@@ -2,19 +2,33 @@ package com.agentickitchen.android.ai
 
 import com.google.firebase.ai.type.Schema
 
+/**
+ * Controls whether a structured request sends an explicit responseSchema to the backend.
+ *
+ * STRICT_SCHEMA sends the kind's responseSchema together with the JSON mime type.
+ * JSON_ONLY sends only the JSON mime type and relies on the prompt plus application-side
+ * decoding/validation. Introduced as a controlled experiment for COOKING_PLAN after
+ * reproducible ProviderUnavailable failures on the schema-bearing request.
+ */
+internal enum class FirebaseSchemaMode {
+    STRICT_SCHEMA,
+    JSON_ONLY
+}
+
 internal enum class FirebaseResponseKind(
     val task: FirebaseAiTask,
-    val schema: Schema
+    val schema: Schema?,
+    val schemaMode: FirebaseSchemaMode
 ) {
-    RECIPE_OPTIONS(FirebaseAiTask.REASONING, FirebaseResponseSchemas.recipeOptions),
-    COOKING_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingPlan),
-    SUBSTITUTION_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.substitutionPlan),
-    SHOPPING_IMPORT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.shoppingImport),
-    RECIPE_IMPORT_TEXT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.recipeImport),
-    RECIPE_IMPORT_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.recipeImport),
-    COOKING_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.cookingPhoto),
-    COOKING_CHAT(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingChat),
-    CONNECTION_TEST(FirebaseAiTask.REASONING, FirebaseResponseSchemas.connectionTest)
+    RECIPE_OPTIONS(FirebaseAiTask.REASONING, FirebaseResponseSchemas.recipeOptions, FirebaseSchemaMode.STRICT_SCHEMA),
+    COOKING_PLAN(FirebaseAiTask.REASONING, null, FirebaseSchemaMode.JSON_ONLY),
+    SUBSTITUTION_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.substitutionPlan, FirebaseSchemaMode.STRICT_SCHEMA),
+    SHOPPING_IMPORT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.shoppingImport, FirebaseSchemaMode.STRICT_SCHEMA),
+    RECIPE_IMPORT_TEXT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.recipeImport, FirebaseSchemaMode.STRICT_SCHEMA),
+    RECIPE_IMPORT_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.recipeImport, FirebaseSchemaMode.STRICT_SCHEMA),
+    COOKING_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.cookingPhoto, FirebaseSchemaMode.STRICT_SCHEMA),
+    COOKING_CHAT(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingChat, FirebaseSchemaMode.STRICT_SCHEMA),
+    CONNECTION_TEST(FirebaseAiTask.REASONING, FirebaseResponseSchemas.connectionTest, FirebaseSchemaMode.STRICT_SCHEMA)
 }
 
 private object FirebaseResponseSchemas {
