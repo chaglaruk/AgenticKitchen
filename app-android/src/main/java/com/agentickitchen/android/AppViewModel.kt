@@ -77,6 +77,7 @@ import com.agentickitchen.shared.validator.CookingPlanValidator
 import com.agentickitchen.shared.validator.ErrorType
 import com.agentickitchen.shared.validator.ValidationError
 import com.agentickitchen.shared.validator.normalizeCookingPlan
+import com.agentickitchen.shared.validator.normalizeCookingPlanWithSequencing
 import com.agentickitchen.shared.cooking.CookingSessionController
 import com.agentickitchen.shared.cooking.CookingSessionState
 import com.agentickitchen.shared.cooking.CookingSessionStatus
@@ -1061,7 +1062,7 @@ class AppViewModel(
                 executeAiWithProvider { provider ->
                     val hw = _hw.value
                     val servings = imported.servings ?: throw IllegalArgumentException("Missing servings")
-                    val plan = normalizeCookingPlan(
+                    val normalizedImported = normalizeCookingPlanWithSequencing(
                         provider.generateCookingPlan(
                             CookingPlanRequest(
                                 recipeName = imported.name,
@@ -1084,6 +1085,8 @@ class AppViewModel(
                             )
                         ).requireValue()
                     )
+                    val plan = normalizedImported.plan
+                    PlanNormalizationDiagnostics.log(normalizedImported.sequencing)
                     val sourceGuard = RecipeImportPlanGuard.validate(imported, plan)
                     if (!sourceGuard.valid) {
                         AppLogger.w("RecipeImportGuard", sourceGuard.reasons.joinToString("_"))
@@ -1425,7 +1428,10 @@ class AppViewModel(
                 ).requireValue()
                 val current = _planState.value as? PlanState.RecipeActive ?: return@launch
                 if (current.sessionId != active.sessionId || _cookingState.value.status != CookingSessionStatus.READY) return@launch
-                val structural = SubstitutionMutationValidator.validate(plan, originalIngredientName, result)
+                val normalizedMutation = normalizeCookingPlanWithSequencing(result.mutatedPlan)
+                PlanNormalizationDiagnostics.log(normalizedMutation.sequencing)
+                val normalizedResult = result.copy(mutatedPlan = normalizedMutation.plan)
+                val structural = SubstitutionMutationValidator.validate(plan, originalIngredientName, normalizedResult)
                 if (!structural.valid) throw ProviderFailure("SUBSTITUTION", ProviderFailureCategory.CONSTRAINT_CONFLICT)
                 val validation = CookingPlanValidator(
                     _selectedEquipment.value,
@@ -1436,17 +1442,17 @@ class AppViewModel(
                     dietSettings.value.dietType,
                     dietSettings.value.allergies,
                     current.servings
-                ).validate(result.mutatedPlan)
+                ).validate(normalizedResult.mutatedPlan)
                 PlanValidationDiagnostics.logValidation(validation)
                 if (!validation.valid) throw PlanValidationException(validation.errors)
-                val usage = InventoryWorkflow.planUsage(result.mutatedPlan, _inventory.value, reservedQuantities())
+                val usage = InventoryWorkflow.planUsage(normalizedResult.mutatedPlan, _inventory.value, reservedQuantities())
                 if (usage.shortages.size >= current.shortages.size || usage.shortages.any {
                         LocalIngredientResolver.matches(it, null, originalIngredientName, null)
                     }) {
                     throw ProviderFailure("SUBSTITUTION", ProviderFailureCategory.CONSTRAINT_CONFLICT)
                 }
                 _planState.value = current.copy(
-                    substitutionState = SubstitutionState.Review(originalIngredientName, result, usage.shortages)
+                    substitutionState = SubstitutionState.Review(originalIngredientName, normalizedResult, usage.shortages)
                 )
             } catch (error: CancellationException) {
                 throw error
@@ -1481,9 +1487,11 @@ class AppViewModel(
         viewModelScope.launch {
             try {
                 val hw = _hw.value
-                val response = review.response
-                val structural = SubstitutionMutationValidator.validate(before, review.originalIngredientName, response)
+                val structural = SubstitutionMutationValidator.validate(before, review.originalIngredientName, review.response)
                 if (!structural.valid) throw ProviderFailure("SUBSTITUTION", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                val normalizedApply = normalizeCookingPlanWithSequencing(review.response.mutatedPlan)
+                PlanNormalizationDiagnostics.log(normalizedApply.sequencing)
+                val response = review.response.copy(mutatedPlan = normalizedApply.plan)
                 val validation = CookingPlanValidator(
                     _selectedEquipment.value,
                     hw.stovePowerMax,
@@ -1795,7 +1803,7 @@ class AppViewModel(
                     } else {
                         SelectedRecipeBill.names(selectedBill)
                     }
-                    val plan = normalizeCookingPlan(provider.generateCookingPlan(
+                    val normalized = normalizeCookingPlanWithSequencing(provider.generateCookingPlan(
                         CookingPlanRequest(
                             recipeName = option.name,
                             ingredients = selectedIngredients,
@@ -1815,6 +1823,8 @@ class AppViewModel(
                             selectedRecipeIngredients = selectedBill
                         )
                     ).requireValue())
+                    val plan = normalized.plan
+                    PlanNormalizationDiagnostics.log(normalized.sequencing)
                     val validation = CookingPlanValidator(_selectedEquipment.value, hw.stovePowerMax, stoveType, hw.ovenAvailable, _selectedEquipment.value.contains("airfryer"), dietSettings.value.dietType, dietSettings.value.allergies, selection.servings).validate(plan)
                     PlanValidationDiagnostics.logValidation(validation)
                     if (!validation.valid) {

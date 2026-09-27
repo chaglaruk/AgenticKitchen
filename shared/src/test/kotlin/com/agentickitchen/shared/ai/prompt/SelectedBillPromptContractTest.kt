@@ -46,6 +46,30 @@ class SelectedBillPromptContractTest {
     }
 
     @Test
+    fun `cooking plan prompt contains the worked chaining example`() {
+        val prompt = PromptFactory.cookingPlanPrompt(
+            "Tereyagli Yumurtali Ekmek",
+            listOf("ekmek", "yumurta", "tereyagi"),
+            setOf("stove", "pan"),
+            2,
+            "electric",
+            9,
+            false,
+            false,
+            false,
+            "none",
+            emptySet(),
+            "Türkçe"
+        )
+        assertContains(prompt, "Worked example: if step_2, step_4 and step_7 are the stove steps in plan order")
+        assertContains(prompt, "step_4.dependsOn must include")
+        assertContains(prompt, "step_7.dependsOn must include")
+        // the bill context repeats the chaining guidance with its own phrasing
+        val billContext = PromptFactory.selectedRecipeBillContext(bill)
+        assertContains(billContext, "Worked example of exclusive heat-resource chaining")
+    }
+
+    @Test
     fun `empty bill renders no context`() {
         assertEquals("", PromptFactory.selectedRecipeBillContext(emptyList()))
         assertTrue(PromptFactory.selectedRecipeBillContext(emptyList()).isEmpty())

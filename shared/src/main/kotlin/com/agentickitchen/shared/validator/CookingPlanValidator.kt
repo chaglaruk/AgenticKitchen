@@ -292,7 +292,7 @@ class CookingPlanValidator(
     private fun validateParallelResourceConflicts(steps: List<CookingStepDto>, errors: MutableList<ValidationError>) {
         val sameResourceSteps = steps.groupBy { it.resource }
         for ((resource, resourceSteps) in sameResourceSteps) {
-            if (resource in setOf("stove", "oven", "airfryer") && resourceSteps.size > 1) {
+            if (resource in ExclusiveResourceSequencer.EXCLUSIVE_HEAT_RESOURCES && resourceSteps.size > 1) {
                 val noDependency = resourceSteps.filter { s -> resourceSteps.none { s.id in it.dependsOn } }
                 if (noDependency.size > 1) {
                     errors.add(

@@ -158,7 +158,7 @@ Rules:
 - Every step id MUST be unique
 - type MUST be exactly one of: prep, cook, rest, serve, combine, heat, cool. Never output synonyms such as bake, toast, assemble, mix, or fry as the type field; describe those actions naturally in the instruction instead
 - Every dependsOn id MUST refer to an existing step; a step must never depend on itself; the dependency graph MUST be acyclic; dependencies MUST point to logically earlier steps
-- Exclusive heat-resource sequencing: if more than one step uses the SAME exclusive heat resource (stove, oven, or airfryer), each later use of that resource MUST list the previous use of that same resource directly in its dependsOn, in addition to any other dependencies. Never emit multiple independent steps that appear to use the same exclusive heat resource concurrently; chaining only through intermediate non-heating steps is not sufficient
+- Exclusive heat-resource sequencing: if more than one step uses the SAME exclusive heat resource (stove, oven, or airfryer), each later use of that resource MUST list the previous use of that same resource directly in its dependsOn, in addition to any other dependencies. Never emit multiple independent steps that appear to use the same exclusive heat resource concurrently; chaining only through intermediate non-heating steps is not sufficient. Worked example: if step_2, step_4 and step_7 are the stove steps in plan order, then step_4.dependsOn must include "step_2" and step_7.dependsOn must include "step_4"
 - durationSeconds MUST be between 30 and 3600 inclusive
 - Use canonical ingredient units where possible: g, kg, ml, l, tsp, tbsp, cup, piece, package, bunch, slice, clove, pinch, unit, to taste
 - Resource MUST be one of: stove, oven, airfryer, counter, knife, bowl, fridge, sink, cutting_board, pan, pot, baking_tray, mixer, blender. Do not invent resource identifiers
@@ -191,6 +191,7 @@ $lines
 - Pantry availability is context only; keep the already-known shortage from the selected option.
 - Do not introduce a second shortage by changing quantities or adding ingredients.
 - Cooking instructions must reference only ingredients present in this bill.
+- Worked example of exclusive heat-resource chaining: if step_2, step_4 and step_7 are the stove steps in plan order, then step_4.dependsOn must include "step_2" and step_7.dependsOn must include "step_4".
 """.trimEnd()
     }
 
