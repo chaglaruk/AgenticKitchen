@@ -176,4 +176,45 @@ class LocalIngredientResolverTest {
         val allergyError = "Seçili malzemeler diyet, alerji veya güvenli pişirme koşullarıyla uyuşmuyor."
         assertTrue(allergyError.contains("diyet, alerji veya güvenli"))
     }
+
+    @Test
+    fun `foreign model canonical id with same name still matches pantry stock`() {
+        val pantryName = "zeytinyagi"
+        val pantryCanonical = "olive_oil"
+        val modelIngredientName = "Zeytinyağı"
+        val modelCanonical = "olive oil"
+
+        assertTrue(
+            LocalIngredientResolver.matches(
+                firstName = pantryName,
+                firstCanonicalId = pantryCanonical,
+                secondName = modelIngredientName,
+                secondCanonicalId = modelCanonical
+            )
+        )
+    }
+
+    @Test
+    fun `unknown model canonical id falls back to name resolution`() {
+        assertTrue(
+            LocalIngredientResolver.matches(
+                firstName = "sut",
+                firstCanonicalId = null,
+                secondName = "Süt",
+                secondCanonicalId = "dairy_001"
+            )
+        )
+    }
+
+    @Test
+    fun `different known canonical ids still do not match`() {
+        assertFalse(
+            LocalIngredientResolver.matches(
+                firstName = "sut",
+                firstCanonicalId = "milk",
+                secondName = "yumurta",
+                secondCanonicalId = "egg"
+            )
+        )
+    }
 }

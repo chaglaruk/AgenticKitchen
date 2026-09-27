@@ -61,8 +61,12 @@ object LocalIngredientResolver {
         secondName: String,
         secondCanonicalId: String?
     ): Boolean {
-        val canonical1 = firstCanonicalId ?: resolveCanonicalId(firstName)
-        val canonical2 = secondCanonicalId ?: resolveCanonicalId(secondName)
+        // Model-supplied canonical ids may use a foreign vocabulary (e.g. "olive oil" vs the
+        // resolver's "olive_oil"). Trust a canonical id only when it is known to this catalog;
+        // an unknown id falls back to resolving from the name, and if the names obviously
+        // match, the ingredients match regardless of differing foreign ids.
+        val canonical1 = firstCanonicalId?.takeIf(::isKnownCanonicalId) ?: resolveCanonicalId(firstName)
+        val canonical2 = secondCanonicalId?.takeIf(::isKnownCanonicalId) ?: resolveCanonicalId(secondName)
 
         if (canonical1 != null && canonical2 != null) {
             return canonical1 == canonical2
