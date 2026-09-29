@@ -92,9 +92,9 @@ class FirebaseAiDiagnosticsTest {
     }
 
     @Test
-    fun `cooking plan is the only JSON_ONLY kind`() {
+    fun `cooking plan and recipe photo are the only JSON_ONLY kinds`() {
         FirebaseResponseKind.entries.forEach { kind ->
-            if (kind == FirebaseResponseKind.COOKING_PLAN) {
+            if (kind == FirebaseResponseKind.COOKING_PLAN || kind == FirebaseResponseKind.RECIPE_IMPORT_PHOTO) {
                 assertEquals(FirebaseSchemaMode.JSON_ONLY, kind.schemaMode)
                 assertEquals(null, kind.schema)
             } else {

@@ -15,6 +15,7 @@ import com.google.firebase.ai.type.RequestTimeoutException
 import com.google.firebase.ai.type.ServerException
 import com.google.firebase.ai.type.ServiceDisabledException
 import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.GenerationConfig
 import com.google.firebase.ai.type.generationConfig
 import com.agentickitchen.shared.ai.AiFailureType
 import com.agentickitchen.shared.ai.AiProviderId
@@ -61,6 +62,14 @@ internal fun interface FirebaseModelGateway {
     ): FirebaseGatewayResponse
 }
 
+internal fun buildGenerationConfig(kind: FirebaseResponseKind): GenerationConfig =
+    generationConfig {
+        responseMimeType = "application/json"
+        if (kind.schemaMode == FirebaseSchemaMode.STRICT_SCHEMA) {
+            responseSchema = kind.schema
+        }
+    }
+
 internal class FirebaseSdkModelGateway(
     firebaseApp: FirebaseApp,
     private val modelConfig: FirebaseAiModelConfig = FirebaseRemoteModelConfig(firebaseApp)
@@ -79,10 +88,7 @@ internal class FirebaseSdkModelGateway(
         FirebaseAiDiagnostics.logRequest(kind, modelName)
         val model = ai.generativeModel(
             modelName = modelName,
-            generationConfig = generationConfig {
-                responseMimeType = "application/json"
-                responseSchema = kind.schema
-            }
+            generationConfig = buildGenerationConfig(kind)
         )
         val response = if (image == null) {
             model.generateContent(prompt)
