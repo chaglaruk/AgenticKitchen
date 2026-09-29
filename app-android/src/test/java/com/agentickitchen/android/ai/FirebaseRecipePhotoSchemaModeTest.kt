@@ -46,6 +46,7 @@ class FirebaseRecipePhotoSchemaModeTest {
             FirebaseResponseKind.SUBSTITUTION_PLAN,
             FirebaseResponseKind.SHOPPING_IMPORT,
             FirebaseResponseKind.RECIPE_IMPORT_TEXT,
+            FirebaseResponseKind.RECIPE_IMPORT_PHOTO,
             FirebaseResponseKind.COOKING_PHOTO,
             FirebaseResponseKind.COOKING_CHAT,
             FirebaseResponseKind.CONNECTION_TEST
@@ -62,8 +63,7 @@ class FirebaseRecipePhotoSchemaModeTest {
     @Test
     fun `JSON_ONLY requests do not send a responseSchema`() {
         val jsonOnlyKinds = listOf(
-            FirebaseResponseKind.COOKING_PLAN,
-            FirebaseResponseKind.RECIPE_IMPORT_PHOTO
+            FirebaseResponseKind.COOKING_PLAN
         )
         for (kind in jsonOnlyKinds) {
             assertEquals("kind ${kind.name} must be JSON_ONLY", FirebaseSchemaMode.JSON_ONLY, kind.schemaMode)
@@ -74,9 +74,21 @@ class FirebaseRecipePhotoSchemaModeTest {
     }
 
     @Test
-    fun `RECIPE_IMPORT_PHOTO is JSON_ONLY`() {
-        assertEquals(FirebaseSchemaMode.JSON_ONLY, FirebaseResponseKind.RECIPE_IMPORT_PHOTO.schemaMode)
-        assertNull(FirebaseResponseKind.RECIPE_IMPORT_PHOTO.schema)
+    fun `RECIPE_IMPORT_PHOTO is STRICT_SCHEMA with recipeImport schema`() {
+        assertEquals(FirebaseSchemaMode.STRICT_SCHEMA, FirebaseResponseKind.RECIPE_IMPORT_PHOTO.schemaMode)
+        assertNotNull(FirebaseResponseKind.RECIPE_IMPORT_PHOTO.schema)
+        val config = buildGenerationConfig(FirebaseResponseKind.RECIPE_IMPORT_PHOTO)
+        assertEquals("application/json", config.getResponseMimeType())
+        assertEquals(FirebaseResponseKind.RECIPE_IMPORT_PHOTO.schema, config.getResponseSchema())
+    }
+
+    @Test
+    fun `COOKING_PLAN remains JSON_ONLY with null responseSchema`() {
+        assertEquals(FirebaseSchemaMode.JSON_ONLY, FirebaseResponseKind.COOKING_PLAN.schemaMode)
+        assertNull(FirebaseResponseKind.COOKING_PLAN.schema)
+        val config = buildGenerationConfig(FirebaseResponseKind.COOKING_PLAN)
+        assertEquals("application/json", config.getResponseMimeType())
+        assertNull(config.getResponseSchema())
     }
 
     @Test
@@ -117,8 +129,8 @@ class FirebaseRecipePhotoSchemaModeTest {
         """.trimIndent()
         val provider = FirebaseAiProvider(FirebaseModelGateway { kind, _, _ ->
             assertEquals(FirebaseResponseKind.RECIPE_IMPORT_PHOTO, kind)
-            assertEquals(FirebaseSchemaMode.JSON_ONLY, kind.schemaMode)
-            FirebaseGatewayResponse(rawJson, "gemini-3.7-flash")
+            assertEquals(FirebaseSchemaMode.STRICT_SCHEMA, kind.schemaMode)
+            FirebaseGatewayResponse(rawJson, "gemini-3.5-flash-lite")
         })
         val result = provider.scanRecipePhoto(
             RecipePhotoImportRequest(KitchenImage(byteArrayOf(1, 2, 3), "image/jpeg"), "Türkçe", "Tarif fotoğrafı")
@@ -134,71 +146,117 @@ class FirebaseRecipePhotoSchemaModeTest {
     }
 
     @Test
-    fun `recipe photo malformed JSON still fails closed`() = runBlocking {
-        val provider = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
-            FirebaseGatewayResponse("{not-valid-json", "gemini-3.7-flash")
-        })
-        val result = provider.scanRecipePhoto(
-            RecipePhotoImportRequest(KitchenImage(byteArrayOf(1, 2, 3), "image/jpeg"), "Türkçe")
-        )
-        assertTrue("result is Failure", result is AiResult.Failure)
-        assertEquals(AiFailureType.InvalidResponse, (result as AiResult.Failure).type)
-    }
-
-    @Test
-    fun `recipe photo structurally invalid recipe responses still fail closed`() = runBlocking {
-        // Blank recipe name
-        val blankNameJson = """{"recipe":{"name":"","servings":1,"ingredients":[{"displayName":"A","quantity":1.0,"unit":"g"}],"instructions":["Cook"]},"confidence":0.9}"""
-        val provider1 = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
-            FirebaseGatewayResponse(blankNameJson, "gemini-3.7-flash")
-        })
-        val result1 = provider1.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "Türkçe"))
-        assertTrue(result1 is AiResult.Failure)
-        assertEquals(AiFailureType.InvalidResponse, (result1 as AiResult.Failure).type)
-
-        // Empty ingredients
-        val emptyIngredientsJson = """{"recipe":{"name":"Soup","servings":1,"ingredients":[],"instructions":["Cook"]},"confidence":0.9}"""
-        val provider2 = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
-            FirebaseGatewayResponse(emptyIngredientsJson, "gemini-3.7-flash")
-        })
-        val result2 = provider2.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "Türkçe"))
-        assertTrue(result2 is AiResult.Failure)
-        assertEquals(AiFailureType.InvalidResponse, (result2 as AiResult.Failure).type)
-
-        // Empty instructions
-        val emptyInstructionsJson = """{"recipe":{"name":"Soup","servings":1,"ingredients":[{"displayName":"A","quantity":1.0,"unit":"g"}],"instructions":[]},"confidence":0.9}"""
-        val provider3 = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
-            FirebaseGatewayResponse(emptyInstructionsJson, "gemini-3.7-flash")
-        })
-        val result3 = provider3.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "Türkçe"))
-        assertTrue(result3 is AiResult.Failure)
-        assertEquals(AiFailureType.InvalidResponse, (result3 as AiResult.Failure).type)
-    }
-
-    @Test
-    fun `diagnostics report kind=RECIPE_IMPORT_PHOTO schemaMode=JSON_ONLY without logging sensitive content`() {
+    fun `recipe photo empty response maps to EMPTY_RESPONSE`() = runBlocking {
         val emittedLines = mutableListOf<String>()
         FirebaseAiDiagnostics.emit = { _, msg -> emittedLines.add(msg) }
         try {
-            FirebaseAiDiagnostics.logRequest(FirebaseResponseKind.RECIPE_IMPORT_PHOTO, "gemini-3.7-flash")
+            val provider = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+                FirebaseGatewayResponse("", "gemini-3.5-flash-lite")
+            })
+            val result = provider.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "Türkçe"))
+            assertTrue(result is AiResult.Failure)
+            assertEquals(AiFailureType.InvalidResponse, (result as AiResult.Failure).type)
+            assertEquals("empty_response", result.technicalMessage)
+            val failureLine = emittedLines.firstOrNull { it.contains("result=FAILURE") }
+            assertNotNull(failureLine)
+            assertTrue(failureLine!!.contains("category=EMPTY_RESPONSE"))
+            assertTrue(failureLine.contains("retryable=true"))
+            assertTrue(failureLine.contains("schemaMode=STRICT_SCHEMA"))
+        } finally {
+            FirebaseAiDiagnostics.emit = { _, _ -> }
+        }
+    }
+
+    @Test
+    fun `recipe photo malformed JSON maps to JSON_DECODE_FAILURE`() = runBlocking {
+        val emittedLines = mutableListOf<String>()
+        FirebaseAiDiagnostics.emit = { _, msg -> emittedLines.add(msg) }
+        try {
+            val provider = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+                FirebaseGatewayResponse("{not-valid-json", "gemini-3.5-flash-lite")
+            })
+            val result = provider.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1, 2, 3), "image/jpeg"), "Türkçe"))
+            assertTrue(result is AiResult.Failure)
+            assertEquals(AiFailureType.InvalidResponse, (result as AiResult.Failure).type)
+            assertEquals("json_decode_failure", result.technicalMessage)
+            val failureLine = emittedLines.firstOrNull { it.contains("result=FAILURE") }
+            assertNotNull(failureLine)
+            assertTrue(failureLine!!.contains("category=JSON_DECODE_FAILURE"))
+            assertTrue(failureLine.contains("retryable=true"))
+            assertTrue(failureLine.contains("schemaMode=STRICT_SCHEMA"))
+        } finally {
+            FirebaseAiDiagnostics.emit = { _, _ -> }
+        }
+    }
+
+    @Test
+    fun `recipe photo structurally invalid recipe responses map to RESPONSE_VALIDATION_FAILURE`() = runBlocking {
+        val emittedLines = mutableListOf<String>()
+        FirebaseAiDiagnostics.emit = { _, msg -> emittedLines.add(msg) }
+        try {
+            // Blank recipe name
+            val blankNameJson = """{"recipe":{"name":"","servings":1,"ingredients":[{"displayName":"A","quantity":1.0,"unit":"g"}],"instructions":["Cook"]},"confidence":0.9,"source":"AI_PHOTO"}"""
+            val provider1 = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+                FirebaseGatewayResponse(blankNameJson, "gemini-3.5-flash-lite")
+            })
+            val result1 = provider1.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "Türkçe"))
+            assertTrue(result1 is AiResult.Failure)
+            assertEquals(AiFailureType.InvalidResponse, (result1 as AiResult.Failure).type)
+            assertEquals("response_validation_failure", result1.technicalMessage)
+            val failureLine1 = emittedLines.lastOrNull { it.contains("result=FAILURE") }
+            assertNotNull(failureLine1)
+            assertTrue(failureLine1!!.contains("category=RESPONSE_VALIDATION_FAILURE"))
+            assertTrue(failureLine1.contains("retryable=false"))
+            assertTrue(failureLine1.contains("schemaMode=STRICT_SCHEMA"))
+
+            // Empty ingredients
+            val emptyIngredientsJson = """{"recipe":{"name":"Soup","servings":1,"ingredients":[],"instructions":["Cook"]},"confidence":0.9,"source":"AI_PHOTO"}"""
+            val provider2 = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+                FirebaseGatewayResponse(emptyIngredientsJson, "gemini-3.5-flash-lite")
+            })
+            val result2 = provider2.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "Türkçe"))
+            assertTrue(result2 is AiResult.Failure)
+            assertEquals(AiFailureType.InvalidResponse, (result2 as AiResult.Failure).type)
+            assertEquals("response_validation_failure", result2.technicalMessage)
+
+            // Empty instructions
+            val emptyInstructionsJson = """{"recipe":{"name":"Soup","servings":1,"ingredients":[{"displayName":"A","quantity":1.0,"unit":"g"}],"instructions":[]},"confidence":0.9,"source":"AI_PHOTO"}"""
+            val provider3 = FirebaseAiProvider(FirebaseModelGateway { _, _, _ ->
+                FirebaseGatewayResponse(emptyInstructionsJson, "gemini-3.5-flash-lite")
+            })
+            val result3 = provider3.scanRecipePhoto(RecipePhotoImportRequest(KitchenImage(byteArrayOf(1), "image/jpeg"), "Türkçe"))
+            assertTrue(result3 is AiResult.Failure)
+            assertEquals(AiFailureType.InvalidResponse, (result3 as AiResult.Failure).type)
+            assertEquals("response_validation_failure", result3.technicalMessage)
+        } finally {
+            FirebaseAiDiagnostics.emit = { _, _ -> }
+        }
+    }
+
+    @Test
+    fun `diagnostics report kind=RECIPE_IMPORT_PHOTO schemaMode=STRICT_SCHEMA without logging sensitive content`() {
+        val emittedLines = mutableListOf<String>()
+        FirebaseAiDiagnostics.emit = { _, msg -> emittedLines.add(msg) }
+        try {
+            FirebaseAiDiagnostics.logRequest(FirebaseResponseKind.RECIPE_IMPORT_PHOTO, "gemini-3.5-flash-lite")
             FirebaseAiDiagnostics.logOutcome(
                 FirebaseResponseKind.RECIPE_IMPORT_PHOTO,
                 AiResult.Success(
                     value = "dummy",
                     provider = AiProviderId.FIREBASE,
-                    model = "gemini-3.7-flash"
+                    model = "gemini-3.5-flash-lite"
                 )
             )
             assertEquals(2, emittedLines.size)
             val reqLine = emittedLines[0]
             val outcomeLine = emittedLines[1]
             assertTrue(reqLine.contains("kind=RECIPE_IMPORT_PHOTO"))
-            assertTrue(reqLine.contains("schemaMode=JSON_ONLY"))
+            assertTrue(reqLine.contains("schemaMode=STRICT_SCHEMA"))
             assertTrue(reqLine.contains("result=REQUEST"))
-            assertTrue(reqLine.contains("model=gemini-3.7-flash"))
+            assertTrue(reqLine.contains("model=gemini-3.5-flash-lite"))
 
             assertTrue(outcomeLine.contains("kind=RECIPE_IMPORT_PHOTO"))
-            assertTrue(outcomeLine.contains("schemaMode=JSON_ONLY"))
+            assertTrue(outcomeLine.contains("schemaMode=STRICT_SCHEMA"))
             assertTrue(outcomeLine.contains("result=SUCCESS"))
 
             for (line in emittedLines) {

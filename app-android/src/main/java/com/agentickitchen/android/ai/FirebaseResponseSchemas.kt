@@ -25,7 +25,11 @@ internal enum class FirebaseResponseKind(
     SUBSTITUTION_PLAN(FirebaseAiTask.REASONING, FirebaseResponseSchemas.substitutionPlan, FirebaseSchemaMode.STRICT_SCHEMA),
     SHOPPING_IMPORT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.shoppingImport, FirebaseSchemaMode.STRICT_SCHEMA),
     RECIPE_IMPORT_TEXT(FirebaseAiTask.EXTRACTION, FirebaseResponseSchemas.recipeImport, FirebaseSchemaMode.STRICT_SCHEMA),
-    RECIPE_IMPORT_PHOTO(FirebaseAiTask.VISION, null, FirebaseSchemaMode.JSON_ONLY),
+    RECIPE_IMPORT_PHOTO(
+        FirebaseAiTask.VISION,
+        FirebaseResponseSchemas.recipeImport,
+        FirebaseSchemaMode.STRICT_SCHEMA
+    ),
     COOKING_PHOTO(FirebaseAiTask.VISION, FirebaseResponseSchemas.cookingPhoto, FirebaseSchemaMode.STRICT_SCHEMA),
     COOKING_CHAT(FirebaseAiTask.REASONING, FirebaseResponseSchemas.cookingChat, FirebaseSchemaMode.STRICT_SCHEMA),
     CONNECTION_TEST(FirebaseAiTask.REASONING, FirebaseResponseSchemas.connectionTest, FirebaseSchemaMode.STRICT_SCHEMA)

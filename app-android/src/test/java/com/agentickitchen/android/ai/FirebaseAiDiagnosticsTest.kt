@@ -48,6 +48,26 @@ class FirebaseAiDiagnosticsTest {
         assertEquals("MISSING_CREDENTIAL", FirebaseAiDiagnostics.categoryFor(AiFailureType.MissingCredential))
         assertEquals("INVALID_RESPONSE", FirebaseAiDiagnostics.categoryFor(AiFailureType.InvalidResponse))
         assertEquals("INVALID_RESPONSE", FirebaseAiDiagnostics.categoryFor(AiFailureType.InvalidPlan))
+        assertEquals(
+            "EMPTY_RESPONSE",
+            FirebaseAiDiagnostics.categoryFor(AiFailureType.InvalidResponse, "empty_response")
+        )
+        assertEquals(
+            "JSON_DECODE_FAILURE",
+            FirebaseAiDiagnostics.categoryFor(AiFailureType.InvalidResponse, "json_decode_failure")
+        )
+        assertEquals(
+            "DECODE_ARGUMENT_FAILURE",
+            FirebaseAiDiagnostics.categoryFor(AiFailureType.InvalidResponse, "decode_argument_failure")
+        )
+        assertEquals(
+            "RESPONSE_VALIDATION_FAILURE",
+            FirebaseAiDiagnostics.categoryFor(AiFailureType.InvalidResponse, "response_validation_failure")
+        )
+        assertEquals(
+            "INVALID_RESPONSE",
+            FirebaseAiDiagnostics.categoryFor(AiFailureType.InvalidResponse, "unrecognized_technical")
+        )
     }
 
     @Test
@@ -92,9 +112,9 @@ class FirebaseAiDiagnosticsTest {
     }
 
     @Test
-    fun `cooking plan and recipe photo are the only JSON_ONLY kinds`() {
+    fun `cooking plan is the only JSON_ONLY kind`() {
         FirebaseResponseKind.entries.forEach { kind ->
-            if (kind == FirebaseResponseKind.COOKING_PLAN || kind == FirebaseResponseKind.RECIPE_IMPORT_PHOTO) {
+            if (kind == FirebaseResponseKind.COOKING_PLAN) {
                 assertEquals(FirebaseSchemaMode.JSON_ONLY, kind.schemaMode)
                 assertEquals(null, kind.schema)
             } else {

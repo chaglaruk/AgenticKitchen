@@ -22,7 +22,7 @@ android {
         applicationId = "com.agentickitchen.android"
         minSdk = 24
         targetSdk = 36
-        versionCode = 10
+        versionCode = 11
         versionName = "0.1.0"
     }
 

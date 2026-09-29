@@ -40,7 +40,13 @@ object FirebaseAiDiagnostics {
         AiFailureType.SafetyBlocked -> "SAFETY_BLOCKED"
         AiFailureType.NetworkUnavailable -> "IO_NETWORK"
         AiFailureType.MissingCredential -> "MISSING_CREDENTIAL"
-        AiFailureType.InvalidResponse, AiFailureType.InvalidPlan -> "INVALID_RESPONSE"
+        AiFailureType.InvalidResponse, AiFailureType.InvalidPlan -> when (technical) {
+            "empty_response" -> "EMPTY_RESPONSE"
+            "json_decode_failure" -> "JSON_DECODE_FAILURE"
+            "decode_argument_failure" -> "DECODE_ARGUMENT_FAILURE"
+            "response_validation_failure" -> "RESPONSE_VALIDATION_FAILURE"
+            else -> "INVALID_RESPONSE"
+        }
         AiFailureType.Unknown -> when (technical) {
             "firebase_ai_exception" -> "FIREBASE_AI_EXCEPTION"
             else -> "UNKNOWN_EXCEPTION"

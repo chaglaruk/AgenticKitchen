@@ -309,15 +309,16 @@ Return only valid JSON for the app's shopping import schema.""",
                 FirebaseAiDiagnostics.logOutcome(kind, result)
                 AiResult.Success(decoded, AiProviderId.FIREBASE, result.model)
             } else {
-                FirebaseAiDiagnostics.logOutcome(kind, failure(AiFailureType.InvalidResponse, false))
-                failure(AiFailureType.InvalidResponse, false)
+                val failed = failure(AiFailureType.InvalidResponse, false, "response_validation_failure")
+                FirebaseAiDiagnostics.logOutcome(kind, failed)
+                failed
             }
         } catch (_: SerializationException) {
-            val failed = failure(AiFailureType.InvalidResponse, true)
+            val failed = failure(AiFailureType.InvalidResponse, true, "json_decode_failure")
             FirebaseAiDiagnostics.logOutcome(kind, failed)
             failed
         } catch (_: IllegalArgumentException) {
-            val failed = failure(AiFailureType.InvalidResponse, true)
+            val failed = failure(AiFailureType.InvalidResponse, true, "decode_argument_failure")
             FirebaseAiDiagnostics.logOutcome(kind, failed)
             failed
         }
@@ -337,7 +338,7 @@ Return only valid JSON for the app's shopping import schema.""",
             }
             response.text.takeIf(String::isNotBlank)?.let {
                 AiResult.Success(it, AiProviderId.FIREBASE, response.modelName)
-            } ?: failure(AiFailureType.InvalidResponse, true)
+            } ?: failure(AiFailureType.InvalidResponse, true, "empty_response")
         } catch (_: TimeoutCancellationException) {
             failure(AiFailureType.Timeout, true)
         } catch (error: CancellationException) {
