@@ -7,6 +7,9 @@ import com.agentickitchen.shared.ai.CookingPhotoRequest
 import com.agentickitchen.shared.ai.CookingPhotoResponse
 import com.agentickitchen.shared.ai.KitchenAiProvider
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.RecipePhotoImportRequest
+import com.agentickitchen.shared.ai.RecipeImportResponse
+import com.agentickitchen.shared.ai.RecipeTextImportRequest
 import com.agentickitchen.shared.ai.ShoppingImportResponse
 import com.agentickitchen.shared.ai.ShoppingPhotoRequest
 import com.agentickitchen.shared.ai.ShoppingTextRequest
@@ -32,6 +35,12 @@ class SafetyEnforcingAiProvider(
 
     override suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse> =
         delegate.parseShoppingText(request)
+
+    override suspend fun parseRecipeText(request: RecipeTextImportRequest): AiResult<RecipeImportResponse> =
+        delegate.parseRecipeText(request)
+
+    override suspend fun scanRecipePhoto(request: RecipePhotoImportRequest): AiResult<RecipeImportResponse> =
+        delegate.scanRecipePhoto(request)
 
     override suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse> =
         when (val result = delegate.scanShoppingPhoto(request)) {
