@@ -53,4 +53,28 @@ class RecipeImportPlanGuardTest {
         assertFalse(result.valid)
         assertTrue("ingredient_amount_changed" in result.reasons)
     }
+
+    @Test fun recipeNameProtectionRemainsEnforced() {
+        val result = RecipeImportPlanGuard.validate(
+            recipe,
+            plan(
+                listOf(PlannedIngredientDto("Rice", 200.0, "g", "rice"), PlannedIngredientDto("Tomato", 2.0, "adet", "tomato")),
+                name = "Different recipe"
+            )
+        )
+        assertFalse(result.valid)
+        assertTrue("recipe_name_changed" in result.reasons)
+    }
+
+    @Test fun servingsProtectionRemainsEnforced() {
+        val result = RecipeImportPlanGuard.validate(
+            recipe,
+            plan(
+                listOf(PlannedIngredientDto("Rice", 200.0, "g", "rice"), PlannedIngredientDto("Tomato", 2.0, "adet", "tomato")),
+                servings = 3
+            )
+        )
+        assertFalse(result.valid)
+        assertTrue("servings_changed" in result.reasons)
+    }
 }

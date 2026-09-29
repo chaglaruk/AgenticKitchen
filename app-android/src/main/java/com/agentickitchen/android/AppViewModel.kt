@@ -14,6 +14,7 @@ import com.agentickitchen.shared.inventory.AdjustmentMode
 import com.agentickitchen.shared.inventory.AdjustmentReason
 import com.agentickitchen.shared.inventory.InventoryAdjustmentRecord
 import com.agentickitchen.shared.inventory.InventoryWorkflow
+import com.agentickitchen.shared.inventory.ImportedRecipeBill
 import com.agentickitchen.shared.inventory.SelectedRecipeBill
 import com.agentickitchen.shared.inventory.SelectedRecipeContractValidator
 import com.agentickitchen.shared.inventory.PlannedPantryUsage
@@ -391,6 +392,8 @@ internal fun readerSafeAiError(error: Throwable?): String {
                 if (L.isTr) "İnternet bağlantısı kurulamadı. Bağlantını kontrol edip tekrar dene." else "Could not connect. Check your internet connection and try again."
             error.providerId == "INVENTORY" ->
                 if (L.isTr) "Pişirme planı seçtiğin tarifin malzeme ve stok planıyla uyuşmadı." else "The cooking plan did not match the selected recipe's ingredient and pantry plan."
+            error.providerId == "RECIPE_IMPORT" && error.category == ProviderFailureCategory.CONSTRAINT_CONFLICT ->
+                if (L.isTr) "Pişirme planı içe aktardığın tarifin malzeme, miktar veya porsiyon bilgileriyle uyuşmadı." else "The cooking plan did not match the imported recipe's ingredients, quantities, or servings."
             error.category == ProviderFailureCategory.CONSTRAINT_CONFLICT ->
                 if (L.isTr) "Seçili malzemeler diyet, alerji veya güvenli pişirme koşullarıyla uyuşmuyor." else "The selected ingredients conflict with the diet, allergy, or safe cooking setup."
             else ->
@@ -1054,6 +1057,7 @@ class AppViewModel(
             emitUiEvent(if (L.isTr) "Önce belirsiz tarif miktarlarını düzelt." else "Resolve the uncertain recipe amounts first.")
             return
         }
+        val authoritativeImportedBill = ImportedRecipeBill.fromReviewed(imported)
 
         viewModelScope.launch {
             _recipeImportState.value = RecipeImportState.Loading("prepare")
@@ -1064,11 +1068,10 @@ class AppViewModel(
                     val servings = imported.servings ?: throw IllegalArgumentException("Missing servings")
                     val normalizedImported = normalizeCookingPlanWithSequencing(
                         provider.generateCookingPlan(
-                            CookingPlanRequest(
-                                recipeName = imported.name,
-                                ingredients = imported.ingredients.map { it.displayName },
+                            buildImportedCookingPlanRequest(
+                                recipe = imported,
+                                authoritativeBill = authoritativeImportedBill,
                                 equipment = _selectedEquipment.value,
-                                servings = servings,
                                 stoveType = selectedStoveType(),
                                 stoveMaxLevel = hw.stovePowerMax,
                                 ovenAvailable = hw.ovenAvailable,
@@ -1077,19 +1080,27 @@ class AppViewModel(
                                 dietType = dietSettings.value.dietType,
                                 allergies = dietSettings.value.allergies,
                                 language = language.value,
-                                inventoryLines = _inventory.value.map { "${it.quantity} ${it.unit} ${it.originalName}" },
-                                sourceRecipeIngredientLines = imported.ingredients.map { ingredient ->
-                                    ingredient.rawText ?: "${ingredient.quantity} ${ingredient.unit} ${ingredient.displayName}"
-                                },
-                                sourceRecipeInstructions = imported.instructions
+                                inventoryLines = _inventory.value.map { "${it.quantity} ${it.unit} ${it.originalName}" }
                             )
                         ).requireValue()
                     )
                     val plan = normalizedImported.plan
                     PlanNormalizationDiagnostics.log(normalizedImported.sequencing)
+                    val billContract = SelectedRecipeContractValidator.validate(
+                        expectedBill = authoritativeImportedBill,
+                        planIngredients = plan.ingredients
+                    )
+                    RecipeImportDiagnostics.logBillContract(
+                        billContract,
+                        expectedCount = authoritativeImportedBill.size,
+                        planCount = plan.ingredients.size
+                    )
+                    if (!billContract.valid) {
+                        throw ProviderFailure("RECIPE_IMPORT", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+                    }
                     val sourceGuard = RecipeImportPlanGuard.validate(imported, plan)
+                    RecipeImportDiagnostics.logSourceGuard(sourceGuard)
                     if (!sourceGuard.valid) {
-                        AppLogger.w("RecipeImportGuard", sourceGuard.reasons.joinToString("_"))
                         throw ProviderFailure("RECIPE_IMPORT", ProviderFailureCategory.CONSTRAINT_CONFLICT)
                     }
                     val validation = CookingPlanValidator(

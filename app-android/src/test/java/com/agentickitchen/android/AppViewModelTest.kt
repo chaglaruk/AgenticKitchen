@@ -23,6 +23,18 @@ import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.validator.ErrorType
 import com.agentickitchen.shared.validator.ValidationError
 import com.agentickitchen.shared.ai.KitchenAiProvider
+import com.agentickitchen.shared.ai.AiProviderId
+import com.agentickitchen.shared.ai.AiResult
+import com.agentickitchen.shared.ai.CookingChatRequest
+import com.agentickitchen.shared.ai.CookingChatResponse
+import com.agentickitchen.shared.ai.CookingPhotoRequest
+import com.agentickitchen.shared.ai.CookingPhotoResponse
+import com.agentickitchen.shared.ai.CookingPlanRequest
+import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.ShoppingImportResponse
+import com.agentickitchen.shared.ai.ShoppingPhotoRequest
+import com.agentickitchen.shared.ai.ShoppingTextRequest
+import com.agentickitchen.shared.ai.dto.RecipeOptionsResponse
 import com.agentickitchen.shared.models.PantryIntelReport
 import com.agentickitchen.shared.models.ScheduleEvent
 import com.agentickitchen.shared.models.ScheduleResult
@@ -217,6 +229,74 @@ class AppViewModelTest {
             readerSafePlanValidationError(listOf(ValidationError(ErrorType.UNKNOWN_UNIT, "ingredients[0]", "unsafe detail")))
         )
         L.applyLanguage(L.Turkish)
+    }
+
+    @Test
+    fun importedPlanUsesEditedBillThenRunsSourceGuardBeforeCreatingSession() {
+        L.applyLanguage(L.English)
+        val provider = RecordingImportedPlanProvider()
+        val orchestrator = RecordingOrchestrator()
+        val preferences = FakePreferences().apply {
+            languageValue = L.English
+            diet = DietSettings("none", emptySet())
+            equipmentValue = setOf("pan")
+        }
+        val inventory = FakeInventoryRepository()
+        val viewModel = newViewModel(
+            preferences,
+            FakeHistoryRepository(),
+            inventory = inventory,
+            providerFactory = SingleProviderFactory(provider),
+            orchestrator = orchestrator
+        )
+        viewModel.saveInventoryItem(null, "Pantry yogurt", 400.0, "g", null)
+        viewModel.importRecipeText(
+            """
+            Edited Soup
+            Servings: 2
+            Ingredients:
+            100 ml Milk
+            2 adet Egg
+            Instructions:
+            Mix.
+            Cook.
+            """.trimIndent()
+        )
+        val review = viewModel.recipeImportState.value as RecipeImportState.Review
+        val edited = review.response.recipe.copy(
+            servings = 3,
+            ingredients = review.response.recipe.ingredients.mapIndexed { index, ingredient ->
+                if (index == 0) ingredient.copy(quantity = 175.0) else ingredient
+            },
+            instructions = review.response.recipe.instructions.mapIndexed { index, instruction ->
+                if (index == 1) "$instruction Test edit" else instruction
+            }
+        )
+        val capturedDiagnostics = mutableListOf<String>()
+        val previousEmit = RecipeImportDiagnostics.emit
+        val previousNormalizationEmit = PlanNormalizationDiagnostics.emit
+        RecipeImportDiagnostics.emit = { _, message -> capturedDiagnostics += message }
+        PlanNormalizationDiagnostics.emit = { _, _ -> }
+        try {
+            viewModel.prepareImportedRecipe(edited)
+        } finally {
+            RecipeImportDiagnostics.emit = previousEmit
+            PlanNormalizationDiagnostics.emit = previousNormalizationEmit
+            L.applyLanguage(L.Turkish)
+        }
+
+        val request = requireNotNull(provider.request)
+        assertEquals(listOf("Milk", "Egg"), request.ingredients)
+        assertEquals(175.0, request.selectedRecipeIngredients.first().quantity, 0.0)
+        assertEquals("ml", request.selectedRecipeIngredients.first().unit)
+        assertEquals("milk", request.selectedRecipeIngredients.first().canonicalIngredientId)
+        assertTrue(request.inventoryLines.any { "Pantry yogurt" in it })
+        assertFalse(request.ingredients.any { "Pantry yogurt" in it })
+        assertTrue(request.sourceRecipeInstructions.last().endsWith("Test edit"))
+        assertTrue(capturedDiagnostics.any { it == "stage=BILL_CONTRACT result=VALID expectedCount=2 planCount=2" })
+        assertTrue(capturedDiagnostics.any { it == "stage=SOURCE_GUARD result=REJECTED reasons=recipe_name_changed" })
+        assertEquals(0, orchestrator.calls)
+        assertTrue(viewModel.planState.value is PlanState.Error)
     }
 
     @Test
@@ -539,14 +619,16 @@ class AppViewModelTest {
         preferences: FakePreferences,
         history: FakeHistoryRepository,
         pantryIntelAgent: PantryIntelAgent = FakePantryIntelAgent,
-        inventory: PantryInventoryRepository = FakeInventoryRepository()
+        inventory: PantryInventoryRepository = FakeInventoryRepository(),
+        providerFactory: AiProviderFactory = FakeProviderFactory,
+        orchestrator: Orchestrator = FakeOrchestrator
     ) = AppViewModel(
         preferences,
         history,
         inventory,
-        FakeOrchestrator,
+        orchestrator,
         pantryIntelAgent,
-        FakeProviderFactory,
+        providerFactory,
         TargetTimeResolver()
     )
 
@@ -695,6 +777,45 @@ class AppViewModelTest {
         }
 
         override fun close() = Unit
+    }
+
+    private class SingleProviderFactory(private val provider: KitchenAiProvider) : AiProviderFactory {
+        override fun provider(settings: HardwareSettings): KitchenAiProvider = provider
+        override fun close() = Unit
+    }
+
+    private class RecordingImportedPlanProvider : KitchenAiProvider {
+        var request: CookingPlanRequest? = null
+
+        override suspend fun generateCookingPlan(request: CookingPlanRequest): AiResult<CookingPlanResponse> {
+            this.request = request
+            return AiResult.Success(
+                CookingPlanResponse(
+                    recipeName = "Different recipe",
+                    servings = request.servings,
+                    ingredients = request.selectedRecipeIngredients,
+                    steps = emptyList(),
+                    safetyNotes = emptyList()
+                ),
+                AiProviderId.GEMINI,
+                "test"
+            )
+        }
+
+        override suspend fun generateRecipeOptions(request: RecipeOptionsRequest): AiResult<RecipeOptionsResponse> = error("unused")
+        override suspend fun parseShoppingText(request: ShoppingTextRequest): AiResult<ShoppingImportResponse> = error("unused")
+        override suspend fun scanShoppingPhoto(request: ShoppingPhotoRequest): AiResult<ShoppingImportResponse> = error("unused")
+        override suspend fun inspectCookingPhoto(request: CookingPhotoRequest): AiResult<CookingPhotoResponse> = error("unused")
+        override suspend fun askCookingAssistant(request: CookingChatRequest): AiResult<CookingChatResponse> = error("unused")
+        override suspend fun testConnection(): AiResult<Unit> = error("unused")
+    }
+
+    private class RecordingOrchestrator : Orchestrator {
+        var calls = 0
+        override suspend fun startSession(session: com.agentickitchen.shared.models.RecipeSession): ScheduleResult {
+            calls++
+            return ScheduleResult()
+        }
     }
 
     private class FailingConsumeInventory : PantryInventoryRepository by FakeInventoryRepository() {

@@ -12,6 +12,30 @@ import org.junit.Test
 class ReaderSafeInventoryCopyTest {
 
     @Test
+    fun `recipe import constraint conflict uses imported recipe copy in English`() {
+        L.applyLanguage(L.English)
+        val message = readerSafeAiError(
+            ProviderFailure("RECIPE_IMPORT", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+        )
+        assertEquals(
+            "The cooking plan did not match the imported recipe's ingredients, quantities, or servings.",
+            message
+        )
+    }
+
+    @Test
+    fun `recipe import constraint conflict uses imported recipe copy in Turkish`() {
+        L.applyLanguage(L.Turkish)
+        val message = readerSafeAiError(
+            ProviderFailure("RECIPE_IMPORT", ProviderFailureCategory.CONSTRAINT_CONFLICT)
+        )
+        assertEquals(
+            "Pişirme planı içe aktardığın tarifin malzeme, miktar veya porsiyon bilgileriyle uyuşmadı.",
+            message
+        )
+    }
+
+    @Test
     fun `inventory constraint conflict uses the inventory specific copy`() {
         val message = readerSafeAiError(
             ProviderFailure("INVENTORY", ProviderFailureCategory.CONSTRAINT_CONFLICT)
