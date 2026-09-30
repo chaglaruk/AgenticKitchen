@@ -86,6 +86,16 @@ Publish them with:
 
 Do not place documentation or arbitrary files inside `src/main/play`; GPP validates this tree as Play metadata. Do not run `bootstrapListing` casually: GPP documents that bootstrapping resets an existing `play` metadata folder.
 
+## Read the internal track safely
+
+After ADC and service-account impersonation are ready, inspect the current internal track without relying on workstation-private helpers:
+
+```powershell
+.\scripts\play\read-internal-track.ps1
+```
+
+The helper creates a temporary Android Publisher edit only because the Tracks API requires an edit id, reads the requested track, never commits the edit, and deletes the temporary edit in `finally`. It prints track/release/version-code metadata but never prints access tokens.
+
 ## Internal App Bundle
 
 The base Gradle configuration remains conservative: App Bundles target the `internal` track and default to `DRAFT` release status so ad-hoc publishing commands cannot accidentally create an installable release.
