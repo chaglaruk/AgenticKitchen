@@ -63,6 +63,10 @@ On Windows, this helper uses `gcloud auth login ... --update-adc` rather than th
 
 No private service-account key needs to be downloaded.
 
+### Existing configured publisher reuse
+
+On a rebuilt workstation, the interactive Google account may intentionally have no project-level IAM on the Firebase project while still having valid ADC permission to impersonate the already-configured Play publisher service account. `setup-google-cloud.ps1` first verifies that existing keyless publisher path. If impersonation already succeeds, it exits successfully without attempting project-admin IAM/API mutations. Project-admin setup is only attempted when the existing publisher path is not ready.
+
 ## First artifact limitation
 
 Google Play requires the first APK/AAB for a newly created app to be uploaded through Play Console. GPP can manage subsequent artifacts and metadata after that initial registration step.
