@@ -11,6 +11,7 @@ import com.agentickitchen.shared.db.RecipeHistoryRepository
 import com.agentickitchen.shared.inventory.PantryInventoryRepository
 import com.agentickitchen.shared.inventory.ShoppingListRepository
 import com.agentickitchen.shared.scheduler.TargetTimeResolver
+import com.agentickitchen.shared.recipes.SavedRecipeRepository
 
 class AppViewModelFactory(
     private val preferences: AppPreferences,
@@ -20,7 +21,8 @@ class AppViewModelFactory(
     private val pantryIntelAgent: PantryIntelAgent,
     private val providerFactory: AiProviderFactory,
     private val targetTimeResolver: TargetTimeResolver,
-    private val shoppingListRepository: ShoppingListRepository
+    private val shoppingListRepository: ShoppingListRepository,
+    private val savedRecipeRepository: SavedRecipeRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -33,7 +35,8 @@ class AppViewModelFactory(
             pantryIntelAgent,
             providerFactory,
             targetTimeResolver,
-            shoppingListRepository
+            shoppingListRepository,
+            savedRecipeRepository
         ) as T
     }
 
@@ -46,7 +49,8 @@ class AppViewModelFactory(
             container.pantryIntelAgent,
             container.providerFactory,
             container.targetTimeResolver,
-            container.shoppingListRepository
+            container.shoppingListRepository,
+            container.savedRecipeRepository
         )
     }
 }

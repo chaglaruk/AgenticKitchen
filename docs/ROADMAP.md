@@ -8,14 +8,30 @@ Core product loop:
 
 Status terms remain strict: implementation, automated verification, and physical-device verification are separate claims.
 
-## Phase 0 — managed AI foundation
+## Phase 0 — managed AI foundation / Production AI Access
 
-Current priority before new pantry/product expansion.
+**Architecture audit: COMPLETE. Production hardening remains a parallel pre-release workstream and does not block My Recipes feature development.**
+
+Target ordinary-user UX: **install → grant required permission → take/import a photo → managed AI works without entering a Gemini/Firebase API key.**
+
+Current production-access direction:
+
+- Firebase AI Logic is the normal/default managed path.
+- Provider/model/API-key choice must not be part of ordinary onboarding.
+- Direct Gemini BYOK remains available only as an Advanced / power-user option.
+- Offline remains a supported secondary path; automatic fallback must be capability-aware and must never bypass safety/validation failures.
+- Release builds already install Play Integrity App Check; console-side enforcement, API restrictions, conservative quotas, and budget protection are release gates.
+- Model names remain remotely managed through Firebase Remote Config.
+- Recipe-import vision and cooking-vision routing should be separable so a safe recipe-photo fallback is not coupled to cooking-photo model choice.
+- Prepare an application-level entitlement/access-policy seam for future Free/Pro limits without adding subscription infrastructure yet.
+- Do not add Firebase Auth, Firestore, Analytics, cloud sync, Storage, or unrelated backend infrastructure unless a concrete product/security requirement appears.
+
+Existing foundation:
 
 - Default managed AI path through Firebase AI Logic for users who should not need an API key.
 - Firebase App Check with debug provider locally and Play Integrity for release.
 - Direct Gemini BYOK remains an optional advanced provider.
-- Deterministic offline provider remains available and is the managed-provider fallback when Firebase is unavailable.
+- Deterministic offline provider remains available as an explicit secondary provider; capability-aware automatic fallback is planned but not yet claimed as implemented.
 - Keystore-backed BYOK credential storage and plaintext migration.
 - SDK-enforced structured JSON schemas plus application decode/validation.
 - Task-aware model routing:
@@ -106,6 +122,8 @@ AI produces structured candidates with confidence and uncertainty. A review scre
 
 ## Phase 6 — recipe import
 
+**Current checkpoint: RECIPE_IMPORT_PHYSICAL_VERIFIED — CLOSED.** Recipe photo uses the physically accepted `gemini-3.5-flash-lite + STRICT_SCHEMA` combination through Remote Config.
+
 Android share/import entry points:
 
 - URL
@@ -124,6 +142,8 @@ Flow:
 Text/known-format parsing should be deterministic where practical; AI is a fallback for ambiguous extraction rather than a mandatory hop.
 
 ## Phase 7 — My Recipes
+
+**Current development slice: ACTIVE.** Complete persistence wiring, top-level navigation, save/open/delete, saved-recipe cook/re-prepare, and runtime usage signals before moving to receipt-specific completion.
 
 Unify useful recipes without turning the product into a content feed.
 
@@ -306,20 +326,21 @@ For commercial release, introduce only the minimal Google Play purchase/entitlem
 
 ## Execution order
 
-1. Close managed Firebase AI automated and exact-head physical verification.
-2. Smart Pantry expiry + locations.
-3. Deterministic recipe matching/ranking.
-4. Recipe Options UI.
-5. Pantry-aware substitutions.
-6. Smart Shopping.
-7. Home UI refinement.
-8. Multi-photo scan.
-9. Recipe import.
-10. My Recipes.
-11. Recipe Detail refinement.
-12. Cooking Mode polish and notifications.
-13. Receipt scan.
-14. Meal planner.
-15. Advanced UX.
+Current feature sequence after the closed Recipe Import gate:
+
+1. **My Recipes runtime/UI/nav/save/open/delete/cook completion.**
+2. **Receipt-specific import completion.**
+3. **Meal Planner.**
+4. **UI / themes / motion work.**
+5. **Final regression.**
+
+Parallel pre-release workstream: **Production AI Access**
+
+1. Managed-default UX and Advanced-only BYOK/provider controls.
+2. Split recipe-import vision routing from cooking-vision fallback where needed.
+3. Capability-aware offline fallback policy without safety/validation bypass.
+4. App Check production enforcement, API-key restrictions, conservative rate limits, and spend/budget protection.
+5. Lightweight Free/Pro/BYOK access-policy abstraction; no entitlement backend until commercial launch requires it.
+6. Authentication remains deferred unless a concrete abuse-control or entitlement requirement justifies it.
 
 Every major slice must preserve regression coverage for cooking scheduling, pantry reservations/consumption, allergies/safety, offline fallback, and existing physically accepted behaviour. Old-SHA physical evidence never proves a newer source SHA.

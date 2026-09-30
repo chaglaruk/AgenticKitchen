@@ -30,6 +30,7 @@ class MainNavigationTest {
     @Test
     fun secondaryScreensReturnToKitchenRoot() {
         assertSame(Screen.Intelligence, backDestination(Screen.Options, hasActiveRecipe = false))
+        assertSame(Screen.Intelligence, backDestination(Screen.MyRecipes, hasActiveRecipe = false))
         assertSame(Screen.Intelligence, backDestination(Screen.History, hasActiveRecipe = false))
         assertSame(Screen.Intelligence, backDestination(Screen.Settings, hasActiveRecipe = false))
     }

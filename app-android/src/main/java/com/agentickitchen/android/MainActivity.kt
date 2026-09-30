@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Scaffold
 import androidx.compose.material.SnackbarResult
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.Psychology
@@ -40,6 +41,7 @@ import com.agentickitchen.android.ui.EditorialNavItem
 import com.agentickitchen.android.ui.HistoryScreen
 import com.agentickitchen.android.ui.HomeScreen
 import com.agentickitchen.android.ui.KitchenHubScreen
+import com.agentickitchen.android.ui.MyRecipesScreen
 import com.agentickitchen.android.ui.LocalAppColors
 import com.agentickitchen.android.ui.ReferenceActiveCookingScreen
 import com.agentickitchen.android.ui.ReferenceOperationsScreen
@@ -102,6 +104,10 @@ sealed class Screen(val route: String, val icon: ImageVector) {
         override fun title() = if (L.isTr) "Tarifler" else "Recipes"
     }
 
+    data object MyRecipes : Screen("my-recipes", Icons.Filled.Bookmarks) {
+        override fun title() = if (L.isTr) "Tariflerim" else "My Recipes"
+    }
+
     data object Operations : Screen("operations", Icons.Filled.PendingActions) {
         override fun title() = if (L.isTr) "Pişir" else "Cook"
     }
@@ -131,7 +137,7 @@ internal fun shouldHandleSetupBack(setupDone: Boolean, isEditingSetup: Boolean):
     setupDone && isEditingSetup
 
 internal fun backDestination(currentScreen: Screen, hasActiveRecipe: Boolean): Screen = when (currentScreen) {
-    Screen.Options, Screen.History, Screen.Settings -> Screen.Intelligence
+    Screen.Options, Screen.MyRecipes, Screen.History, Screen.Settings -> Screen.Intelligence
     Screen.Operations -> if (hasActiveRecipe) Screen.Options else Screen.Intelligence
     Screen.Intelligence -> Screen.Intelligence
 }
@@ -257,6 +263,7 @@ fun AppNavigation(
     val hw by viewModel.hardwareSettings.collectAsState()
     val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsState()
     val history by viewModel.history.collectAsState()
+    val savedRecipes by viewModel.savedRecipes.collectAsState()
 
     val theme by viewModel.theme.collectAsState()
     val diet by viewModel.dietSettings.collectAsState()
@@ -279,7 +286,7 @@ fun AppNavigation(
 
     val screens = listOf(
         Screen.Intelligence,
-        Screen.Options,
+        Screen.MyRecipes,
         Screen.Operations,
         Screen.History,
         Screen.Settings
@@ -392,6 +399,18 @@ fun AppNavigation(
                         )
                     }
                 )
+
+                Screen.MyRecipes -> {
+                    val active = planState as? PlanState.RecipeActive
+                    MyRecipesScreen(
+                        recipes = savedRecipes,
+                        preparedRecipeName = active?.takeIf { it.cookingPlan != null }?.recipe?.name,
+                        preparedRecipeAlreadySaved = active?.let { savedRecipeIdFromOptionId(it.recipe.id) != null } == true,
+                        onSavePreparedRecipe = viewModel::savePreparedRecipe,
+                        onDeleteRecipe = viewModel::deleteSavedRecipe,
+                        onCookRecipe = viewModel::cookSavedRecipe
+                    )
+                }
 
                 Screen.Options -> ReferenceOptionsScreen(
                     chips = chips,
