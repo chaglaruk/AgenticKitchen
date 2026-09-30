@@ -63,7 +63,8 @@ try {
     }
 
     $trackInfo = Invoke-RestMethod -Method Get -Uri "$baseUri/edits/$editId/tracks/$Track" -Headers $headers
-    $releases = @($trackInfo.releases | ForEach-Object {
+    $releaseItems = if ($trackInfo.PSObject.Properties["releases"]) { @($trackInfo.releases) } else { @() }
+    $releases = @($releaseItems | ForEach-Object {
         $release = $_
         [pscustomobject]@{
             status = if ($release.PSObject.Properties["status"]) { [string]$release.status } else { $null }
