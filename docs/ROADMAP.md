@@ -143,7 +143,7 @@ Text/known-format parsing should be deterministic where practical; AI is a fallb
 
 ## Phase 7 — My Recipes
 
-**Current development slice: ACTIVE.** Complete persistence wiring, top-level navigation, save/open/delete, saved-recipe cook/re-prepare, and runtime usage signals before moving to receipt-specific completion.
+**Current checkpoint: PHYSICAL CORE VERIFIED on v12 / `d1874e2`; acceptance-found domain fixes are pending exact-head delta verification.** Save/open/delete/persistence/navigation/session recovery/cook-count were physically verified. The same acceptance run exposed two real edge cases: saved AI recipes using count-style units such as `slice/dilim` could be blocked on re-prepare, and zero-quantity pantry rows could be misclassified as review-required instead of missing. The v13 fix keeps normal imports fail-closed for truly unknown units, recognizes `slice/dilim` as count units, lets already-saved recipes proceed to the normal shortage path when pantry measurement dimensions cannot be converted safely, and treats zero stock as valid non-negative pantry state. Do not advance this phase to CLOSED until the v13 delta is physically checked.
 
 Unify useful recipes without turning the product into a content feed.
 
