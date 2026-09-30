@@ -64,11 +64,16 @@ try {
 
     $trackInfo = Invoke-RestMethod -Method Get -Uri "$baseUri/edits/$editId/tracks/$Track" -Headers $headers
     $releases = @($trackInfo.releases | ForEach-Object {
+        $release = $_
         [pscustomobject]@{
-            status = [string]$_.status
-            name = [string]$_.name
-            versionCodes = @($_.versionCodes | ForEach-Object { [string]$_ })
-            userFraction = $_.userFraction
+            status = if ($release.PSObject.Properties["status"]) { [string]$release.status } else { $null }
+            name = if ($release.PSObject.Properties["name"]) { [string]$release.name } else { $null }
+            versionCodes = if ($release.PSObject.Properties["versionCodes"]) {
+                @($release.versionCodes | ForEach-Object { [string]$_ })
+            } else {
+                @()
+            }
+            userFraction = if ($release.PSObject.Properties["userFraction"]) { $release.userFraction } else { $null }
         }
     })
 
