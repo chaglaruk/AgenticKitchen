@@ -42,6 +42,54 @@ if ([string]::IsNullOrWhiteSpace($GoogleAccount)) {
     $GoogleAccount = $adminAccount
 }
 
+$serviceAccountEmail = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
+
+# Prefer a proven existing keyless publisher over project-admin mutations.
+# A rebuilt workstation may have valid ADC + TokenCreator permission even when
+# the interactive account intentionally has no project-level IAM on the Firebase project.
+$existingPublisherReady = $false
+$adcOutput = & gcloud auth application-default print-access-token --quiet 2>&1
+if ($LASTEXITCODE -eq 0) {
+    $adcToken = ($adcOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($adcToken)) {
+        try {
+            $encodedServiceAccount = [uri]::EscapeDataString($serviceAccountEmail)
+            $impersonationUri = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodedServiceAccount}:generateAccessToken"
+            $impersonationBody = @{
+                scope = @("https://www.googleapis.com/auth/androidpublisher")
+                lifetime = "600s"
+            } | ConvertTo-Json -Compress
+
+            $impersonated = Invoke-RestMethod `
+                -Method Post `
+                -Uri $impersonationUri `
+                -Headers @{ Authorization = "Bearer $adcToken" } `
+                -ContentType "application/json; charset=utf-8" `
+                -Body $impersonationBody
+
+            $existingPublisherReady = -not [string]::IsNullOrWhiteSpace([string]$impersonated.accessToken)
+        }
+        catch {
+            $existingPublisherReady = $false
+        }
+    }
+}
+
+if ($existingPublisherReady) {
+    Write-Host ""
+    Write-Host "Existing keyless Play publisher is already ready."
+    Write-Host ("ADC account: {0}" -f $GoogleAccount)
+    Write-Host ("Publisher impersonation verified: {0}" -f $serviceAccountEmail)
+    Write-Host "Project-admin setup was skipped; no IAM or API mutation was required."
+    Write-Host ""
+    Write-Host "Read the internal track with:"
+    Write-Host "  .\scripts\play\read-internal-track.ps1"
+    Write-Host ""
+    Write-Host "Publish an internal bundle with:"
+    Write-Host "  .\scripts\play\publish-internal-bundle-secure.ps1 -KeystorePath <path> -Execute"
+    return
+}
+
 & gcloud projects describe $ProjectId --format="value(projectId)" --quiet 1>$null 2>$null
 $projectExists = $LASTEXITCODE -eq 0
 
@@ -65,7 +113,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to enable the Google Play Android Developer API and/or IAM Service Account Credentials API."
 }
 
-$serviceAccountEmail = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
 & gcloud iam service-accounts describe $serviceAccountEmail --project=$ProjectId --quiet 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) {
     & gcloud iam service-accounts create $ServiceAccountName `
