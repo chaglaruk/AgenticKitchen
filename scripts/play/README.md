@@ -98,6 +98,14 @@ After the first manual artifact has registered the app and release signing is co
 .\scripts\play\publish-internal-bundle.ps1 -Execute
 ```
 
+For a restored/new workstation, prefer the secure wrapper so signing passwords do not need to be persisted in User/Machine environment variables:
+
+```powershell
+.\scripts\play\publish-internal-bundle-secure.ps1 -KeystorePath "C:\secure\path\agentickitchen-upload.p12" -Execute
+```
+
+The wrapper prompts for store/key passwords with masked PowerShell prompts, sets the four `AK_UPLOAD_*` values only for its own process, invokes the normal publishing helper, and restores/clears the process environment afterwards.
+
 ## Data Safety
 
 Publish an exported and reviewed Play Console CSV through Google's official `applications.dataSafety` endpoint:
