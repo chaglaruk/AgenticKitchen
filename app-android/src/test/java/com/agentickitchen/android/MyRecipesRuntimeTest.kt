@@ -4,6 +4,9 @@ import com.agentickitchen.shared.ai.AiProviderId
 import com.agentickitchen.shared.ai.dto.CookingPlanResponse
 import com.agentickitchen.shared.ai.dto.CookingStepDto
 import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
+import com.agentickitchen.shared.inventory.InventoryUnits
+import com.agentickitchen.shared.inventory.RecipeImportDraftPolicy
+import com.agentickitchen.shared.inventory.UnitDimension
 import com.agentickitchen.shared.recipes.SavedRecipeSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -39,6 +42,21 @@ class MyRecipesRuntimeTest {
 
         val changed = second.copy(name = "Different")
         assertNotEquals(stableSavedRecipeId(first), stableSavedRecipeId(changed))
+    }
+
+    @Test
+    fun savedRecipeWithSliceAmountRemainsStructurallyPreparatable() {
+        val base = activePlan(sourceLabel = AiProviderId.FIREBASE.label)
+        val saved = preparedRecipeForSaving(
+            base.copy(
+                cookingPlan = base.cookingPlan!!.copy(
+                    ingredients = listOf(PlannedIngredientDto("Bread", 2.0, "slice", "bread"))
+                )
+            )
+        )!!
+
+        assertEquals(UnitDimension.COUNT, InventoryUnits.normalize(2.0, "slice").dimension)
+        assertTrue(RecipeImportDraftPolicy.canPrepare(saved))
     }
 
     @Test

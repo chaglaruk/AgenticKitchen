@@ -23,6 +23,8 @@ class PantryInventoryTest {
             InventoryUnits.requireCompatible(kilograms, litres)
         }
         assertFailsWith<IllegalArgumentException> { InventoryUnits.normalize(0.0, "g") }
+        assertEquals(NormalizedAmount(0.0, "g", UnitDimension.WEIGHT), InventoryUnits.normalizeStock(0.0, "g"))
+        assertFailsWith<IllegalArgumentException> { InventoryUnits.normalizeStock(-1.0, "g") }
         assertFailsWith<IllegalArgumentException> { InventoryUnits.normalize(Double.NaN, "g") }
     }
 

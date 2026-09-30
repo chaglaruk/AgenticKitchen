@@ -69,6 +69,50 @@ class RecipeImportPantryPlannerTest {
     }
 
     @Test
+    fun `zero quantity pantry stock is missing rather than review required`() {
+        val recipe = ImportedRecipe(
+            name = "Toast",
+            servings = 1,
+            ingredients = listOf(ImportedRecipeIngredient("Butter", 10.0, "g", "butter")),
+            instructions = listOf("Cook.")
+        )
+        val zeroStock = PantryStockItem(
+            id = "butter",
+            canonicalIngredientId = "butter",
+            originalName = "Butter",
+            quantity = 0.0,
+            unit = "g",
+            unitDimension = UnitDimension.WEIGHT,
+            source = "test",
+            createdAt = "now",
+            updatedAt = "now"
+        )
+
+        val summary = RecipeImportPantryPlanner.compare(recipe, listOf(zeroStock))
+
+        assertEquals(RecipeImportAvailability.MISSING, summary.matches.single().availability)
+        assertEquals(0.0, summary.matches.single().availableQuantity ?: -1.0, 0.0001)
+        assertEquals(0, summary.needsReviewCount)
+        assertTrue(summary.readyForValidatedPlan)
+    }
+
+    @Test
+    fun `slice recipe amount is known but incompatible pantry dimension remains review for imports`() {
+        val recipe = ImportedRecipe(
+            name = "Toast",
+            servings = 1,
+            ingredients = listOf(ImportedRecipeIngredient("Bread", 2.0, "slice", "bread")),
+            instructions = listOf("Toast.")
+        )
+        val breadByWeight = pantry("bread", "Bread", 250.0, "g", "bread")
+
+        val summary = RecipeImportPantryPlanner.compare(recipe, listOf(breadByWeight))
+
+        assertEquals(RecipeImportAvailability.NEEDS_REVIEW, summary.matches.single().availability)
+        assertEquals("adet", summary.matches.single().normalizedUnit)
+    }
+
+    @Test
     fun `unknown measurement units fail closed to review`() {
         val recipe = ImportedRecipe(
             name = "Soup",

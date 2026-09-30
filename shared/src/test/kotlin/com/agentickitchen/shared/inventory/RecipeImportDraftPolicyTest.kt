@@ -26,6 +26,18 @@ class RecipeImportDraftPolicyTest {
         assertTrue(RecipeImportDraftPolicy.issues(recipe).isEmpty())
     }
 
+    @Test fun savedRecipeCountStyleSliceUnitsNormalizeDeterministically() {
+        assertEquals(UnitDimension.COUNT, InventoryUnits.normalize(2.0, "slice").dimension)
+        assertEquals(UnitDimension.COUNT, InventoryUnits.normalize(2.0, "dilim").dimension)
+        val recipe = ImportedRecipe(
+            name = "Toast",
+            servings = 1,
+            ingredients = listOf(ImportedRecipeIngredient("Bread", 2.0, "slice")),
+            instructions = listOf("Toast the bread.")
+        )
+        assertTrue(RecipeImportDraftPolicy.canPrepare(recipe))
+    }
+
     @Test fun missingServingsOrUnknownUnitFailsClosed() {
         val recipe = ImportedRecipe(
             name = "Soup",
