@@ -121,3 +121,27 @@ Some app-content declarations do not have equivalent Android Publisher API endpo
 - Store release notes only for functionality appropriate to that build's verification status.
 - Re-review Data Safety whenever SDK or data-flow behavior changes.
 - Never publish roadmap-only or `AUTOMATED_ONLY` behavior as physically verified production functionality.
+
+
+## Lost upload key recovery
+
+AgenticKitchen uses Google Play App Signing. The local **upload key** is distinct from the Google-held **app signing key** used for installs and updates delivered by Google Play.
+
+If the local upload keystore is lost:
+
+1. **Do not** generate a replacement and upload bundles immediately. Google Play will reject a bundle signed by an unregistered upload key.
+2. Confirm the app is still enrolled in Play App Signing.
+3. Generate a new dedicated AgenticKitchen upload key in a secure path outside the repository.
+4. Export only its public certificate to PEM.
+5. In Play Console, request an **upload key reset** under the Play app signing controls and submit the new PEM certificate.
+6. Wait until Google Play registers the replacement upload certificate.
+7. Update the local `AK_UPLOAD_*` process environment to the replacement keystore/alias/passwords and run the normal internal publishing helper.
+8. Verify the active upload-certificate fingerprint before relying on automated publishing again.
+
+Resetting the upload key must never be confused with changing the app signing key. The Google Play app-signing identity delivered to installed devices should remain unchanged.
+
+Keep signing passwords process-only and enter them through a masked prompt. Never commit a keystore, private key, service-account key, ADC token, or signing password to Git, logs, chat, evidence archives, or long-lived plaintext environment variables.
+
+If Google Cloud SDK or ADC is also missing, restore the keyless publisher setup using the existing helpers in this directory before attempting a publish. Do not create a long-lived service-account JSON key merely to bypass a missing local setup.
+
+After any signing/auth recovery, record only non-secret provenance (exact Git SHA, versionCode/versionName, AAB SHA-256, track/status, and upload certificate fingerprint) in the acceptance evidence.
