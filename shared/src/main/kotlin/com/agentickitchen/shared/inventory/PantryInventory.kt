@@ -96,12 +96,23 @@ data class NormalizedAmount(
 object InventoryUnits {
     fun normalize(quantity: Double, unit: String): NormalizedAmount {
         require(quantity.isFinite() && quantity > 0) { "Quantity must be a positive finite number" }
-        return when (unit.trim().lowercase()) {
+        return normalizeAmount(quantity, unit)
+    }
+
+    /** Pantry stock may legitimately reach zero after consumption; recipe/request amounts may not. */
+    fun normalizeStock(quantity: Double, unit: String): NormalizedAmount {
+        require(quantity.isFinite() && quantity >= 0) { "Stock quantity must be a non-negative finite number" }
+        return normalizeAmount(quantity, unit)
+    }
+
+    private fun normalizeAmount(quantity: Double, unit: String): NormalizedAmount =
+        when (unit.trim().lowercase()) {
             "kg", "kilogram", "kilo" -> NormalizedAmount(quantity * 1_000, "g", UnitDimension.WEIGHT)
             "g", "gram", "gr" -> NormalizedAmount(quantity, "g", UnitDimension.WEIGHT)
             "l", "litre", "liter", "litreler" -> NormalizedAmount(quantity * 1_000, "ml", UnitDimension.VOLUME)
             "ml", "millilitre", "milliliter" -> NormalizedAmount(quantity, "ml", UnitDimension.VOLUME)
-            "1", "count", "adet", "piece", "pieces", "pcs" -> NormalizedAmount(quantity, "adet", UnitDimension.COUNT)
+            "1", "count", "adet", "piece", "pieces", "pcs", "slice", "slices", "dilim", "dilimler" ->
+                NormalizedAmount(quantity, "adet", UnitDimension.COUNT)
             "package", "paket", "pack", "packs" -> NormalizedAmount(quantity, "paket", UnitDimension.PACKAGE)
             "bunch", "bunches", "demet" -> NormalizedAmount(quantity, "demet", UnitDimension.BUNCH)
             "cup", "cups" -> NormalizedAmount(quantity * 240.0, "ml", UnitDimension.VOLUME)
@@ -109,7 +120,6 @@ object InventoryUnits {
             "tsp", "teaspoon", "teaspoons" -> NormalizedAmount(quantity * 5.0, "ml", UnitDimension.VOLUME)
             else -> NormalizedAmount(quantity, unit.trim().ifBlank { "birim" }, UnitDimension.UNKNOWN)
         }
-    }
 
     fun requireCompatible(first: NormalizedAmount, second: NormalizedAmount) {
         require(first.dimension == second.dimension && first.dimension != UnitDimension.UNKNOWN) {

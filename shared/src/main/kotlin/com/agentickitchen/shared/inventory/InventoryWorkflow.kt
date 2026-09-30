@@ -57,7 +57,7 @@ object InventoryWorkflow {
             }
             val match = working.values.firstOrNull { item -> item.matches(candidate) }
             if (match != null) {
-                val current = InventoryUnits.normalize(match.quantity, match.unit)
+                val current = InventoryUnits.normalizeStock(match.quantity, match.unit)
                 if (!compatible(current, amount) || !compatiblePackages(match, candidate, amount)) {
                     conflicts += candidate.displayName
                     return@forEach
@@ -135,7 +135,7 @@ object InventoryWorkflow {
                 }
                 return@forEach
             }
-            val current = runCatching { InventoryUnits.normalize(item.quantity, item.unit) }.getOrNull()
+            val current = runCatching { InventoryUnits.normalizeStock(item.quantity, item.unit) }.getOrNull()
             if (needed == null || current == null || !compatible(needed, current)) {
                 shortages += ingredient.name
                 if (needed != null && needed.dimension != UnitDimension.UNKNOWN) {

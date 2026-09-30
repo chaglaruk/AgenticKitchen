@@ -114,7 +114,7 @@ object RecipeImportPantryPlanner {
         }
 
         val compatible = nameMatches.mapNotNull { item ->
-            val amount = runCatching { InventoryUnits.normalize(item.quantity, item.unit) }.getOrNull() ?: return@mapNotNull null
+            val amount = runCatching { InventoryUnits.normalizeStock(item.quantity, item.unit) }.getOrNull() ?: return@mapNotNull null
             if (amount.dimension != requested.dimension) return@mapNotNull null
             val available = (amount.quantity - (reservedByItem[item.id] ?: 0.0)).coerceAtLeast(0.0)
             item.id to available

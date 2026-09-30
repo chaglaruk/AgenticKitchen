@@ -1179,10 +1179,8 @@ class AppViewModel(
         }
         val imported = normalizedResponse.recipe
         val importedPantry = RecipeImportPantryPlanner.compare(imported, _inventory.value, reservedQuantities())
-        if (!importedPantry.readyForValidatedPlan) {
-            if (savedContext == null) {
-                _recipeImportState.value = RecipeImportState.Review(normalizedResponse, importedPantry)
-            }
+        if (!importedPantry.readyForValidatedPlan && savedContext == null) {
+            _recipeImportState.value = RecipeImportState.Review(normalizedResponse, importedPantry)
             emitUiEvent(if (L.isTr) "Önce belirsiz tarif miktarlarını düzelt." else "Resolve the uncertain recipe amounts first.")
             return
         }
