@@ -281,6 +281,17 @@ private fun ReferenceRunningCooking(
                 modifier = Modifier.padding(14.dp)
             )
         }
+        if (shouldShowReferenceScheduledWaitControls(state.status, state.active.isNotEmpty())) {
+            Spacer(Modifier.height(10.dp))
+            TimerControls(
+                paused = state.status == CookingSessionStatus.PAUSED,
+                onPause = onPause,
+                onResume = onResume,
+                onAddMinute = {},
+                onEnd = onEnd,
+                showAddMinute = false
+            )
+        }
     }
 
     if (state.active.size > 1) {
@@ -495,22 +506,31 @@ private fun ActiveCookingTimerPanel(
 }
 
 @Composable
-private fun TimerControls(paused: Boolean, onPause: () -> Unit, onResume: () -> Unit, onAddMinute: () -> Unit, onEnd: () -> Unit) {
+private fun TimerControls(
+    paused: Boolean,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onAddMinute: () -> Unit,
+    onEnd: () -> Unit,
+    showAddMinute: Boolean = true
+) {
     val colors = LocalAppColors.current
     val spec = LocalThemeSpec.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
             onClick = if (paused) onResume else onPause,
-            modifier = Modifier.height(48.dp).weight(1.6f),
+            modifier = Modifier.height(48.dp).weight(if (showAddMinute) 1.6f else 1f),
             colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
             shape = RoundedCornerShape(referenceActiveRadius(spec))
         ) { Text(if (paused) { if (L.isTr) "Devam Et" else "Resume" } else { if (L.isTr) "Duraklat" else "Pause" }, color = colors.onPrimary) }
-        OutlinedButton(
-            onClick = onAddMinute,
-            modifier = Modifier.height(48.dp).weight(.9f),
-            border = BorderStroke(1.dp, colors.border),
-            shape = RoundedCornerShape(referenceActiveRadius(spec))
-        ) { Text("+1 min", color = colors.onSurface) }
+        if (showAddMinute) {
+            OutlinedButton(
+                onClick = onAddMinute,
+                modifier = Modifier.height(48.dp).weight(.9f),
+                border = BorderStroke(1.dp, colors.border),
+                shape = RoundedCornerShape(referenceActiveRadius(spec))
+            ) { Text("+1 min", color = colors.onSurface) }
+        }
     }
     Spacer(Modifier.height(8.dp))
     OutlinedButton(
@@ -546,6 +566,11 @@ private fun UpcomingStepCard(event: ScheduleEvent) {
         }
     }
 }
+
+internal fun shouldShowReferenceScheduledWaitControls(
+    status: CookingSessionStatus,
+    hasActiveOperation: Boolean
+): Boolean = !hasActiveOperation && status in setOf(CookingSessionStatus.RUNNING, CookingSessionStatus.PAUSED)
 
 @Composable
 private fun ReferenceActiveAssistant(
