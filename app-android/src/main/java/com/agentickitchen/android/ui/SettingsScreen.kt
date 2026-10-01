@@ -362,72 +362,102 @@ fun HardwareDialog(
     var aiProvider by remember(current.aiProvider) {
         mutableStateOf(CookingProviderSelection.normalize(current.aiProvider))
     }
+    var showAdvancedAi by remember(current.aiProvider) {
+        mutableStateOf(CookingProviderSelection.normalize(current.aiProvider) != CookingProviderSelection.Firebase)
+    }
     val clipboardManager = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
 
     EditorialDialogSurface(onDismiss) {
         EditorialDialogHeader(if (L.isTr) "Donanım profili" else "Hardware profile", onDismiss)
-        Text(if (L.isTr) "Tarif sağlayıcısı" else "Recipe provider", color = colors.onSurfaceSub, style = MaterialTheme.typography.caption)
-        Spacer(Modifier.size(8.dp))
-        listOf(
-            CookingProviderSelection.Firebase to "Firebase AI",
-            CookingProviderSelection.Gemini to if (L.isTr) "Google Gemini · kendi anahtarın" else "Google Gemini · your API key",
-            CookingProviderSelection.Free to if (L.isTr) "Çevrimdışı" else "Offline"
-        ).forEach { (key, label) ->
-            EditorialProviderOption(
-                label = label,
-                selected = aiProvider == key,
-                onSelect = { aiProvider = key }
+        TextButton(
+            onClick = { showAdvancedAi = !showAdvancedAi },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .semantics {
+                    contentDescription = if (L.isTr) {
+                        if (showAdvancedAi) "Gelişmiş AI ayarlarını gizle" else "Gelişmiş AI ayarlarını göster"
+                    } else {
+                        if (showAdvancedAi) "Hide advanced AI settings" else "Show advanced AI settings"
+                    }
+                }
+        ) {
+            Text(
+                if (L.isTr) "Gelişmiş AI ayarları" else "Advanced AI settings",
+                color = colors.primary,
+                modifier = Modifier.weight(1f)
             )
+            Text(if (showAdvancedAi) "−" else "+", color = colors.primary)
         }
 
-        Spacer(Modifier.size(14.dp))
-        when (aiProvider) {
-            CookingProviderSelection.Firebase -> Text(
-                firebaseProviderExplanation(),
-                color = colors.success,
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-            CookingProviderSelection.Gemini -> CredentialField(
-                value = geminiKey,
-                onValueChange = { geminiKey = it },
-                label = "Gemini API Key",
-                onPaste = { clipboardManager.getText()?.text?.takeIf(String::isNotBlank)?.let { geminiKey = it } },
-                onClear = { geminiKey = "" },
-                helpText = if (L.isTr) "Anahtarı aistudio.google.com adresinden alabilirsin." else "Get a key from aistudio.google.com.",
-                onHelp = { uriHandler.openUri("https://aistudio.google.com/app/apikey") }
-            )
-            else -> Text(
-                if (L.isTr) "Çevrimdışı tarifler ve yardım açıkça çevrimdışı olarak çalışır. Fotoğraf analizi kullanılamaz." else "Offline recipes and guidance are clearly local. Photo analysis is unavailable.",
-                color = colors.success,
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-        }
-        if (aiProvider == CookingProviderSelection.Firebase || aiProvider == CookingProviderSelection.Gemini) {
-            Spacer(Modifier.height(10.dp))
-            TextButton(
-                onClick = {
-                    onTestConnection(
-                        current.copy(
-                            aiProvider = aiProvider,
-                            geminiApiKey = geminiKey
-                        )
-                    )
-                },
-                enabled = connectionStatus != AiConnectionStatus.TESTING
-            ) {
-                Text(
-                    if (L.isTr) "Bağlantıyı test et" else "Test connection",
-                    color = colors.primary
-                )
-            }
+        if (showAdvancedAi) {
             Text(
-                connectionStatusLabel(connectionStatus),
-                color = if (connectionStatus == AiConnectionStatus.CONNECTED) colors.success else colors.onSurfaceSub,
+                if (L.isTr) "Tarif sağlayıcısı" else "Recipe provider",
+                color = colors.onSurfaceSub,
                 style = MaterialTheme.typography.caption
             )
+            Spacer(Modifier.size(8.dp))
+            listOf(
+                CookingProviderSelection.Firebase to "Firebase AI",
+                CookingProviderSelection.Gemini to if (L.isTr) "Google Gemini · kendi anahtarın" else "Google Gemini · your API key",
+                CookingProviderSelection.Free to if (L.isTr) "Çevrimdışı" else "Offline"
+            ).forEach { (key, label) ->
+                EditorialProviderOption(
+                    label = label,
+                    selected = aiProvider == key,
+                    onSelect = { aiProvider = key }
+                )
+            }
+
+            Spacer(Modifier.size(14.dp))
+            when (aiProvider) {
+                CookingProviderSelection.Firebase -> Text(
+                    firebaseProviderExplanation(),
+                    color = colors.success,
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                CookingProviderSelection.Gemini -> CredentialField(
+                    value = geminiKey,
+                    onValueChange = { geminiKey = it },
+                    label = "Gemini API Key",
+                    onPaste = { clipboardManager.getText()?.text?.takeIf(String::isNotBlank)?.let { geminiKey = it } },
+                    onClear = { geminiKey = "" },
+                    helpText = if (L.isTr) "Anahtarı aistudio.google.com adresinden alabilirsin." else "Get a key from aistudio.google.com.",
+                    onHelp = { uriHandler.openUri("https://aistudio.google.com/app/apikey") }
+                )
+                else -> Text(
+                    if (L.isTr) "Çevrimdışı tarifler ve yardım açıkça çevrimdışı olarak çalışır. Fotoğraf analizi kullanılamaz." else "Offline recipes and guidance are clearly local. Photo analysis is unavailable.",
+                    color = colors.success,
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+            if (aiProvider == CookingProviderSelection.Firebase || aiProvider == CookingProviderSelection.Gemini) {
+                Spacer(Modifier.height(10.dp))
+                TextButton(
+                    onClick = {
+                        onTestConnection(
+                            current.copy(
+                                aiProvider = aiProvider,
+                                geminiApiKey = geminiKey
+                            )
+                        )
+                    },
+                    enabled = connectionStatus != AiConnectionStatus.TESTING
+                ) {
+                    Text(
+                        if (L.isTr) "Bağlantıyı test et" else "Test connection",
+                        color = colors.primary
+                    )
+                }
+                Text(
+                    connectionStatusLabel(connectionStatus),
+                    color = if (connectionStatus == AiConnectionStatus.CONNECTED) colors.success else colors.onSurfaceSub,
+                    style = MaterialTheme.typography.caption
+                )
+            }
         }
 
         Spacer(Modifier.size(18.dp))
