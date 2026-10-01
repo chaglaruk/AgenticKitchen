@@ -1,7 +1,10 @@
 package com.agentickitchen.android.ui
 
+import com.agentickitchen.shared.cooking.CookingSessionStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VisibleCookingCopyTest {
@@ -23,6 +26,15 @@ class VisibleCookingCopyTest {
         assertEquals("After the previous steps", cookingDependencyLabel(3, false))
         assertNull(cookingDependencyLabel(0, true))
         assertNull(cookingDependencyLabel(-1, false))
+    }
+
+    @Test
+    fun `scheduled waits keep session controls while cooking remains active`() {
+        assertTrue(shouldShowReferenceScheduledWaitControls(CookingSessionStatus.RUNNING, hasActiveOperation = false))
+        assertTrue(shouldShowReferenceScheduledWaitControls(CookingSessionStatus.PAUSED, hasActiveOperation = false))
+        assertFalse(shouldShowReferenceScheduledWaitControls(CookingSessionStatus.RUNNING, hasActiveOperation = true))
+        assertFalse(shouldShowReferenceScheduledWaitControls(CookingSessionStatus.READY, hasActiveOperation = false))
+        assertFalse(shouldShowReferenceScheduledWaitControls(CookingSessionStatus.COMPLETED, hasActiveOperation = false))
     }
 
     @Test
