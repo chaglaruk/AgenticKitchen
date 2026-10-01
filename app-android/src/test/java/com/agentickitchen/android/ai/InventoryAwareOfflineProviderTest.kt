@@ -3,6 +3,7 @@ package com.agentickitchen.android.ai
 import com.agentickitchen.shared.ai.AiResult
 import com.agentickitchen.shared.ai.CookingPlanRequest
 import com.agentickitchen.shared.ai.RecipeOptionsRequest
+import com.agentickitchen.shared.ai.dto.PlannedIngredientDto
 import com.agentickitchen.shared.inventory.InventoryWorkflow
 import com.agentickitchen.shared.inventory.PantryStockItem
 import com.agentickitchen.shared.inventory.UnitDimension
@@ -73,6 +74,66 @@ class InventoryAwareOfflineProviderTest {
         val plan = (result as AiResult.Success).value
         assertTrue(plan.ingredients.any { it.name == "Pirinç" && it.quantity == 100.0 && it.unit == "g" })
         assertTrue(InventoryWorkflow.planUsage(plan, pantry()).shortages.isEmpty())
+    }
+
+    @Test
+    fun reviewedRecipeBillStaysAuthoritativeWhenPantryContainsZeroStock() = runBlocking {
+        val provider = InventoryAwareOfflineProvider(LocalRecipeProvider { })
+        val authoritativeBill = listOf(
+            PlannedIngredientDto("Ekmek", 2.0, "slice", "bread"),
+            PlannedIngredientDto("Tereyağı", 10.0, "g", "butter")
+        )
+        val request = CookingPlanRequest(
+            recipeName = "V13 Dilim Tostu",
+            ingredients = authoritativeBill.map { it.name },
+            equipment = setOf("elec", "pan"),
+            servings = 2,
+            stoveType = "electric",
+            stoveMaxLevel = 9,
+            ovenAvailable = false,
+            ovenHasFan = false,
+            airfryerAvailable = false,
+            dietType = "none",
+            allergies = emptySet(),
+            language = "Türkçe",
+            inventoryLines = listOf("2 adet Ekmek", "0 g Tereyağı"),
+            selectedRecipeIngredients = authoritativeBill
+        )
+
+        val result = provider.generateCookingPlan(request)
+
+        assertTrue(result is AiResult.Success)
+        assertEquals(authoritativeBill, (result as AiResult.Success).value.ingredients)
+    }
+
+    @Test
+    fun reviewedRecipeBillStaysAuthoritativeWhenAnIngredientIsMissingFromPantry() = runBlocking {
+        val provider = InventoryAwareOfflineProvider(LocalRecipeProvider { })
+        val authoritativeBill = listOf(
+            PlannedIngredientDto("Ekmek", 2.0, "slice", "bread"),
+            PlannedIngredientDto("Tereyağı", 10.0, "g", "butter")
+        )
+        val request = CookingPlanRequest(
+            recipeName = "V13 Dilim Tostu",
+            ingredients = authoritativeBill.map { it.name },
+            equipment = setOf("elec", "pan"),
+            servings = 2,
+            stoveType = "electric",
+            stoveMaxLevel = 9,
+            ovenAvailable = false,
+            ovenHasFan = false,
+            airfryerAvailable = false,
+            dietType = "none",
+            allergies = emptySet(),
+            language = "Türkçe",
+            inventoryLines = listOf("2 adet Ekmek"),
+            selectedRecipeIngredients = authoritativeBill
+        )
+
+        val result = provider.generateCookingPlan(request)
+
+        assertTrue(result is AiResult.Success)
+        assertEquals(authoritativeBill, (result as AiResult.Success).value.ingredients)
     }
 
     @Test
