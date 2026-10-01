@@ -59,7 +59,20 @@ class InventoryAwareOfflineProvider(
 
     override suspend fun generateCookingPlan(request: CookingPlanRequest): AiResult<CookingPlanResponse> {
         val result = delegate.generateCookingPlan(request)
-        if (result !is AiResult.Success || request.inventoryLines.isEmpty()) return result
+        if (result !is AiResult.Success) return result
+
+        // A reviewed/saved recipe bill is authoritative. Pantry availability must determine
+        // shortages later in InventoryWorkflow; it must never mutate the recipe's requested
+        // quantities and make the cooking-plan contract fail when stock is missing or zero.
+        if (request.selectedRecipeIngredients.isNotEmpty()) {
+            return AiResult.Success(
+                value = result.value.copy(ingredients = request.selectedRecipeIngredients),
+                provider = result.provider,
+                model = result.model
+            )
+        }
+
+        if (request.inventoryLines.isEmpty()) return result
         return AiResult.Success(
             value = fitPlanToInventory(result.value, request.inventoryLines),
             provider = result.provider,
