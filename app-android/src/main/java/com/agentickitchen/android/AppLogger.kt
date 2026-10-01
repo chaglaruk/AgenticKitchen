@@ -1,6 +1,7 @@
 package com.agentickitchen.android
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.util.Log
 import java.io.File
 import java.text.SimpleDateFormat
@@ -9,109 +10,159 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * AppLogger — Agentic Kitchen için merkezi loglama sistemi.
+ * Debug-only, metadata-only diagnostics.
  *
- * Tüm loglar hem Android Logcat'e (TAG: "AK") hem de cihaz üzerindeki bir dosyaya yazılır.
- * Dosya yolu: /data/data/com.agentickitchen.android/files/agentic_log.txt
- *
- * Geliştirici bu logları şu komutlarla çekebilir:
- *   adb logcat -s AK        (gerçek zamanlı Logcat akışı)
- *   adb shell run-as com.agentickitchen.android cat files/agentic_log.txt  (dosya olarak)
- *
- * Tüm AI istekleri, yanıtları, hatalar ve kullanıcı eylemleri bu logger üzerinden kaydedilir.
+ * User content, prompts, AI responses, ingredients, questions, image data, credentials,
+ * exception messages, stack traces, file paths, and payload lengths are deliberately discarded.
+ * Provider diagnostics retain only a whitelisted feature code, HTTP status, and outcome category
+ * so physical QA can distinguish real-provider success from fallback/error paths without exposing
+ * request or response content.
  */
 object AppLogger {
-
     private const val TAG = "AK"
     private const val MAX_ENTRIES = 500
+    private const val MAX_FILE_BYTES = 1_000_000L
+
     private var logFile: File? = null
-
-    // Bellek içi ring-buffer (son 500 satır)
+    private var enabled = false
     private val ringBuffer = ConcurrentLinkedQueue<String>()
-
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
 
-    /** Application.onCreate içinde bir kez çağrılmalı */
+    private val providerFeaturePattern = Regex("(?:^|\\s)feature=([A-Za-z0-9_-]+)")
+    private val providerStatusPattern = Regex("(?:^|\\s)status=([A-Za-z0-9_-]+)")
+    private val providerCategoryPattern = Regex("(?:^|\\s)category=([A-Za-z0-9_-]+)")
+
+    private val providerFeatureCodes = mapOf(
+        "connection_test" to "CONNECTION",
+        "recipe_options" to "RECIPE_OPTIONS",
+        "cooking_plan" to "COOKING_PLAN",
+        "shopping_text" to "SHOPPING_TEXT",
+        "shopping_photo" to "SHOPPING_PHOTO",
+        "shopping_photo_generate_content" to "SHOPPING_PHOTO_FALLBACK",
+        "cooking_photo" to "COOKING_PHOTO",
+        "cooking_chat" to "COOKING_CHAT"
+    )
+
+    private val providerCategoryCodes = mapOf(
+        "SUCCESS" to "SUCCESS",
+        "MISSINGCREDENTIAL" to "MISSING_CREDENTIAL",
+        "UNAUTHORIZED" to "UNAUTHORIZED",
+        "RATELIMITED" to "RATE_LIMITED",
+        "QUOTAEXCEEDED" to "QUOTA_EXCEEDED",
+        "NETWORKUNAVAILABLE" to "NETWORK_UNAVAILABLE",
+        "TIMEOUT" to "TIMEOUT",
+        "PROVIDERUNAVAILABLE" to "PROVIDER_UNAVAILABLE",
+        "INVALIDRESPONSE" to "INVALID_RESPONSE",
+        "SAFETYBLOCKED" to "SAFETY_BLOCKED",
+        "UNKNOWN" to "UNKNOWN"
+    )
+
     fun init(context: Context) {
-        logFile = File(context.filesDir, "agentic_log.txt")
-        // Dosya 1 MB'ı geçtiyse sıfırla
-        logFile?.let {
-            if (it.exists() && it.length() > 1_000_000) {
-                it.writeText("")
-            }
+        enabled = runCatching {
+            val flags = context.packageManager.getApplicationInfo(context.packageName, 0).flags
+            flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        }.getOrDefault(false)
+        if (!enabled) return
+
+        logFile = File(context.filesDir, "agentic_log.txt").also { file ->
+            if (file.exists() && file.length() > MAX_FILE_BYTES) file.writeText("")
         }
-        i("Logger", "AppLogger başlatıldı — dosya: ${logFile?.absolutePath}")
+        log("I", "Logger", "LOGGER_READY")
     }
 
-    // ── Seviye metodları ──────────────────────────────────────────────
+    fun i(component: String, message: String) = log("I", component, eventCode(component, message))
+    fun w(component: String, message: String) = log("W", component, eventCode(component, message))
+    fun d(component: String, message: String) = log("D", component, eventCode(component, message))
 
-    /** Bilgi logu */
-    fun i(component: String, message: String) = log("I", component, message)
-
-    /** Uyarı logu */
-    fun w(component: String, message: String) = log("W", component, message)
-
-    /** Hata logu */
     fun e(component: String, message: String, throwable: Throwable? = null) {
-        val msg = if (throwable != null) "$message | ${throwable.stackTraceToString().take(500)}" else message
-        log("E", component, msg)
+        @Suppress("UNUSED_VARIABLE")
+        val discarded = throwable
+        log("E", component, eventCode(component, message))
     }
 
-    /** Debug logu */
-    fun d(component: String, message: String) = log("D", component, message)
-
-    // ── AI özel logları ──────────────────────────────────────────────
-
-    /** AI isteği gönderilmeden önce */
     fun aiRequest(feature: String, promptPreview: String) {
-        i("AI-$feature", "→ İstek gönderiliyor: ${promptPreview.take(120)}...")
+        @Suppress("UNUSED_VARIABLE")
+        val discarded = promptPreview
+        log("I", "AI-${safeComponent(feature)}", "AI_REQUEST_STARTED")
     }
 
-    /** AI yanıtı alındığında */
     fun aiResponse(feature: String, responsePreview: String) {
-        i("AI-$feature", "← Yanıt alındı (${responsePreview.length} char): ${responsePreview.take(200)}...")
+        @Suppress("UNUSED_VARIABLE")
+        val discarded = responsePreview
+        log("I", "AI-${safeComponent(feature)}", "AI_RESPONSE_RECEIVED")
     }
 
-    /** AI hatası */
     fun aiError(feature: String, error: Throwable) {
-        e("AI-$feature", "✖ AI Hatası: ${error.message}", error)
+        @Suppress("UNUSED_VARIABLE")
+        val discarded = error
+        log("W", "AI-${safeComponent(feature)}", "AI_REQUEST_FAILED")
     }
 
-    // ── İç implementasyon ────────────────────────────────────────────
+    fun getRecentLogs(count: Int = 50): List<String> =
+        if (enabled) ringBuffer.toList().takeLast(count.coerceIn(0, MAX_ENTRIES)) else emptyList()
 
-    private fun log(level: String, component: String, message: String) {
-        val timestamp = dateFormat.format(Date())
-        val entry = "$timestamp [$level] [$component] $message"
+    fun getFullLog(): String = if (!enabled) {
+        "(logging disabled)"
+    } else {
+        runCatching { logFile?.readText().orEmpty() }.getOrDefault("(log unavailable)")
+    }
 
-        // Logcat
-        when (level) {
-            "I" -> Log.i(TAG, "[$component] $message")
-            "W" -> Log.w(TAG, "[$component] $message")
-            "E" -> Log.e(TAG, "[$component] $message")
-            "D" -> Log.d(TAG, "[$component] $message")
+    internal fun providerDiagnosticEventCode(message: String): String {
+        val featureRaw = providerFeaturePattern.find(message)?.groupValues?.getOrNull(1)
+        val feature = providerFeatureCodes[featureRaw?.lowercase(Locale.US)] ?: "PROVIDER_EVENT"
+
+        val statusRaw = providerStatusPattern.find(message)?.groupValues?.getOrNull(1)
+        val status = when {
+            statusRaw.equals("none", ignoreCase = true) -> "NONE"
+            statusRaw?.matches(Regex("[1-5][0-9]{2}")) == true -> statusRaw
+            else -> "NONE"
         }
 
-        // Ring buffer
+        val categoryRaw = providerCategoryPattern.find(message)?.groupValues?.getOrNull(1)
+        val categoryKey = categoryRaw
+            ?.uppercase(Locale.US)
+            ?.replace(Regex("[^A-Z0-9]"), "")
+        val category = providerCategoryCodes[categoryKey] ?: "EVENT"
+
+        return "${feature}_${status}_${category}"
+    }
+
+    private fun eventCode(component: String, message: String): String = when {
+        component == "Gemini" || component == "GeminiFallback" -> providerDiagnosticEventCode(message)
+        component.startsWith("AI-") -> "AI_REQUEST_FAILED"
+        component == "Recovery" -> "SESSION_RESTORE_FAILED"
+        component == "Setup" -> "SETUP_COMPLETED"
+        component == "Session" -> "RECIPE_OPTIONS_REQUESTED"
+        component == "Inventory" -> "INVENTORY_MATCH_MISSED"
+        component == "Logger" -> "LOGGER_READY"
+        message.isBlank() -> "EVENT"
+        else -> "EVENT"
+    }
+
+    private fun safeComponent(component: String): String =
+        component.uppercase(Locale.US)
+            .replace(Regex("[^A-Z0-9_-]"), "_")
+            .take(32)
+            .ifBlank { "APP" }
+
+    private fun log(level: String, component: String, event: String) {
+        if (!enabled) return
+        val safeComponent = safeComponent(component)
+        val safeEvent = event.uppercase(Locale.US)
+            .replace(Regex("[^A-Z0-9_-]"), "_")
+            .take(48)
+            .ifBlank { "EVENT" }
+        val entry = "${dateFormat.format(Date())} [$level] [$safeComponent] $safeEvent"
+
+        when (level) {
+            "I" -> Log.i(TAG, "[$safeComponent] $safeEvent")
+            "W" -> Log.w(TAG, "[$safeComponent] $safeEvent")
+            "E" -> Log.e(TAG, "[$safeComponent] $safeEvent")
+            else -> Log.d(TAG, "[$safeComponent] $safeEvent")
+        }
+
         ringBuffer.add(entry)
         while (ringBuffer.size > MAX_ENTRIES) ringBuffer.poll()
-
-        // Dosyaya yaz (fire-and-forget, UI thread'i bloklamaz çünkü küçük satırlar)
-        try {
-            logFile?.appendText("$entry\n")
-        } catch (_: Exception) { /* dosya yazılamıyorsa sessizce geç */ }
-    }
-
-    /** Son N log satırını döndürür (UI'da göstermek için) */
-    fun getRecentLogs(count: Int = 50): List<String> {
-        return ringBuffer.toList().takeLast(count)
-    }
-
-    /** Dosyadaki tüm logları döndürür */
-    fun getFullLog(): String {
-        return try {
-            logFile?.readText() ?: "(log dosyası yok)"
-        } catch (e: Exception) {
-            "(log dosyası okunamadı: ${e.message})"
-        }
+        runCatching { logFile?.appendText("$entry\n") }
     }
 }

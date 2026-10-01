@@ -1,0 +1,10 @@
+CREATE TABLE SavedRecipe (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    recipeJson TEXT NOT NULL,
+    sourceKind TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    lastCookedAt TEXT,
+    cookCount INTEGER NOT NULL DEFAULT 0
+);

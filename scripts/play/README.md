@@ -1,0 +1,169 @@
+# Google Play automation
+
+AgenticKitchen uses Gradle Play Publisher (GPP) for repeatable Google Play listing and release automation, plus the official Android Publisher REST endpoint for Data Safety.
+
+## One-command local update + setup
+
+From any up-to-date checkout of the AgenticKitchen repository, run:
+
+```powershell
+.\scripts\play\update-and-setup.ps1
+```
+
+The helper refuses to touch a dirty working tree, fetches `origin`, switches to `refactor/agentic-kitchen-production-foundation`, fast-forwards only, prints the resulting exact HEAD, and then runs the Google Cloud / Play publisher setup. It never rebases, resets, force-pushes, or discards local work.
+
+## Compatibility decision
+
+The project is currently on Android Gradle Plugin 8.13.2. GPP 4.x requires AGP 9, so this branch intentionally pins GPP 3.13.0.
+
+## Authentication: keyless ADC
+
+The preferred workflow does not create or store a long-lived Google service-account JSON key. GPP is configured to use Google Application Default Credentials (ADC) and service-account impersonation.
+
+With the normal AgenticKitchen local setup, run:
+
+```powershell
+.\scripts\play\setup-google-cloud.ps1 -GoogleAccount "YOUR_PLAY_CONSOLE_GOOGLE_ACCOUNT"
+```
+
+The setup script reads the existing Firebase/Google Cloud project ID locally from the git-ignored `app-android/google-services.json`, enables `androidpublisher.googleapis.com` and `iamcredentials.googleapis.com`, creates the `agentickitchen-play-publisher` service account when needed, and grants the explicitly supplied Google account permission to impersonate it. The project ID does not need to be copied into chat or source control.
+
+If `google-services.json` is unavailable, pass an existing project explicitly:
+
+```powershell
+.\scripts\play\setup-google-cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID" -GoogleAccount "YOUR_PLAY_CONSOLE_GOOGLE_ACCOUNT"
+```
+
+A separate project can also be deliberately created with `-CreateProject`.
+
+Google no longer requires a Play developer account to be linked to the Google Cloud project used for Android Publisher API access.
+
+## Required Play Console permission step
+
+The Cloud service account still has to be invited in Play Console under `Settings > Users and permissions` and granted access to Agentic Kitchen.
+
+While the Play app itself is still a draft, grant these app-level permissions:
+
+- Edit and delete draft apps
+- Manage store presence
+- Release apps to testing tracks
+- Manage testing tracks and edit tester lists
+
+`Edit and delete draft apps` is required to commit edits while the app is still in draft state. It does not grant production rollout rights.
+
+Do not grant production-release or financial permissions at this stage.
+
+After the Play Console invitation is active, authenticate with the explicit Play Console Google account:
+
+```powershell
+.\scripts\play\auth-google-play.ps1 -GoogleAccount "YOUR_PLAY_CONSOLE_GOOGLE_ACCOUNT"
+```
+
+On Windows, this helper uses `gcloud auth login ... --update-adc` rather than the older `gcloud auth application-default login` path that can fail in some CLI builds. It then verifies service-account impersonation directly through IAM Credentials before allowing Play publishing to continue.
+
+No private service-account key needs to be downloaded.
+
+### Existing configured publisher reuse
+
+On a rebuilt workstation, the interactive Google account may intentionally have no project-level IAM on the Firebase project while still having valid ADC permission to impersonate the already-configured Play publisher service account. `setup-google-cloud.ps1` first verifies that existing keyless publisher path. If impersonation already succeeds, it exits successfully without attempting project-admin IAM/API mutations. Project-admin setup is only attempted when the existing publisher path is not ready.
+
+## First artifact limitation
+
+Google Play requires the first APK/AAB for a newly created app to be uploaded through Play Console. GPP can manage subsequent artifacts and metadata after that initial registration step.
+
+## Store listing
+
+Metadata is source-controlled under:
+
+`app-android/src/main/play/`
+
+Current source-controlled listings:
+
+- `en-GB`
+- `tr-TR`
+
+Publish them with:
+
+```powershell
+.\scripts\play\publish-listing.ps1 -Execute
+```
+
+Do not place documentation or arbitrary files inside `src/main/play`; GPP validates this tree as Play metadata. Do not run `bootstrapListing` casually: GPP documents that bootstrapping resets an existing `play` metadata folder.
+
+## Read the internal track safely
+
+After ADC and service-account impersonation are ready, inspect the current internal track without relying on workstation-private helpers:
+
+```powershell
+.\scripts\play\read-internal-track.ps1
+```
+
+The helper creates a temporary Android Publisher edit only because the Tracks API requires an edit id, reads the requested track, never commits the edit, and deletes the temporary edit in `finally`. It prints track/release/version-code metadata but never prints access tokens.
+
+## Internal App Bundle
+
+The base Gradle configuration remains conservative: App Bundles target the `internal` track and default to `DRAFT` release status so ad-hoc publishing commands cannot accidentally create an installable release.
+
+The explicit internal publishing helper is intentionally stricter. Before it invokes GPP it requires all four `AK_UPLOAD_*` signing environment variables, and when `-Execute` is supplied it explicitly publishes to the `internal` track with `--release-status completed` so enrolled internal testers can receive the update through Google Play.
+
+After the first manual artifact has registered the app and release signing is configured:
+
+```powershell
+.\scripts\play\publish-internal-bundle.ps1 -Execute
+```
+
+For a restored/new workstation, prefer the secure wrapper so signing passwords do not need to be persisted in User/Machine environment variables:
+
+```powershell
+.\scripts\play\publish-internal-bundle-secure.ps1 -KeystorePath "C:\secure\path\agentickitchen-upload.p12" -Execute
+```
+
+The wrapper prompts for store/key passwords with masked PowerShell prompts, sets the four `AK_UPLOAD_*` values only for its own process, invokes the normal publishing helper, and restores/clears the process environment afterwards.
+
+## Data Safety
+
+Publish an exported and reviewed Play Console CSV through Google's official `applications.dataSafety` endpoint:
+
+```powershell
+.\scripts\play\publish-data-safety.ps1 -CsvPath "C:\path\data_safety_agentickitchen_filled.csv" -Execute
+```
+
+The script uses the same ADC identity and short-lived impersonated service-account credentials.
+
+Keep the reviewed CSV outside the repository until its answers have been revalidated against the exact release SDK/data-flow state. Once final, it can be source-controlled deliberately.
+
+## Intentionally manual in Play Console
+
+Some app-content declarations do not have equivalent Android Publisher API endpoints and remain manual, including target audience, content rating and several policy questionnaires.
+
+## Release discipline
+
+- Keep package name `com.agentickitchen.android`.
+- Increment `versionCode` for every uploaded artifact.
+- Store release notes only for functionality appropriate to that build's verification status.
+- Re-review Data Safety whenever SDK or data-flow behavior changes.
+- Never publish roadmap-only or `AUTOMATED_ONLY` behavior as physically verified production functionality.
+
+
+## Lost upload key recovery
+
+AgenticKitchen uses Google Play App Signing. The local **upload key** is distinct from the Google-held **app signing key** used for installs and updates delivered by Google Play.
+
+If the local upload keystore is lost:
+
+1. **Do not** generate a replacement and upload bundles immediately. Google Play will reject a bundle signed by an unregistered upload key.
+2. Confirm the app is still enrolled in Play App Signing.
+3. Generate a new dedicated AgenticKitchen upload key in a secure path outside the repository.
+4. Export only its public certificate to PEM.
+5. In Play Console, request an **upload key reset** under the Play app signing controls and submit the new PEM certificate.
+6. Wait until Google Play registers the replacement upload certificate.
+7. Update the local `AK_UPLOAD_*` process environment to the replacement keystore/alias/passwords and run the normal internal publishing helper.
+8. Verify the active upload-certificate fingerprint before relying on automated publishing again.
+
+Resetting the upload key must never be confused with changing the app signing key. The Google Play app-signing identity delivered to installed devices should remain unchanged.
+
+Keep signing passwords process-only and enter them through a masked prompt. Never commit a keystore, private key, service-account key, ADC token, or signing password to Git, logs, chat, evidence archives, or long-lived plaintext environment variables.
+
+If Google Cloud SDK or ADC is also missing, restore the keyless publisher setup using the existing helpers in this directory before attempting a publish. Do not create a long-lived service-account JSON key merely to bypass a missing local setup.
+
+After any signing/auth recovery, record only non-secret provenance (exact Git SHA, versionCode/versionName, AAB SHA-256, track/status, and upload certificate fingerprint) in the acceptance evidence.

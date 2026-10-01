@@ -1,0 +1,45 @@
+{
+  "status": "approved",
+  "reference_archive": {
+    "filename": "AgenticKitchen_5Theme_Reference.zip",
+    "target_repo_path": "design/reference/archive/AgenticKitchen_5Theme_Reference.zip",
+    "sha256": "6e6a853eaff0546f01df170b040a4645ed0b45a0713f3456a408615eca1fefb8",
+    "storage": "git-lfs"
+  },
+  "appearance": {
+    "default": "FOLLOW_SYSTEM",
+    "system_light": "MODERN_MINIMAL_A",
+    "system_dark": "LUXE_APPLIANCE_DARK_K",
+    "manual": [
+      "MODERN_MINIMAL_A",
+      "PREMIUM_DARK_B",
+      "LUXE_APPLIANCE_DARK_K",
+      "WARM_EDITORIAL_L",
+      "MINIMAL_PRO_M"
+    ]
+  },
+  "themes": {
+    "MODERN_MINIMAL_A": {"label": "A — Modern Minimal", "mode": "light"},
+    "PREMIUM_DARK_B": {"label": "B — Premium Dark", "mode": "dark"},
+    "LUXE_APPLIANCE_DARK_K": {"label": "K — Luxe Appliance Dark", "mode": "dark"},
+    "WARM_EDITORIAL_L": {"label": "L — Warm Editorial Utility", "mode": "light"},
+    "MINIMAL_PRO_M": {"label": "M — Minimal Pro Control", "mode": "light"}
+  },
+  "golden_families": [
+    "home",
+    "recipe_candidates",
+    "recipe_detail",
+    "plan_review",
+    "active_cooking"
+  ],
+  "canonical_state_count": 36,
+  "theme_count": 5,
+  "structural_reference_count": 180,
+  "golden_reference_count": 25,
+  "authority": [
+    "current_runtime_and_repository_source",
+    "approved_golden_references",
+    "structural_references_and_theme_specs",
+    "implementation_convenience"
+  ]
+}

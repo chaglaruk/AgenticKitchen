@@ -1,0 +1,28 @@
+Agentic Kitchen, evde bulunan malzemelerden ne pişirebileceğine karar vermene ve seçtiğin yemeği planlı bir şekilde hazırlamana yardımcı olur.
+
+Önce kilerindeki malzemeleri ekle. Miktar, saklama yeri ve son kullanma bilgilerini kaydederek uygulamanın mutfağında gerçekten neler bulunduğunu anlamasını sağla.
+
+Yemek yapmak istediğinde Agentic Kitchen, tariflerin ihtiyaçlarını mevcut malzemelerinle karşılaştırabilir, yakında tüketilmesi gereken ürünlere öncelik verebilir ve elindekilere göre daha uygulanabilir seçenekler sunabilir.
+
+Bir tarif seçtiğinde uygulama bunu yapılandırılmış bir pişirme planına dönüştürür. Uzun bir talimat listesini takip etmek yerine hangi işi şimdi yapman gerektiğini, hangi adımların paralel ilerleyebileceğini ve sırada ne olduğunu görebilirsin.
+
+Başlıca özellikler:
+
+• Miktar, konum ve son kullanma bilgileriyle kiler yönetimi
+• Kilerdeki malzemelere göre tarif önerileri
+• Eksik malzeme ve yeterlilik kontrolleri
+• Zamanlamalı ve koordineli pişirme planları
+• Pişirme sırasında duraklatma, devam etme ve kaldığın yerden sürdürme
+• Pişirme geçmişi ve önceki tarifleri yeniden kullanma
+• Firebase AI Logic üzerinden isteğe bağlı yapay zekâ desteği
+• İleri seviye kullanıcılar için isteğe bağlı Gemini API anahtarı desteği
+• Desteklenen temel akışlarda deterministik çevrimdışı alternatif
+• Kiler ve pişirme verileri için local-first veri yapısı
+
+Agentic Kitchen, kiler hesaplamaları, malzeme kullanımı ve pişirme planı doğrulaması gibi işlemlerde deterministik uygulama mantığını temel alır. Yapay zekâ çıktıları kesin talimat olarak değil, yardımcı öneriler olarak değerlendirilir.
+
+Görsel üzerinden malzeme veya pişirme analizi kullanıldığında, fotoğrafın aktif yapay zekâ sağlayıcısına gönderileceği açıkça belirtilir ve sonuç kullanıcı tarafından kontrol edilir. Analiz için seçilen görseller Agentic Kitchen tarafından saklanmaz.
+
+Mevcut temel deneyim için hesap açmak gerekmez.
+
+Agentic Kitchen; alerjenler, gıda güvenliği, pişirme sıcaklığı veya yiyeceğin yeterince pişip pişmediği konusunda kendi değerlendirmenin yerini tutmaz. Malzemeleri ve gıda güvenliğini her zaman kendin doğrula.
